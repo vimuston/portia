@@ -674,6 +674,22 @@ function barkify(g, r, amt = .06){
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals(); return g;
 }
+// The radius of a barkified CylinderGeometry(…, seg, rows) as it is actually drawn: the ripple sampled at its
+// vertices and spread linearly across each triangle. The big trunks' rows are metres apart, coarser than the
+// ripple itself, so the smooth formula and the drawn bark differ by up to ~40 cm, and she'd climb inside the mesh.
+// rAt(a, ly): the vertex radius at angle a = atan2(z, x) and height ly above the base.
+function cylFacetR(seg, rows, H, rAt){
+  const dA = 2*Math.PI/seg, dY = H/rows;
+  return (ux, uz, ly) => {
+    // three.js lays out columns by theta from +z toward +x (a = π/2 − theta), rows from the top down
+    let th = Math.PI/2 - Math.atan2(uz, ux); th -= Math.floor(th/(2*Math.PI))*2*Math.PI;
+    const cu = th/dA, rv = Math.max(0, Math.min(rows - 1e-6, (H - ly)/dY)), ci = Math.floor(cu), ri = Math.floor(rv), fu = cu - ci, fv = rv - ri;
+    const R = (c, r) => rAt(Math.PI/2 - c*dA, H - r*dY);
+    // quad a (ci, ri), b (ci, ri+1), c (ci+1, ri+1), d (ci+1, ri): triangles abd and bcd
+    if(fu + fv <= 1){ const A = R(ci, ri); return A + (R(ci + 1, ri) - A)*fu + (R(ci, ri + 1) - A)*fv; }
+    const C = R(ci + 1, ri + 1); return C + (R(ci, ri + 1) - C)*(1 - fu) + (R(ci + 1, ri) - C)*(1 - fv);
+  };
+}
 // place an instance on the terrain
 function onGround(x, z, lift, rotY, s, tilt = .25){
   M4.compose(new V3(x, hAt(x, z) + lift, z), Q.setFromEuler(E.set(rr(-tilt, tilt), rotY, rr(-tilt, tilt), 'YXZ')), s); return M4;
@@ -968,10 +984,11 @@ const barkStumpM = antiTile(new THREE.MeshStandardMaterial({vertexColors:true, m
     const big = r > 5, rb = r*1.1, rt = r*(big ? .82 : .75), H = big ? 700 : 260, amt = .05, T = big ? 6 : 3;
     let y0 = 1e9; for(let k = 0; k < 16; k++){ const a = k/16*6.283; y0 = Math.min(y0, hAt(x + Math.cos(a)*rb*1.15, z + Math.sin(a)*rb*1.15)); }
     y0 -= .3 + (big ? 1 : 0);                                 // rooted below the lowest ground around it: never floating
-    const g = barkify(new THREE.CylinderGeometry(rt, rb, H, 88, big ? 180 : 140).translate(0, H/2, 0), r, amt);
+    const SEG = 88, ROWS = big ? 180 : 140;
+    const g = barkify(new THREE.CylinderGeometry(rt, rb, H, SEG, ROWS).translate(0, H/2, 0), r, amt);
     const uv = g.attributes.uv; for(let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i)*2*Math.PI*rb/(3*T), uv.getY(i)*H/(13*T));   // bark plates sized to the trunk
     const t = hot(new THREE.Mesh(g, barkM), TEMP.trunk); t.position.set(x, y0, z); t.castShadow = t.receiveShadow = true; scene.add(t); OCCLUDERS.push(t);
-    makeClimb({label:'bark', tree:true, cx:x, cz:z, y0, y1: y0 + H, radius: (ux, uz, ly) => (rb + (rt - rb)*ly/H)*barkK(Math.atan2(uz, ux), ly, amt)});
+    makeClimb({label:'bark', tree:true, cx:x, cz:z, y0, y1: y0 + H, radius: cylFacetR(SEG, ROWS, H, (a, ly) => (rb + (rt - rb)*ly/H)*barkK(a, ly, amt))});
   }
   // lianas: woody ropes 1–4 cm thick, hanging out of the canopy far overhead
   const lianaM = new THREE.MeshStandardMaterial({color:0x3a3a22, roughness:.9});
