@@ -216,19 +216,38 @@ function wrapUnder(S, x, z){
 }
 // walking off a leaf's rim with another walkable surface a short way below: she steps off and drops onto it
 // rather than curling round onto the underside. Only when the fall really lands there (not the soil, not far down).
-const DROP_MAX = 2.2;
+// A plain step off falls almost straight down (gravity is strong), so a lower leaf with even a small gap past the
+// rim would be missed: failing that, she reaches for the nearest top within a leg span ahead and hops across to it.
+const DROP_MAX = 2.2, DROP_REACH = .55;
 function dropToBelow(dir, spd){
-  const own = sp.plat, v = new V3(dir.x, 0, dir.z).normalize().multiplyScalar(Math.max(.5, spd)); v.y = .15;
+  const own = sp.plat, f = new V3(dir.x, 0, dir.z).normalize(), v = f.clone().multiplyScalar(Math.max(.5, spd)); v.y = .15;
   const was = [sp.leftFrom, sp.launchSet];
   sp.leftFrom = own; sp.launchSet = new Set(climbsNear(sp.pos.x, sp.pos.z, .4).filter(S => S.inside(sp.pos, .07)));
-  const h = predictLeap(v.clone());
-  const ok = h && h.plat && !h.plat.ground && h.plat.kind !== 'climb' && h.plat !== own && h.plat !== own.under
+  const good = h => h && h.plat && !h.plat.ground && h.plat.kind !== 'climb' && h.plat !== own && h.plat !== own.under
     && sp.pos.y - h.pos.y > .03 && sp.pos.y - h.pos.y < DROP_MAX;
-  if(!ok){ [sp.leftFrom, sp.launchSet] = was; return false; }
+  let h = predictLeap(v.clone());
+  if(!good(h)){ const r = reachBelow(own, f); h = null;
+    if(r){ const sol = bestLeap(r.pos, r.plat), hh = sol.ok ? predictLeap(sol.v.clone()) : null; if(good(hh)){ h = hh; v.copy(sol.v); sp.yaw = sol.yaw; } } }
+  if(!h){ [sp.leftFrom, sp.launchSet] = was; return false; }
   startAir(); sp.vel.copy(v); sp.committed = true; sp.charging = false; sp.tried = null;
   sp.leapHit = {plat: h.plat, pos: h.pos.clone(), t: h.t + 1/60};
   toast('You step off the edge and drop to the leaf below.');
   return true;
+}
+// the nearest walkable top (not her own, not the soil) a little below her and within a leg span, in the half she faces
+function reachBelow(own, f){
+  let best = null; const P = sp.pos;
+  for(const L of PLAT){
+    if(L === own || L.ground || L.kind === 'climb' || Math.hypot(L.x - P.x, L.z - P.z) > Math.max(L.rx, L.rz) + DROP_REACH) continue;
+    for(let i = 1; i <= 6; i++) for(let j = -4; j <= 4; j++){
+      const d = DROP_REACH*i/6, a = Math.atan2(f.x, f.z) + j*.3, x = P.x + Math.sin(a)*d, z = P.z + Math.cos(a)*d;
+      if(!inPlat(L, x, z, .08) || inPlat(own, x, z)) continue;
+      const y = surfAt(L, x, z), dy = P.y - y; if(dy < .03 || dy > DROP_MAX) continue;
+      const cost = d + .5*Math.abs(j)*.3*d + .15*dy;                                // nearest first, straight ahead preferred
+      if(!best || cost < best.cost) best = {plat: L, pos: new V3(x, y + .003, z), cost};
+    }
+  }
+  return best;
 }
 function rollOnTop(S, v){
   const [q, o] = S.rimPoint(v.x, v.z), inw = o.clone().negate();
