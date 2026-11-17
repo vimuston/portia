@@ -377,16 +377,18 @@ function updMantis(pr, dt){
     const stop = !pr.sees && pr.last.distanceTo(sp.pos) < .3 ? PRED_STANDOFF : .45;
     const d = predProgress(pr, pr.last, dt);
     if(d > stop && pr.stuckT < 3){ const b = pr.pos.clone(); predWalk(pr, pr.last, .55*dt); want = pr.pos.clone().sub(b); walk = 1; }
-    else if(d > stop && pr.stuckT >= 3){   // hop aims for the standoff point, not onto her
+    else if(d > stop && pr.trunk){ pr.stuckT = 0; pr.best = d; }   // as close as the bark gets her: wait there, and follow if she moves
+    else if(d > stop && pr.stuckT >= 3){   // hop aims for the standoff point, not onto her (never off a trunk)
       const aim = stop > .45 ? pr.last.clone().add(pr.pos.clone().sub(pr.last).setLength(stop)) : pr.last;
-      const T = predHopTarget(pr, aim, pr.trunk ? 4 : 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
+      const T = predHopTarget(pr, aim, 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
     if(walk === 0) want = pr.last.clone().sub(pr.pos);
   } else if(pr.pause > 0){ pr.pause -= dt; sway = Math.sin(pr.t*2.6)*.025; }       // swaying like a leaf in a breeze
   else {
     if(!pr.goal){ pr.goal = predWanderGoal(pr); pr.best = 1e9; pr.stuckT = 0; }
     const d = predProgress(pr, pr.goal, dt);
     if(d < .3){ pr.goal = null; pr.pause = prr(3, 9); }
-    else if(pr.stuckT > 2.5){ const T = predHopTarget(pr, pr.goal, pr.trunk ? 4 : 1.2); if(T) predStartHop(pr, T, .35); else pr.goal = null; pr.stuckT = 0; pr.best = d; }
+    else if(pr.stuckT > 2.5 && pr.trunk){ pr.goal = null; pr.pause = prr(1, 3); }   // on a trunk it never hops: pick another spot
+    else if(pr.stuckT > 2.5){ const T = predHopTarget(pr, pr.goal, 1.2); if(T) predStartHop(pr, T, .35); else pr.goal = null; pr.stuckT = 0; pr.best = d; }
     else { const b = pr.pos.clone(); predWalk(pr, pr.goal, .38*dt); want = pr.pos.clone().sub(b); walk = 1; sway = Math.sin(pr.t*7)*.012; }
   }
   predOrient(pr, dt, want, pr.hunting ? 2.5 : 4);
