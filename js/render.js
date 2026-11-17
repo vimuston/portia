@@ -10,10 +10,52 @@
 scene.matrixWorldAutoUpdate = false;
 const SHADOW_EVERY = 3;
 let shadowFrame = 0;
+// ...but the birds sweep their shadows fast across the floor, and at a third of the frame rate they visibly stutter.
+// So they're left out of that slow pass, which goes into a kept copy (staticShadow); every frame that copy is blitted
+// back into the sun's live map (packed depth into colour, and unpacked into the depth buffer so the birds still
+// depth-test against the crowns), and only the birds are drawn on top of it.
+// Three draws a shadow map only inside renderer.render(), so each pass is a render() of its casters, seen by a camera
+// that looks at nothing (only the shadow step does any work) into a 1x1 dummy target.
+const DYN_CASTERS = BIRDS.map(b => b.g);
+const DYN_SCENE = new THREE.Scene(); DYN_SCENE.matrixWorldAutoUpdate = false;
+DYN_SCENE.children = [SUN, ...DYN_CASTERS];   // a stand-in root (not their parent): just a list for the pass to walk
+const NOWHERE = new THREE.OrthographicCamera(-.001, .001, .001, -.001, 1, 2); NOWHERE.position.set(0, -1e6, 0); NOWHERE.updateMatrixWorld();
+const shadowDummyRT = new THREE.WebGLRenderTarget(1, 1);
+function shadowPass(root){
+  renderer.shadowMap.needsUpdate = true;
+  const ac = renderer.autoClear; renderer.autoClear = false;
+  renderer.setRenderTarget(shadowDummyRT); renderer.render(root, NOWHERE);
+  renderer.autoClear = ac;
+}
+const shadowCopyMat = new THREE.ShaderMaterial({
+  uniforms: {uMap: {value: null}},
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0., 1.); }',
+  fragmentShader: `#include <packing>
+    uniform sampler2D uMap; varying vec2 vUv;
+    void main(){ vec4 c = texture2D(uMap, vUv); gl_FragColor = c; gl_FragDepth = min(unpackRGBAToDepth(c), 1.); }`,
+  depthTest: true, depthWrite: true, depthFunc: THREE.AlwaysDepth, blending: THREE.NoBlending});
+let staticShadow = null;
+function updateShadows(){
+  if(shadowFrame++ % SHADOW_EVERY === 0 || !staticShadow){
+    const live = SUN.shadow.map;   // (null the first time: three makes the map, which becomes the kept one, and the live one is its clone)
+    if(staticShadow) SUN.shadow.map = staticShadow;
+    for(const o of DYN_CASTERS) o.visible = false;
+    const atmo = ATMO.visible; ATMO.visible = false;
+    shadowPass(scene);
+    ATMO.visible = atmo;
+    for(const o of DYN_CASTERS) o.visible = true;
+    if(!staticShadow){ staticShadow = SUN.shadow.map; SUN.shadow.map = staticShadow.clone(); }
+    else SUN.shadow.map = live;
+  }
+  shadowCopyMat.uniforms.uMap.value = staticShadow.texture; pass(shadowCopyMat, SUN.shadow.map);
+  const clear = renderer.clear; renderer.clear = () => {};   // the shadow pass always clears its target first; here it mustn't
+  shadowPass(DYN_SCENE);
+  renderer.clear = clear;
+}
 function render(dt){
   ATMO.visible = true;
   scene.updateMatrixWorld();
-  if(shadowFrame++ % SHADOW_EVERY === 0) renderer.shadowMap.needsUpdate = true;
+  updateShadows();
   if(R.view === '3d'){ renderer.setRenderTarget(null); renderer.render(scene, camera); return; }
   const braille = FILTERS[LOOK.filter].id < 0, needFull = !braille || LOOK.herStyle === 'clean';
   // aux in the scene pass: with the filters, the full-size scene carries it; with braille, the cell-sized scene does
