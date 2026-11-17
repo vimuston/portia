@@ -343,7 +343,7 @@ function updateSpider(dt){
     poseSpider(sp.m, {walk: .8, phase: time*30, hang: sp.mode === 'hang'});
     return;
   }
-  if(sp.mode === 'feed'){ feedTick(dt, mag); return; }
+  if(sp.mode === 'feed'){ feedTick(dt); return; }
   if(sp.roll){
     const r = sp.roll; r.t += dt/r.dur; const e = Math.min(1, r.t), a = Math.PI*e*e*(3 - 2*e);
     const axis = new V3().crossVectors(r.up0, r.out); if(axis.lengthSq() < 1e-6) axis.set(1, 0, 0); axis.normalize();

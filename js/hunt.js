@@ -151,7 +151,7 @@ function startFeed(p, up, plat, holdD, gain){
   return sp.feed;
 }
 const smooth01 = x => { x = Math.max(0, Math.min(1, x)); return x*x*(3 - 2*x); };
-function feedTick(dt, mag){
+function feedTick(dt){
   const F = sp.feed, p = F.p, P = p.m.userData.parts, S = sp.m.userData.parts; F.t += dt;
   const biting = F.t < BITE_T, lift = smooth01((F.t - BITE_T)/GRAB_T), k = Math.max(0, Math.min(1, (F.t - BITE_T - GRAB_T)/DRAIN_T));
   // her body: braced on the surface, lunging forward and down onto the prey for the bite, rearing back a little as she lifts it
@@ -181,7 +181,7 @@ function feedTick(dt, mag){
   const sc = 1 - .15*k, hb = (P ? P.body.position.y : .055)*sc, posH = tip.clone().addScaledVector(U, -((P ? .03*(P.s || 1) : .035)*sc + hb));
   p.m.position.copy(F.p0).lerp(posH, lift); p.m.quaternion.copy(F.q0).slerp(qH, lift);
   sp.hunger = Math.min(1, sp.hunger + (k > 0 && k < 1 ? dt*F.gain/DRAIN_T : 0)); sp.vigor = Math.min(1, sp.vigor + (k > 0 ? dt*.06 : 0));
-  if(k >= 1 || (mag > .3 && F.t > BITE_T + GRAB_T + .3)) endFeed(k >= 1);
+  if(k >= 1) endFeed(true);                                             // no letting go early: she feeds to the end
 }
 // she opens her fangs and the husk drops: from her jaws to the surface beneath (to the forest floor, for Argiope)
 function endFeed(drained){
