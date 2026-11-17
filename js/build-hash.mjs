@@ -7,5 +7,5 @@ const html = readFileSync(new URL('index.html', root), 'utf8');
 const FILES = JSON.parse(html.match(/const FILES = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
 let h = 0x811c9dc5;
 for(const f of FILES){ const t = readFileSync(new URL('js/' + f + '.js', root), 'utf8');
-  for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } }
+  for(let i = 0; i < t.length; i++){ const c = t.charCodeAt(i); if(c === 13) continue; h ^= c; h = Math.imul(h, 0x01000193); } }
 console.log((h >>> 0).toString(16).padStart(8, '0'));
