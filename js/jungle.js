@@ -213,12 +213,35 @@ const MOSS_SPOTS = [];
   const vn = 6;
   const vStem = hot(new THREE.InstancedMesh(stemG(.24, .3), new THREE.MeshStandardMaterial({color:0xf2eee4, map: PUFF_TEX, bumpMap: PUFF_TEX, bumpScale: 2, roughness:.8}), vn), TEMP.fungus);
   const vHead = hot(new THREE.InstancedMesh(L([[.5, 0], [.56, .15], [.55, .45], [.46, .75], [.3, .95], [.14, 1.03], [.001, 1.05]], 20), new THREE.MeshStandardMaterial({map: HONEY_TEX, bumpMap: HONEY_TEX, bumpScale: 3, roughness:.3, side:THREE.DoubleSide}), vn), TEMP.fungus);
-  const vSkirt = hot(new THREE.InstancedMesh(L([[1.35, -2.5], [1.22, -2.1], [1.02, -1.5], [.78, -.9], [.58, -.4], [.47, 0]], 28), new THREE.MeshStandardMaterial({color:0xfbf8f0, map: NET_TEX, alphaTest: .45, roughness:.7, side:THREE.DoubleSide}), vn), TEMP.fungus);
+  // each skirt is its own lathe, bent out of true: the lace sags and billows unevenly, folds into soft pleats toward the hem,
+  // and the hem itself hangs ragged — longer tongues here, torn-short bays there, the whole thing slumped a little to one side
+  const skirtM = new THREE.MeshStandardMaterial({color:0xfbf8f0, map: NET_TEX, alphaTest: .45, roughness:.7, side:THREE.DoubleSide});
+  const skirtProfile = [[1.35, -2.5], [1.22, -2.1], [1.02, -1.5], [.78, -.9], [.58, -.4], [.47, 0]];
+  let sSeed = 4242; const srnd = () => (sSeed = (sSeed*16807) % 2147483647)/2147483647, srr = (a, b) => a + srnd()*(b - a);   // own stream: the rest of the jungle stays put
+  const skirtG = () => {
+    const pts = [];
+    for(let i = 0; i < skirtProfile.length - 1; i++){ const [a0, b0] = skirtProfile[i], [a1, b1] = skirtProfile[i + 1];
+      for(let j = 0; j < 3; j++){ const f = j/3; pts.push([a0 + (a1 - a0)*f, b0 + (b1 - b0)*f]); } }
+    pts.push(skirtProfile[skirtProfile.length - 1]);
+    const g = L(pts, 48), p = g.attributes.position;
+    const wave = (n, amp) => { const w = []; for(let f = 1; f <= n; f++) w.push([f + (f > 2 ? Math.floor(srnd()*3) : 0), srnd()*6.283, amp*srr(.4, 1)/Math.sqrt(f)]); return w; };
+    const sum = (w, th) => w.reduce((s, [f, ph, a]) => s + a*Math.sin(f*th + ph), 0);
+    const bulge = wave(3, .12), pleat = [[srr(7, 11) | 0, srnd()*6.283, .07], [srr(13, 17) | 0, srnd()*6.283, .03]], hem = wave(6, .35), tear = [[srr(9, 14) | 0, srnd()*6.283, .18], [srr(17, 23) | 0, srnd()*6.283, .08]];
+    const slump = srnd()*6.283, sx = Math.cos(slump), sz = Math.sin(slump), lean = srr(.08, .22);
+    for(let i = 0; i < p.count; i++){ const x = p.getX(i), y = p.getY(i), z = p.getZ(i), r = Math.hypot(x, z); if(r < 1e-4) continue;
+      const th = Math.atan2(z, x), t = Math.min(1, Math.max(0, -y/2.5)), t2 = t*t;
+      const rad = 1 + t*sum(bulge, th) + t2*sum(pleat, th), drop = t2*t*(sum(hem, th) + Math.max(0, sum(tear, th)));   // + hangs lower, − hitched up
+      const nx = x*rad + sx*lean*t2, nz = z*rad + sz*lean*t2;
+      p.setXYZ(i, nx, y - drop + t2*.15*Math.cos(th - slump), nz); }
+    g.computeVertexNormals(); return g;
+  };
   for(let k = 0; k < vn; k++){ const [x, z] = freeSpot(22*AK, 4, 2), H = rr(4, 7), s = rr(.75, 1.15);   // 12–20 cm tall
     const [, tp, q] = stalk(vStem, k, x, z, H, s, .08), hb = tp.clone().addScaledVector(up.clone().applyQuaternion(q), -.85*s);
-    vHead.setMatrixAt(k, M4.compose(hb, q, new V3(s, s, s))); vSkirt.setMatrixAt(k, M4.compose(hb, q, new V3(s*rr(.9, 1.1), s*rr(.8, 1.05), s*rr(.9, 1.1))));
+    vHead.setMatrixAt(k, M4.compose(hb, q, new V3(s, s, s)));
+    const sk = hot(new THREE.Mesh(skirtG(), skirtM), TEMP.fungus); sk.position.copy(hb); sk.quaternion.copy(q); sk.scale.set(s*rr(.9, 1.1), s*rr(.8, 1.05), s*rr(.9, 1.1));   // same draws as the old instance scale
+    sk.castShadow = true; scene.add(sk);
     c.setHSL(rr(.14, .2), rr(.2, .4), rr(.5, .7)); vHead.setColorAt(k, c); }
-  vStem.castShadow = vHead.castShadow = vSkirt.castShadow = true; scene.add(vStem, vHead, vSkirt);
+  vStem.castShadow = vHead.castShadow = true; scene.add(vStem, vHead);
 }
 
 // ---- broad-leaved understory plants (big heart and lance leaves on arching stalks)
