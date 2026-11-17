@@ -442,7 +442,10 @@ function bodyOnFeet(m, dt, base, fwd, fallbackUp, snap = false, soft = false){
   const P = m.userData.parts, st = P.legs.filter(L => !L.free && L.planted && !L.step);
   const nUp = new V3(); for(const L of st) nUp.add(L.n || UP);
   if(nUp.lengthSq() < 1e-6) nUp.copy(fallbackUp); nUp.normalize();
-  if(!P.up || !P.inited) P.up = nUp.clone(); else P.up.lerp(nUp, 1 - Math.exp(-(snap ? 22 : 6)*dt)).normalize();   // snapping: the body hugs the surface through a dart
+  const kUp = 1 - Math.exp(-(snap ? 22 : 6)*dt);                            // snapping: the body hugs the surface through a dart
+  if(!P.up || !P.inited) P.up = nUp.clone();
+  else if(P.up.dot(nUp) < -.95) P.up.applyAxisAngle(new V3(1, 0, 0).applyQuaternion(m.quaternion), Math.PI*kUp).normalize();   // feet on the opposite face: a lerp toward the exact opposite never turns, so pitch over
+  else P.up.lerp(nUp, kUp).normalize();
   // facing stays continuous: where the wanted heading is still edge-on to the tilting body (e.g. "up the wall" while
   // the body is still level), keep the current facing and hand over as the body rolls onto the new surface
   const up = P.up, zA = fwd.clone().addScaledVector(up, -fwd.dot(up)), cur = new V3(0, 0, 1).applyQuaternion(m.quaternion);

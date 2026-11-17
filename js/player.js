@@ -465,11 +465,18 @@ function updateSpider(dt){
     if(spd > 0 && S.web && S.atEdge(np, t)){
       if(webExit(np, t)) return;                                         // off the orb's frame onto what it is slung from
       if(!(sp.webFlipT > performance.now()/1000)){                       // nothing beyond: round the frame thread onto the other face
-        S.side = -S.side; sp.webFlipT = performance.now()/1000 + .8;
-        const q = np.clone(); S.project(q); sp.pos.copy(q);
-        const nn = S.normal(q); sp.climbHead.copy(t).negate().addScaledVector(nn, t.dot(nn)); if(sp.climbHead.lengthSq() < 1e-4) sp.climbHead.set(0, 1, 0); sp.climbHead.normalize();
-        cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null;
-        pulses.push({pos: q.clone(), amp: .3, decay: 6}); toast('You step round the frame thread onto the other face of the web.');
+        // a real 180° roll about the thread, as at a leaf's rim. Just flipping the side would leave the body upright on
+        // the old face: its up follows the feet's normals by lerp, and a lerp toward the exact opposite never turns
+        const n0 = S.normal(np), out = t.clone().addScaledVector(n0, -t.dot(n0)).normalize(), inw = out.clone().negate(), piv = np.clone();
+        sp.webFlipT = performance.now()/1000 + .55 + .8;
+        startRoll(piv, out, () => {
+          S.side = -S.side;
+          enterClimb(S, piv.clone().addScaledVector(inw, .12).addScaledVector(n0, -.03), inw);
+          cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null;
+          pulses.push({pos: sp.pos.clone(), amp: .3, decay: 6});
+        });
+        cam.swingDir = inw.clone(); cam.swingT = 0; cam.swing = null;   // look back in across the web (startRoll's yaw-only swing can't on an upright sheet)
+        toast('You curl round the frame thread onto the other face of the web.');
         sp.speed = spd; return;
       }
     }
