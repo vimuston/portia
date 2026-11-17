@@ -22,6 +22,7 @@ const MOSS_SPOTS = [];
   const add = (pos, s) => { if(MOSS_SPOTS.length >= N) return; const i = MOSS_SPOTS.length; M4.compose(pos, Q.setFromEuler(E.set(0, rnd()*6.3, 0)), new V3(s*rr(.8, 1.3), s*rr(.7, 1.1), s*rr(.8, 1.3))); im.setMatrixAt(i, M4);
     c.setHSL(rr(.22, .28), rr(.5, .75), rr(.2, .34)); im.setColorAt(i, c); MOSS_SPOTS.push([pos.clone(), s]); };
   for(let k = 0; k < 230; k++){ const [cx, cz] = scatter(21*AK, 1); for(let j = 0; j < 5; j++){ const x = cx + rr(-1.4, 1.4), z = cz + rr(-1.4, 1.4); add(new V3(x, hAt(x, z) - .02, z), rr(.25, .95)); } }   // cushions 1.5–6 cm
+  litterBake({geometry: g, count: MOSS_SPOTS.length, getMatrixAt: (n, M) => im.getMatrixAt(n, M)});   // the soil cushions are solid: she climbs over them, not through them (rock and log moss sits on their own surfaces)
   for(const r of ROCKS) for(let j = 0; j < 14; j++){ const a = rnd()*6.28, rad = r.r*rr(0, .8); add(new V3(r.x + Math.cos(a)*rad, hAt(r.x, r.z) + r.h - .01, r.z + Math.sin(a)*rad), rr(.08, .2)); }
   { const ax = new V3(Math.sin(LOG.ang), 0, Math.cos(LOG.ang)), sd = new V3(Math.cos(LOG.ang), 0, -Math.sin(LOG.ang)), cy = hAt(LOG.x, LOG.z) + LOG.r*LOG.sink;
     for(let j = 0; j < 70; j++){ const al = rr(-LOG.len*.45, LOG.len*.45), a = rr(-1.4, 1.4);
