@@ -7,10 +7,14 @@
    ===================================================================== */
 const leafMat = (color, {amp = .035, ...o} = {}) => sway(glowLeaf(new THREE.MeshStandardMaterial(Object.assign({color, map: LEAF_TEX, bumpMap: LEAF_TEX, bumpScale: .8, roughness:.55, side:THREE.DoubleSide}, o))), amp);
 const nearPlat = (x, z, m) => PLAT.some(p => !p.ground && p.kind !== 'flower' && Math.hypot(x - p.x, z - p.z) < Math.max(p.rx, p.rz) + m);
-// a few more broad leaves, bridging gaps between the walkable ones: natural platforms and pathways
+// a few more broad leaves, bridging gaps between the walkable ones: natural platforms and pathways. Each takes the
+// height nearest the one given at which it clears the leaves already there (see leavesCrowd)
 for(const [x, ht, z, type, w, l, rot] of [[1.5, 1.05, -.9, 'heart', .9, 1.3, 1.9], [-1.5, 1.4, .9, 'lance', .7, 1.3, -1.1], [4.4, 2.0, -.2, 'round', .8, .9, .7],
-    [-.4, .7, 2.0, 'heart', .8, 1.1, 2.6], [2.6, 2.3, -2.8, 'lance', .65, 1.2, .4], [-2.4, 1.9, -1.4, 'heart', .85, 1.2, -2.2], [6.9, 2.6, -1.2, 'round', .7, .8, 1.2], [-4.2, 2.4, 1.0, 'lance', .7, 1.2, .9]])
-  addLeaf(x, ht, z, type, w, l, rot);
+    [-.4, .7, 2.3, 'heart', .8, 1.1, 2.6], [2.6, 2.3, -2.8, 'lance', .65, 1.2, .4], [-2.4, 1.9, -1.4, 'heart', .85, 1.2, -2.2], [6.9, 2.6, -1.2, 'round', .7, .8, 1.2], [-4.2, 2.4, 1.0, 'lance', .7, 1.2, .9]]){
+  const fits = h => { const q = {x, y: hAt(x, z) + h, z, rx: w*.82, rz: l*.78, rot, leaf: {type, w, l, droop: .3, fold: .1}}; return !PLAT.some(o => o.leaf && leavesCrowd(q, o)); };
+  let at = ht; for(let k = 0; k <= 24; k++){ const h = ht + (k % 2 ? 1 : -1)*Math.ceil(k/2)*.1; if(h >= .45 && fits(h)){ at = h; break; } }
+  addLeaf(x, at, z, type, w, l, rot);
+}
 
 // ---- moss: cushions on soil, stones, roots and the log, each furred with thousands of tiny upright strands
 const MOSS_SPOTS = [];
@@ -257,20 +261,34 @@ const MOSS_SPOTS = [];
     const mat = glowLeaf(new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL(hue, rr(.45, .7), rr(.22, .36)), map: LEAF_TEX, roughness:.55, side:THREE.DoubleSide}));
     if(varieg) mat.emissive.multiplyScalar(1.6);
     const vc = mat.color.clone().lerp(new THREE.Color(0xe8f0b0), .45), veinM = new THREE.LineBasicMaterial({color: vc});
+    // every draw first, in the old order, so whichever blades fit the rest of the jungle stays put
+    const blades = [];
     for(let j = 0; j < nLeaves; j++){
       const a = j/nLeaves*6.28 + rr(-.4, .4), reach = tall*rr(.4, .8), h = tall*rr(.6, 1);
-      const tip = new V3(x + Math.cos(a)*reach, gy + h, z + Math.sin(a)*reach), sr = .04 + tall*.008;
+      const type = shapes[Math.floor(rnd()*shapes.length)], w = rr(.25, .55)*tall, l = w*rr(1.4, 2.1), droop = rr(.25, .6), fold = rr(.08, .2);
+      const rot = -a + Math.PI/2 + rr(-.3, .3); rr(-.35, .15);                     // (the old tilt's draw, kept so the rest of the jungle stays put)
+      blades.push({a, reach, h, type, w, l, droop, fold, rot});
+    }
+    const sr = .04 + tall*.008;
+    // the blade sits on its stalk's tip: the stalk meets its underside a little in from its base (as on a taro leaf),
+    // inside the part she can walk
+    const bladeAt = (b, h) => { const o = new THREE.Object3D(); o.position.set(x + Math.cos(b.a)*b.reach, gy + h, z + Math.sin(b.a)*b.reach); o.rotation.set(0, b.rot, 0); o.translateZ(-b.l*.74); o.position.y += sr + .012;
+      return {id:'L' + PLAT.length, kind:'leaf', herb:true, x: o.position.x, y: o.position.y, z: o.position.z, rx:b.w*.82, rz:b.l*.78, rot: b.rot, leaf:{type: b.type, w: b.w, l: b.l, droop: b.droop, fold: b.fold}}; };
+    for(const b of blades){
+      // a blade that would interleave with a leaf already there is raised or lowered on its stalk to clear it, or left off
+      let p = null;
+      for(const k of [0, 1, -1, 2, -2, 3]){ const h = b.h + k*tall*.22; if(h < tall*.35 || h > tall*1.5) continue;
+        const q = bladeAt(b, h); if(!PLAT.some(o => o.leaf && leavesCrowd(q, o))){ p = q; b.h = h; break; } }
+      if(!p) continue;
+      const {a, reach, h, type, w, l, droop, fold, rot} = b;
+      const tip = new V3(x + Math.cos(a)*reach, gy + h, z + Math.sin(a)*reach);
       const curve = new THREE.CatmullRomCurve3([new V3(x, gy - .02, z), new V3(x + Math.cos(a)*reach*.2, gy + h*.75, z + Math.sin(a)*reach*.2), tip]);
       scene.add(hot(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, sr, 6), stemM), TEMP.stem));
       const stalk = tubeSurface(curve.getPoints(16), sr, 'stem');
-      const type = shapes[Math.floor(rnd()*shapes.length)], w = rr(.25, .55)*tall, l = w*rr(1.4, 2.1), droop = rr(.25, .6), fold = rr(.08, .2);
-      const rot = -a + Math.PI/2 + rr(-.3, .3); rr(-.35, .15);                     // (the old tilt's draw, kept so the rest of the jungle stays put)
       const leaf = hot(new THREE.Mesh(leafGeo(type, w, l, droop, fold), mat), TEMP.leaf); OCCLUDERS.push(leaf);   // the camera never pushes through
-      // the stalk meets the blade's underside a little in from its base (as on a taro leaf), inside the part she can walk
-      leaf.position.copy(tip); leaf.rotation.set(0, rot, 0); leaf.translateZ(-l*.74); leaf.position.y += sr + .012;
+      leaf.position.set(p.x, p.y, p.z); leaf.rotation.set(0, rot, 0);
       leaf.castShadow = leaf.receiveShadow = true; scene.add(leaf);
       leaf.add(new THREE.LineSegments(veinGeo(type, w, l, droop, fold), veinM));
-      const p = {id:'L' + PLAT.length, kind:'leaf', herb:true, x: leaf.position.x, y: leaf.position.y, z: leaf.position.z, rx:w*.82, rz:l*.78, rot, leaf:{type, w, l, droop, fold}};
       PLAT.push(p); p.under = leafUnder(p);
       // walking up the stalk carries her out from under the blade onto its top, right above the joint
       const sp0 = stalk._pts, T = sp0[sp0.length - 1], up = T.clone().sub(sp0[sp0.length - 4]).normalize();

@@ -1041,6 +1041,24 @@ function leafE(p, lx, lz){                      // < 1 on the blade, 1 at its wa
 // how far out (x, z) is on a top: 1 at its rim; and the reach of its rim from the centre (a cheap bounding radius)
 function platE(p, lx, lz){ return p.leaf ? leafE(p, lx, lz) : Math.hypot(lx/p.rx, lz/p.rz); }
 const platR = p => p.leaf ? Math.max(p.rx, p.rz, p.leaf.l, .85*p.leaf.w) : Math.max(p.rx || 0, p.rz || 0);
+// two leaves crowd each other when, anywhere their outlines (grown by a margin) overlap, their surfaces pass closer
+// than a clearance. Walking where blades interleave (one slicing through or hugging another) is unworkable, so leaves
+// are placed apart: side by side with a gap, or stacked with room to walk beneath. Both scale with the blades' length,
+// so the big understory blades stand well apart while the small stepping-stone leaves can sit a short hop apart
+const leafGapH = (a, b) => .3 + .03*(a.leaf.l + b.leaf.l), leafGapV = (a, b) => .6 + .12*(a.leaf.l + b.leaf.l);
+function leavesCrowd(a, b){
+  const H = leafGapH(a, b), V = leafGapV(a, b);
+  if(Math.hypot(a.x - b.x, a.z - b.z) > platR(a) + platR(b) + H) return false;
+  const grownIn = (p, x, z) => { const dx = x - p.x, dz = z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot), lx = dx*c - dz*s, lz = dx*s + dz*c;
+    const e = leafE(p, lx, lz); return e <= 1 || Math.hypot(lx, lz)*(1 - 1/e) <= H; };
+  const probe = (p, o) => { const c = Math.cos(p.rot), s = Math.sin(p.rot);
+    for(let i = 0; i <= 12; i++) for(let j = 0; j <= 12; j++){
+      const lx = (i/6 - 1)*p.leaf.w, lz = (j/6 - 1)*p.leaf.l; if(leafE(p, lx, lz) > 1) continue;
+      const x = p.x + lx*c + lz*s, z = p.z - lx*s + lz*c;
+      if(grownIn(o, x, z) && Math.abs(surfAt(p, x, z) - surfAt(o, x, z)) < V) return true; }
+    return false; };
+  return probe(a, b) || probe(b, a);
+}
 // outward across the nearest rim of a top, level, in world space
 function platOut(p, x, z){
   const dx = x - p.x, dz = z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot), lx = dx*c - dz*s, lz = dx*s + dz*c;
