@@ -12,7 +12,9 @@ function snapTake(){
   const q = sp.m.quaternion;
   const s = {v: SNAP_V, mode: sp.mode, plat: sp.plat ? sp.plat.id : null, pos: v3a(sp.pos), vel: v3a(sp.vel), yaw: r4(sp.yaw),
     head: v3a(sp.climbHead), quat: [r4(q.x), r4(q.y), r4(q.z), r4(q.w)],
-    cam: {yaw: r4(cam.yaw), pitch: r4(cam.pitch), dist: r4(cam.dist)}, t: r4(time)};
+    cam: {yaw: r4(cam.yaw), pitch: r4(cam.pitch), dist: r4(cam.dist)}, t: r4(time),
+    build: window.BUILD || '?', host: location.host};                       // which code made it (index.html), and which server
+  // ^ compare with `node js/build-hash.mjs` in a checkout to see whether that checkout's code was running
   if(sp.plat && sp.plat.side !== undefined) s.side = sp.plat.side;          // which face of the orb she is on
   if(sp.line || sp.mode === 'hang') Object.assign(s, {line: sp.line, anchor: v3a(sp.anchor), anchorPlat: sp.anchorPlat ? sp.anchorPlat.id : null, ropeL: r4(sp.ropeL)});
   if(sp.roll) s.rolling = true;                                              // mid-roll round a rim: restored settled, not mid-roll
@@ -23,6 +25,7 @@ function snapText(s){ return '__dbg.load(' + JSON.stringify(s) + ')'; }
 
 function snapLoad(s, opt = {}){
   if(typeof s === 'string'){ const m = s.match(/\{[\s\S]*\}/); s = JSON.parse(m ? m[0] : s); }
+  if(s.build && s.build !== window.BUILD) console.warn('snapshot: taken on build', s.build, (s.host ? 'at ' + s.host : ''), '— this is build', window.BUILD);
   const plat = surfById(s.plat);
   if(s.plat && !plat) console.warn('snapshot: no surface with id', s.plat, '— putting her on the ground');
   let mode = s.mode;

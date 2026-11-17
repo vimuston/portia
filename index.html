@@ -282,7 +282,18 @@ import * as THREE from 'three';
 window.THREE = THREE;
 try { await Promise.race([document.fonts.load('400 16px "JetBrains Mono"'), new Promise(r => setTimeout(r, 1500))]); } catch(e){}
 const FILES = ['core', 'world', 'jungle', 'spider', 'actors', 'prey-spiders', 'life', 'hunt', 'shaders', 'atlas', 'input', 'player', 'predators', 'camera', 'encounter', 'render', 'audio', 'main', 'snapshot'];
-const V = Date.now();   // a fresh query on every load, so the browser never runs a stale cached script
-for(const f of FILES){ const s = document.createElement('script'); s.src = 'js/' + f + '.js?v=' + V; s.async = false; document.body.appendChild(s); }
+// BUILD: a hash of the game code as served (FNV-1a over every js file), so a debug snapshot says which code made
+// it. The files are revalidated first (the static server sends no Cache-Control, so the browser may otherwise
+// reuse old copies), and the scripts then load under ?v=<hash>, so they are exactly the code that was hashed and
+// the browser never runs a stale cached script.
+let build = '';
+try {
+  const texts = await Promise.all(FILES.map(f => fetch('js/' + f + '.js', {cache: 'no-cache'}).then(r => r.text())));
+  let h = 0x811c9dc5; for(const t of texts) for(let i = 0; i < t.length; i++){ h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  build = (h >>> 0).toString(16).padStart(8, '0');
+} catch(e){ console.warn('build hash failed', e); }
+window.BUILD = build;
+console.info('Portia build', build || '?');
+for(const f of FILES){ const s = document.createElement('script'); s.src = 'js/' + f + '.js' + (build ? '?v=' + build : ''); s.async = false; document.body.appendChild(s); }
 </script>
 </html>
