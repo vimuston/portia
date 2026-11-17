@@ -134,18 +134,17 @@ function predWanderGoal(pr){
   }
   return pr.home.clone();
 }
+const PRED_FORGET = 8;   // seconds out of sight before it gives up the hunt (the boss bar drains over this)
 // what it sees: only Portia moving, and not sneaking
 function portiaVisible(){ return DOOM.t < 0 && PRED.grace <= 0 && !sp.sneaking && (SEEN.speed > .12 || sp.mode === 'air'); }
 function predSense(pr, dt){
   const vis = portiaVisible() && pr.eyeWorld().distanceTo(sp.pos) < pr.range;
   if(vis){
     pr.sees = true; pr.seenT = 0; pr.last.copy(sp.pos);
-    if(!pr.hunting){ pr.hunting = true; pr.goal = null; pr.pause = 0; pr.best = 1e9; pr.stuckT = 0;
-      if(time - pr.toastT > 12){ toast(pr.spotMsg); pr.toastT = time; } }
+    if(!pr.hunting){ pr.hunting = true; pr.goal = null; pr.pause = 0; pr.best = 1e9; pr.stuckT = 0; }
   } else {
     pr.sees = false;
-    if(pr.hunting && (pr.seenT += dt) > 8){ pr.hunting = false; pr.goal = null; pr.pause = prr(1, 3);
-      if(time - pr.lostT > 12){ toast(pr.lostMsg); pr.lostT = time; } }
+    if(pr.hunting && (pr.seenT += dt) > PRED_FORGET){ pr.hunting = false; pr.goal = null; pr.pause = prr(1, 3); pr.gaveUp = true; }
   }
 }
 // progress toward the goal; no headway for a while means stuck
@@ -232,9 +231,8 @@ function makePred(kind){
   const m = makeMantis(), home = new V3(-2.6, 0, 11.4);
   const pr = {kind, m, home, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10, walkPh: 0,
     reach: .32, range: 6, climby: .4, hunting: false, sees: false, seenT: 0, last: new V3(),
-    goal: null, pause: prr(1, 3), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, toastT: -99, lostT: -99,
-    motion: 0, temp: .42, self: false, hl: 0,
-    spotMsg: 'A praying mantis has seen you move! Freeze, or sneak away (C).', lostMsg: 'The mantis has lost sight of you.'};
+    goal: null, pause: prr(1, 3), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, gaveUp: false,
+    motion: 0, temp: .42, self: false, hl: 0};
   m.userData.owner = pr; m.rotation.order = 'YXZ';
   const P = m.userData.parts;
   pr.eyeWorld = () => P.head.getWorldPosition(new V3());
