@@ -399,9 +399,9 @@ function makeClimb(o){
 const LEAF_TH = .006;
 const leafLocal = (p, v) => { const dx = v.x - p.x, dz = v.z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot); return [dx*c - dz*s, dx*s + dz*c, c, s]; };
 function leafUnder(p){
-  const S = {kind:'climb', ground:false, id:'C' + CLIMBS.length, label:'leaf', top:p, thin:true, cx:p.x, cz:p.z, y0:p.y - 1 - p.leaf.droop*p.leaf.l*.35, y1:p.y + .5 + p.leaf.fold*p.leaf.w, intoDir: new V3(0, -1, 0), ext: Math.max(p.rx, p.rz)*1.3 + .3};
-  const E = (lx, lz) => Math.hypot(lx/p.rx, lz/p.rz);
-  const out = (lx, lz, c, s) => { const gx = lx/(p.rx*p.rx), gz = lz/(p.rz*p.rz); return new V3(gx*c + gz*s, 0, -gx*s + gz*c).normalize(); };
+  const S = {kind:'climb', ground:false, id:'C' + CLIMBS.length, label:'leaf', top:p, thin:true, cx:p.x, cz:p.z, y0:p.y - 1 - p.leaf.droop*p.leaf.l*.35, y1:p.y + .5 + p.leaf.fold*p.leaf.w, intoDir: new V3(0, -1, 0), ext: platR(p)*1.3 + .3};
+  const E = (lx, lz) => leafE(p, lx, lz);                       // the same outline she walks on top
+  const out = (lx, lz, c, s) => { const h = .01, gx = E(lx + h, lz) - E(lx - h, lz), gz = E(lx, lz + h) - E(lx, lz - h); return new V3(gx*c + gz*s, 0, -gx*s + gz*c).normalize(); };
   S.project = v => { let [lx, lz, c, s] = leafLocal(p, v); const e = E(lx, lz); if(e > .985){ lx *= .985/e; lz *= .985/e; }
     const x = p.x + lx*c + lz*s, z = p.z - lx*s + lz*c; return v.set(x, surfAt(p, x, z) - LEAF_TH, z); };
   S.normal = v => { const [lx, lz, c, s] = leafLocal(p, v), e = E(lx, lz), h = .03, x = v.x, z = v.z;
@@ -995,28 +995,67 @@ const barkStumpM = antiTile(new THREE.MeshStandardMaterial({vertexColors:true, m
 const PLAT = [];
 const GROUND = {id:'ground', ground:true, y:0};
 const surfY = (p, x, z) => p.ground ? floorAt(x, z) : p.y;
+// a blade's half-width (in units of w) at t along it: 0 at the base, 1 at the tip (as leafPoint draws it)
+const leafWd = (type, t) => type === 'heart' ? Math.pow(Math.sin(Math.PI*(.12 + .88*Math.pow(t, .8))), .7)*1.05
+  : type === 'round' ? Math.sqrt(Math.max(0, 1 - (2*t - 1)**2)) : Math.pow(Math.sin(Math.PI*Math.pow(t, .85)), .8);
+// a leaf's walkable outline: the ellipse it always had (rx = .82w, rz = .78l), joined toward the tip by the blade's
+// own taper. The ellipse alone stopped 22% short of the tip, and on the big herb leaves that is a drooping tongue of
+// blade metres long, drawn but not there: she walked under or into it and could never get onto it. The base keeps
+// the ellipse (a heart's notch and the stalk lie beyond it). Star-shaped about the centre, so it is tabled as the
+// outline's radius per direction, in units of (w, l), and the "how far out" measure is radius over that
+const LEAF_EDGE = {}, LEAF_EDGE_N = 720;
+function leafEdgeTable(type){
+  if(LEAF_EDGE[type]) return LEAF_EDGE[type];
+  const inN = (X, Z) => (X/.82)**2 + (Z/.78)**2 <= 1 || (Z <= 0 && Z >= -.97 && Math.abs(X) <= .8*leafWd(type, (1 - Z)/2));
+  const T = new Float32Array(LEAF_EDGE_N + 1);
+  for(let i = 0; i <= LEAF_EDGE_N; i++){
+    const a = -Math.PI + 2*Math.PI*i/LEAF_EDGE_N, ux = Math.cos(a), uz = Math.sin(a);
+    let lo = 0; for(let r = .005; r < 1.3; r += .005) if(inN(ux*r, uz*r)) lo = r;   // the outermost point still on the blade
+    let hi = lo + .005; for(let k = 0; k < 12; k++){ const m = (lo + hi)/2; if(inN(ux*m, uz*m)) lo = m; else hi = m; }
+    T[i] = lo;
+  }
+  return LEAF_EDGE[type] = T;
+}
+function leafE(p, lx, lz){                      // < 1 on the blade, 1 at its walkable edge, measured out from the centre
+  const q = p.leaf, X = lx/q.w, Z = lz/q.l, r = Math.hypot(X, Z); if(r < 1e-9) return 0;
+  const T = leafEdgeTable(q.type), f = (Math.atan2(Z, X) + Math.PI)/(2*Math.PI)*LEAF_EDGE_N, i = Math.min(LEAF_EDGE_N - 1, Math.floor(f)), k = f - i;
+  return r/(T[i] + (T[i + 1] - T[i])*k);
+}
+// how far out (x, z) is on a top: 1 at its rim; and the reach of its rim from the centre (a cheap bounding radius)
+function platE(p, lx, lz){ return p.leaf ? leafE(p, lx, lz) : Math.hypot(lx/p.rx, lz/p.rz); }
+const platR = p => p.leaf ? Math.max(p.rx, p.rz, p.leaf.l, .85*p.leaf.w) : Math.max(p.rx || 0, p.rz || 0);
+// outward across the nearest rim of a top, level, in world space
+function platOut(p, x, z){
+  const dx = x - p.x, dz = z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot), lx = dx*c - dz*s, lz = dx*s + dz*c;
+  let gx, gz;
+  if(p.leaf){ const h = .01; gx = platE(p, lx + h, lz) - platE(p, lx - h, lz); gz = platE(p, lx, lz + h) - platE(p, lx, lz - h); }
+  else { gx = lx/(p.rx*p.rx); gz = lz/(p.rz*p.rz); }
+  return new V3(gx*c + gz*s, 0, -gx*s + gz*c);
+}
 function inPlat(p, x, z, margin = 0){
   if(p.ground) return Math.hypot(x, z) < AREA;
   const dx = x - p.x, dz = z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot);
   const lx = dx*c - dz*s, lz = dx*s + dz*c;
+  if(p.leaf){ const e = leafE(p, lx, lz); if(!margin) return e <= 1; const r = Math.hypot(lx, lz); return r < 1e-9 || r <= Math.max(.05, r/e - margin); }
+  return inEllipse(p, lx, lz, margin);
+}
+function inEllipse(p, lx, lz, margin = 0){
   const a = Math.max(.05, p.rx - margin), b = Math.max(.05, p.rz - margin);
   return (lx*lx)/(a*a) + (lz*lz)/(b*b) <= 1;
 }
+// a random spot on a top. Kept to the ellipse even on a leaf: the world is seeded, and a wider target would change
+// how many draws each spot takes, and so everything generated after it
 function randomIn(p, margin = .2){
   const c = Math.cos(p.rot), s = Math.sin(p.rot);
   for(let i = 0; i < 40; i++){
     const lx = (rnd()*2 - 1)*p.rx, lz = (rnd()*2 - 1)*p.rz, x = p.x + lx*c + lz*s, z = p.z - lx*s + lz*c;
-    if(inPlat(p, x, z, margin)) return new V3(x, p.y, z);
+    if(p.ground ? inPlat(p, x, z, margin) : inEllipse(p, lx, lz, margin)) return new V3(x, p.y, z);
   }
   return new V3(p.x, p.y, p.z);
 }
 // surface height of a platform at (x, z), and clamping a point onto it
 function leafH(q, lx, lz){
-  const yy = Math.max(-1, Math.min(1, -lz/q.l)), t = (yy + 1)/2;
-  let wd;
-  if(q.type === 'heart') wd = Math.pow(Math.sin(Math.PI*(.12 + .88*Math.pow(t, .8))), .7)*1.05;
-  else if(q.type === 'round') wd = Math.sqrt(Math.max(0, 1 - yy*yy));
-  else wd = Math.pow(Math.sin(Math.PI*Math.pow(t, .85)), .8);
+  const yy = Math.max(-1, Math.min(1, -lz/q.l)), t = (yy + 1)/2, wd = leafWd(q.type, t);
   const u = Math.max(-1, Math.min(1, lx/Math.max(1e-3, wd*q.w)));
   return Math.abs(u)*wd*q.fold*q.w - q.droop*Math.pow(Math.max(0, t - .65)/.35, 2)*q.l*.35 - .07*u*u*q.w;
 }
@@ -1032,7 +1071,7 @@ function clampTo(p, x, z){
   if(p.ground) return [x, z];
   const dx = x - p.x, dz = z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot);
   let lx = dx*c - dz*s, lz = dx*s + dz*c;
-  const e = Math.sqrt((lx/p.rx)**2 + (lz/p.rz)**2), lim = p.kind === 'log' ? 1.6 : 1.04;   // feet may grip the log's flanks
+  const e = platE(p, lx, lz), lim = p.kind === 'log' ? 1.6 : 1.04;   // feet may grip the log's flanks
   if(e > lim){ lx *= lim/e; lz *= lim/e; }
   return [p.x + lx*c + lz*s, p.z - lx*s + lz*c];
 }

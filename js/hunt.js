@@ -261,12 +261,10 @@ function dropLine(){
 function dropOnLine(){
   const P = sp.plat, out = new V3();
   if(sp.mode === 'ground'){
-    const c = Math.cos(P.rot), s = Math.sin(P.rot), dx = sp.pos.x - P.x, dz = sp.pos.z - P.z;
-    const lx = dx*c - dz*s, lz = dx*s + dz*c, gx = lx/(P.rx*P.rx), gz = lz/(P.rz*P.rz);
-    out.set(gx*c + gz*s, 0, -gx*s + gz*c);
+    out.copy(platOut(P, sp.pos.x, sp.pos.z));
     if(out.lengthSq() < 1e-8) out.set(Math.sin(sp.yaw), 0, Math.cos(sp.yaw));   // dead centre: over the edge she faces
     out.normalize();
-    let lo = 0, hi = 2*Math.max(P.rx, P.rz);
+    let lo = 0, hi = 2*platR(P);
     for(let i = 0; i < 24; i++){ const m = (lo + hi)/2; if(inPlat(P, sp.pos.x + out.x*m, sp.pos.z + out.z*m)) lo = m; else hi = m; }
     const rx = sp.pos.x + out.x*lo, rz = sp.pos.z + out.z*lo;
     sp.anchor.set(rx, surfAt(P, rx, rz), rz);
