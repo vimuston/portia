@@ -134,8 +134,10 @@ function predTreeSpot(S){
 function predWanderGoal(pr){
   const r = Math.random(), near = (x, z, R) => Math.hypot(x - pr.pos.x, z - pr.pos.z) < R && Math.hypot(x, z) < 15;
   if(pr.trunk){                                                 // another spot on its own trunk
-    for(let i = 0; i < 6; i++){ const q = predTreeSpot(pr.trunk); if(q) return q; }
-    return pr.home.clone();
+    let best = null, bd = 1e9;                                 // a short shift: the nearest of a few spots, a body length or two away
+    for(let i = 0; i < 8; i++){ const q = predTreeSpot(pr.trunk); if(!q) continue; const d = q.distanceTo(pr.pos);
+      if(d > .4 && d < bd){ bd = d; best = q; } }
+    return best || pr.home.clone();
   }
   if(r < pr.climby){
     const L = CLIMBS.filter(S => !S.web && S.label === 'bark' && S.project && near(S.cx, S.cz, 11));
@@ -169,7 +171,7 @@ function predSense(pr, dt){
     if(!pr.hunting){ pr.hunting = true; pr.goal = null; pr.pause = 0; pr.best = 1e9; pr.stuckT = 0; }
   } else {
     pr.sees = false;
-    if(pr.hunting && (pr.seenT += dt) > PRED_FORGET){ pr.hunting = false; pr.goal = null; pr.pause = prr(1, 3); pr.gaveUp = true; }
+    if(pr.hunting && (pr.seenT += dt) > PRED_FORGET){ pr.hunting = false; pr.goal = null; pr.pause = prr(8, 15); pr.gaveUp = true; }
   }
 }
 // progress toward the goal; no headway for a while means stuck
@@ -358,7 +360,7 @@ function makePred(kind){
   const m = makeMantis(), home = new V3(-2.6, 0, 11.4);
   const pr = {kind, m, home, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10,
     reach: .32, range: 6, climby: .4, tree: true, trunk: null, hunting: false, sees: false, seenT: 0, last: new V3(),
-    goal: null, pause: prr(1, 3), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, gaveUp: false,
+    goal: null, pause: prr(15, 40), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, gaveUp: false,
     motion: 0, temp: .42, self: false, hl: 0};
   m.userData.owner = pr; m.rotation.order = 'YXZ';
   const P = m.userData.parts;
@@ -375,7 +377,7 @@ function predHome(pr){
     if(T){ const g = floorAt(T.cx, T.cz), d = new V3(pr.home.x - T.cx, 0, pr.home.z - T.cz).normalize();
       pr.pos.copy(T.project(new V3(T.cx + d.x*40, g + 1.8, T.cz + d.z*40))); pr.surf = predTree(T); pr.trunk = T; pr.up.copy(T.normal(pr.pos)); pr.home.copy(pr.pos); }
   } pr.hop = null; pr.state = 'roam'; pr.kt = 0;
-  pr.hunting = false; pr.sees = false; pr.goal = null; pr.pause = prr(2, 4); pr.best = 1e9; pr.stuckT = 0;
+  pr.hunting = false; pr.sees = false; pr.goal = null; pr.pause = prr(15, 40); pr.best = 1e9; pr.stuckT = 0;
   const a = Math.random()*6.28; pr.fwd.set(Math.sin(a), 0, Math.cos(a));
   pr.m.scale.setScalar(1);
   predOrient(pr, 1, null);
@@ -436,8 +438,8 @@ function updMantis(pr, dt){
   else {
     if(!pr.goal){ pr.goal = predWanderGoal(pr); pr.best = 1e9; pr.stuckT = 0; }
     const d = predProgress(pr, pr.goal, dt);
-    if(d < .3){ pr.goal = null; pr.pause = prr(3, 9); }
-    else if(pr.stuckT > 2.5 && pr.trunk){ pr.goal = null; pr.pause = prr(1, 3); }   // on a trunk it never hops: pick another spot
+    if(d < .3){ pr.goal = null; pr.pause = prr(25, 60); }   // a sit-and-wait hunter: long still spells, a short shift now and then
+    else if(pr.stuckT > 2.5 && pr.trunk){ pr.goal = null; pr.pause = prr(10, 20); }   // on a trunk it never hops: pick another spot
     else if(pr.stuckT > 2.5){ const T = predHopTarget(pr, pr.goal, 1.2); if(T) predStartHop(pr, T, .35); else pr.goal = null; pr.stuckT = 0; pr.best = d; }
     else { const b = pr.pos.clone(); predWalk(pr, pr.goal, .38*dt); want = pr.pos.clone().sub(b); walk = 1; sway = Math.sin(pr.t*7)*.012; }
   }
