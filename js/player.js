@@ -310,10 +310,12 @@ function land(p){
 }
 function catchFly(f){
   if(sp.stuck > 0 || f.held) return false;
+  const falling = sp.mode === 'air', vy = sp.vel.y;
   endBalloon(); sp.caught++; f.fly = true; f.airborne = f.state === 'fly' || sp.mode === 'air'; f.state = 'held';
   pulses.push({pos: f.pos.clone(), amp: 1.4, decay: .7});
   const F = startFeed(f, null, f.airborne ? null : f.plat, .17, .35);
-  if(f.airborne) F.base.copy(sp.pos);                // snatched in the air: she feeds where she hangs
+  if(f.airborne) F.base.copy(sp.pos);                // snatched in the air: she feeds where she hangs...
+  if(falling) F.fall = new V3(0, vy, 0);             // ...but with no line to hang from she drops with it, fangs in, and feeds where she lands
   toast('You land on the fly — fangs in, venom pumping.');
   return true;
 }

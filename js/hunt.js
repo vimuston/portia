@@ -153,6 +153,12 @@ function startFeed(p, up, plat, holdD, gain){
 const smooth01 = x => { x = Math.max(0, Math.min(1, x)); return x*x*(3 - 2*x); };
 function feedTick(dt){
   const F = sp.feed, p = F.p, P = p.m.userData.parts, S = sp.m.userData.parts; F.t += dt;
+  if(F.fall){                                                            // caught mid-leap: she falls with her prey until she lands
+    const prev = F.base.clone(); F.fall.y -= G*dt; const d = F.fall.clone().multiplyScalar(dt); F.base.add(d); F.p0.add(d);
+    const L = findLanding(prev, F.base);
+    if(L){ const [x, z] = clampTo(L, F.base.x, F.base.z), y = surfY(L, x, z); F.p0.y += y - F.base.y; F.base.set(x, y, z);
+      F.fall = null; p.airborne = false; p.plat = L; pulses.push({pos: F.base.clone(), amp: .9, decay: 3}); }
+  }
   const biting = F.t < BITE_T, lift = smooth01((F.t - BITE_T)/GRAB_T), k = Math.max(0, Math.min(1, (F.t - BITE_T - GRAB_T)/DRAIN_T));
   // her body: braced on the surface, lunging forward and down onto the prey for the bite, rearing back a little as she lifts it
   M4.makeBasis(new V3().crossVectors(F.up, F.fw), F.up, F.fw); sp.m.quaternion.setFromRotationMatrix(M4);
