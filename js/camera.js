@@ -1,0 +1,143 @@
+'use strict';
+// sense updates and camera
+
+function attn(srcPlat){
+  if(srcPlat && srcPlat.silk && ((sp.mode === 'ground' && sp.plat && sp.plat.silk === srcPlat.silk) || (sp.mode === 'hang' && sp.anchorPlat && sp.anchorPlat.silk === srcPlat.silk))) return 1;
+  if(sp.mode !== 'ground') return .3;
+  if(srcPlat === sp.plat) return 1;
+  if(srcPlat && srcPlat.ground && sp.plat.ground) return .75;
+  return .4;
+}
+
+function updateSenses(dt, t){
+  const wa = .6 + Math.sin(t*.07)*.9 + Math.sin(t*.23)*.3;
+  updateWind(dt, t);
+  SU.uWind.value.set(Math.cos(wa), Math.sin(wa), .28 + .18*(.5 + .5*Math.sin(t*.31)) + wind.gust*1.1);
+  const vib = [], hear = [], chem = [], gust = [];
+  for(const f of flies){
+    if(f.gone) continue;
+    if(f.vib > 0) vib.push([f.pos, f.vib*attn(f.plat)]);
+    if(f.hear > 0) hear.push([f.pos, f.hear]);
+    if(f.state === 'fly') gust.push([f.pos, .7]);
+    else chem.push([f.pos, .3]);
+  }
+  if(!male.gone){ if(male.vib > 0) vib.push([male.pos, male.vib*attn(male.plat)*.9]);
+    chem.push([male.pos, male.dead ? .3 : .95]); }
+  for(const p of PREY){
+    if(p.vib > 0) vib.push([p.pos, p.vib*attn(p.plat)]);
+    if(!p.dead) chem.push([p.pos, .45]); else if(p.deadT < 30) chem.push([p.pos, .3*(1 - p.deadT/30)]);
+    if(p.kind === 'argiope' && p.state === 'pump') gust.push([p.pos, .5]);
+  }
+  for(const h of husks) if(h.age < 30) chem.push([h.m.position, .25*(1 - h.age/30)]);
+  const cyc = t % 4.2; if(cyc < 1.6 && Math.sin(t*55) > 0) hear.push([cricket.pos, .8]);
+  for(let i = pulses.length - 1; i >= 0; i--){ const p = pulses[i]; p.amp *= Math.exp(-p.decay*dt); if(p.amp < .02) pulses.splice(i, 1); else vib.push([p.pos, p.amp]); }
+  for(let i = gusts.length - 1; i >= 0; i--){ const g = gusts[i]; g.amp *= Math.exp(-2.5*dt); if(g.amp < .02) gusts.splice(i, 1); else gust.push([g.pos, g.amp]); }
+  const fill = (arr, U) => { arr.sort((a, b) => b[1] - a[1]); U.forEach((u, i) => { const e = arr[i]; e ? u.set(e[0].x, e[0].y + .02, e[0].z, e[1]) : u.set(0, 0, 0, 0); }); };
+  fill(vib, SU.uVib.value); fill(hear, SU.uHear.value); fill(chem, SU.uChem.value); fill(gust, SU.uGust.value);
+  let felt = 0;
+  for(const [p, a] of vib) felt += a*Math.pow(.5 + .5*Math.sin(p.distanceTo(sp.pos)*2.6 - t*6.5), 6)*Math.exp(-p.distanceTo(sp.pos)*.11);
+  for(const [p, a] of gust) felt += a*Math.exp(-p.distanceToSquared(sp.pos)*.5);
+  for(const [p, a] of hear) felt += a*.3*Math.exp(-p.distanceTo(sp.pos)*.3);
+  sp.felt += (felt - sp.felt)*(1 - Math.exp(-10*dt));
+}
+
+const _v = new V3();
+// The camera orbits in a frame whose "up" follows the surface she clings to: under a leaf it turns over, on a
+// trunk it lies along the bark, so she always reads right-side up. The frame is carried along by the smallest
+// rotation each frame (so the view never spins), and back on level ground any leftover twist is folded into yaw.
+const camQ = new THREE.Quaternion(), camUp = new V3(0, 1, 0);
+const camFwd = () => new V3(Math.sin(cam.yaw), 0, Math.cos(cam.yaw)).applyQuaternion(camQ);
+const camRight = () => new V3(-Math.cos(cam.yaw), 0, Math.sin(cam.yaw)).applyQuaternion(camQ);
+function camFrame(dt){
+  // the view stays level with the horizon everywhere (stone, stumps, the log, under leaves) except on the big trees,
+  // where it turns with the bark, and even there only once she has climbed clear of the floor
+  const onTree = sp.mode === 'climb' && sp.plat && sp.plat.tree;
+  let tu = onTree ? sp.plat.normal(sp.pos).clone() : UP.clone();
+  tu.normalize();
+  if(onTree){
+    const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), f = Math.max(0, Math.min(1, (clr - .25)/.55)), k = f*f*(3 - 2*f);
+    if(k < 1){ const ang = Math.acos(Math.max(-1, Math.min(1, tu.y)))*k, ax = new V3().crossVectors(UP, tu);
+      if(ax.lengthSq() < 1e-8) ax.copy(camRight());
+      tu = UP.clone().applyAxisAngle(ax.normalize(), ang); }
+  }
+  if(camUp.dot(tu) < -.97) tu.addScaledVector(camFwd(), .35).normalize();                  // turning right over: roll forward, not sideways
+  const nu = camUp.clone().lerp(tu, 1 - Math.exp(-5*dt)).normalize();
+  camQ.premultiply(new THREE.Quaternion().setFromUnitVectors(camUp, nu)).normalize(); camUp.copy(UP).applyQuaternion(camQ);
+  if(tu.y > .999 && camUp.y > .9999){ const f = new V3(0, 0, 1).applyQuaternion(camQ); cam.yaw += Math.atan2(f.x, f.z); camQ.identity(); camUp.set(0, 1, 0); }
+}
+function updateCamera(dt){
+  camFrame(dt);
+  if(cam.swing != null){                                                       // swing to face a world heading
+    const d = new V3(Math.sin(cam.swing), 0, Math.cos(cam.swing)).applyQuaternion(camQ.clone().invert()), sw = Math.atan2(d.x, d.z);
+    cam.yaw = lerpAngle(cam.yaw, sw, 1 - Math.exp(-5*dt)); if(angDiff(cam.yaw, sw) < .08) cam.swing = null; }
+  else if(cam.swingDir){                                                       // swing to look along a direction on her surface (e.g. up the trunk)
+    const d = cam.swingDir.clone().applyQuaternion(camQ.clone().invert());
+    if((cam.swingT = (cam.swingT || 0) + dt) > 2){ cam.swingDir = null; cam.swingT = 0; }
+    else if(Math.hypot(d.x, d.z) > .2){ const sw = Math.atan2(d.x, d.z); cam.yaw = lerpAngle(cam.yaw, sw, 1 - Math.exp(-5*dt)); if(angDiff(cam.yaw, sw) < .05 && camUp.dot(sp.mode === 'climb' ? sp.plat.normal(sp.pos) : UP) > .98){ cam.swingDir = null; cam.swingT = 0; } } }
+  // the point the camera orbits sits off her surface: out from bark and stone, below her under a leaf (and only a leaf
+  // well clear of the floor), but never downward under the log or a stone overhang, where that is into the soil
+  const climbing = sp.mode === 'climb' && sp.plat && !sp.plat.web, sn = climbing ? sp.plat.normal(sp.pos) : camUp;
+  const under = climbing && sp.plat.thin && sn.y < -.3 && sp.pos.y - floorAt(sp.pos.x, sp.pos.z) > .5;
+  const tDir = climbing && (under || sn.y > -.2) ? sn : camUp;
+  const tgt = sp.pos.clone().addScaledVector(tDir, cam.tY ?? (climbing ? .3 : .18));   // cam.tY: a debug override
+  cam.target.lerp(tgt, 1 - Math.exp(-8*dt));
+  // the look angle is always yours: full range (negative = from below, looking up), and it follows quickly
+  // under a leaf the view stays level and looks up at her from below: your whole pitch range maps onto the angles
+  // below the blade (steeply under her … nearly edge-on), eased in and out as she goes under or comes back over
+  cam.under = (cam.under || 0) + ((under ? 1 : 0) - (cam.under || 0))*(1 - Math.exp(-4*dt));
+  const pu = -1.25 + (cam.pitch - CAM_PITCH_MIN)/(CAM_PITCH_MAX - CAM_PITCH_MIN)*1.17, pw = cam.pitch + (pu - cam.pitch)*cam.under;
+  cam.pitchEff += (pw - cam.pitchEff)*(1 - Math.exp(-12*dt));
+  // the point the camera orbits must itself be clear of solids (at a root/trunk join it can fall inside the
+  // neighbour): walk it back toward her body until it is
+  const solidAt = (q, m) => q.y < floorAt(q.x, q.z) + m || climbsNear(q.x, q.z, .3).some(S => !S.web && S.inside(q, m));
+  if(solidAt(cam.target, .05)){ const base = sp.pos.clone().addScaledVector(tDir, .07), q = new V3();
+    for(let f = 1; f >= 0; f -= .1){ q.copy(base).lerp(cam.target, f); if(!solidAt(q, .05) || f <= 0){ cam.target.copy(q); break; } } }
+  cam.target.y = Math.max(cam.target.y, soilTop(cam.target.x, cam.target.z) + .05);    // whatever else, never below the soil
+  const cp = Math.cos(cam.pitchEff), spn = Math.sin(cam.pitchEff), T = cam.target;
+  const off = new V3(-Math.sin(cam.yaw)*cp, spn, -Math.cos(cam.yaw)*cp).applyQuaternion(camQ);
+  ray.set(T, off); ray.far = cam.dist;
+  const hit = ray.intersectObjects(OCCLUDERS, false)[0];
+  let want = hit ? Math.max(.06, hit.distance - .08) : cam.dist;
+  // march the line of sight out from her: stop short of any solid (bark, roots, branches, stone, leaves, the soil),
+  // keeping a little clearance so the near plane never cuts into a surface
+  { const q = new V3();
+    for(let d = .04; d < want; d += Math.min(.1, .03 + d*.04)){ q.copy(T).addScaledVector(off, d);
+      let blocked = q.y < floorAt(q.x, q.z) + .06;
+      if(!blocked) for(const S of climbsNear(q.x, q.z, .3)){ if(S.web) continue; if(S.inside(q, .06)){ blocked = true; break; } }
+      if(blocked){ want = Math.max(.04, d - .05); break; } } }
+  cam.distEff = want < cam.distEff ? want : cam.distEff + (want - cam.distEff)*(1 - Math.exp(-4*dt));
+  camera.position.copy(T).addScaledVector(off, cam.distEff);
+  { const P = camera.position; let fl = soilTop(P.x, P.z);                       // clear of the floor and of any litter edge beside it,
+    for(let i = 0; i < 6; i++){ const a = i*1.047; fl = Math.max(fl, soilTop(P.x + Math.cos(a)*.12, P.z + Math.sin(a)*.12) - .02); }   // so the near plane never cuts a curl
+    P.y = Math.max(fl + .1, P.y);
+    // last guard: if the camera still sits inside bark, stone or a root, slide it in toward her until it's clear
+    const inSolid = q => climbsNear(q.x, q.z, .3).some(S => !S.web && S.inside(q, .04));
+    if(inSolid(P)){ const from = P.clone(), q = new V3();
+      for(let f = .9; f >= 0; f -= .1){ q.copy(T).lerp(from, f); if(!inSolid(q)){ P.copy(q); break; } if(f < .05) P.copy(T); } } }
+  const cf = camFwd(), look = T.clone().addScaledVector(cf, cam.ahead).addScaledVector(camUp, .16*cam.ahead);
+  // when the view is squeezed in against her (zoomed right in, or the orbit pushed in by the ground or bark as you
+  // look up), the camera ducks into her eyes instead of into her body: it slides to the top of her head and looks
+  // where the pitch points, so looking up from the floor or a trunk becomes looking up through her eyes
+  const BP = sp.m.userData.parts.body; BP.updateWorldMatrix(true, false);
+  const near = Math.min(camera.position.distanceTo(T), camera.position.distanceTo(BP.getWorldPosition(new V3())));
+  const eT = 1 - Math.max(0, Math.min(1, (near - .16)/.22));
+  cam.eye = (cam.eye || 0) + (eT*eT*(3 - 2*eT) - (cam.eye || 0))*(1 - Math.exp(-6*dt));
+  camera.up.copy(camUp);
+  if(cam.eye > .002){
+    const E = sp.m.userData.parts.eye; E.updateWorldMatrix(true, false); const Ew = E.getWorldPosition(new V3());
+    const el = Math.max(-1.3, Math.min(1.4, -cam.pitchEff*1.15)), ce = Math.cos(el);
+    const dEye = new V3(Math.sin(cam.yaw)*ce, Math.sin(el), Math.cos(cam.yaw)*ce).applyQuaternion(camQ);
+    const dOrb = look.clone().sub(camera.position).normalize(), D = dOrb.lerp(dEye, cam.eye).normalize();
+    camera.position.lerp(Ew, cam.eye); camera.lookAt(camera.position.clone().add(D));
+  } else camera.lookAt(look);
+  camera.updateMatrixWorld();
+  SU.uInvVP.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
+  SU.uCamPos.value.copy(camera.position);
+  SU.uCamYaw.value = Math.atan2(cf.z, cf.x);
+  SU.uVib.value.forEach((u, i) => {
+    const o = SU.uVibScr.value[i];
+    if(u.w <= 0){ o.set(0, 0, 0); return; }
+    _v.set(u.x, u.y, u.z); const front = _v.clone().applyMatrix4(camera.matrixWorldInverse).z < 0;
+    _v.project(camera); o.set((_v.x*.5 + .5)*R.W, (_v.y*.5 + .5)*R.H, front ? 1 : 0);
+  });
+}

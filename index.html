@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Portia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;800&display=swap">
+<style>
+/* Prototype 2: locked style — braille glyphs. Top right: status, then the control legend (controller section only when a pad is connected).
+   Spider cards hover over the spider you point at or look at; signal changes flash mid-screen; G opens the field guide. */
+:root{
+  color-scheme: dark;
+  --bg:#03020a;
+  --panel:rgba(3,2,10,.86);
+  --line:#1c0c4a;
+  --fg:#fff2a0;
+  --dim:#d0306a;
+  --faint:#3a1a8a;
+  --font:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;            /* prose: guide, legend, cards */
+  --mono:"JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;   /* instrument text: titles, labels, keys, numbers */
+}
+html,body{height:100%;margin:0;}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:13px;line-height:1.4;overflow:hidden;-webkit-font-smoothing:antialiased;}
+h1,h2,h3,.logo,.sub,.label,.lg-h,.lg b,kbd,.status,.in-tag,.in-hint,.in-steps b,.in-prey b,#flash,#look .lk-h b,.con .v{font-family:var(--mono);}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;}
+#view:active{cursor:grabbing;}
+.hud{position:fixed;inset:0;pointer-events:none;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;pointer-events:auto;}
+.tl{position:absolute;top:12px;left:16px;width:290px;display:grid;gap:8px;}
+.tr{position:absolute;top:12px;right:16px;width:250px;display:grid;gap:8px;}
+.status{display:grid;gap:4px;font-variant-numeric:tabular-nums;}
+.bot{position:absolute;bottom:10px;left:16px;right:16px;display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:center;color:var(--dim);font-size:11px;}
+.bot b{color:var(--fg);font-weight:600;}
+h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
+.sub{color:var(--dim);font-size:10px;letter-spacing:.14em;}
+.label{font-size:10px;letter-spacing:.14em;color:var(--dim);display:flex;justify-content:space-between;margin-top:2px;}
+.label span{color:var(--faint);}
+.sense{display:grid;grid-template-columns:14px 1fr;gap:1px 8px;align-items:start;cursor:pointer;padding:3px 2px;border-radius:3px;}
+.sense:hover{background:rgba(255,255,255,.03);}
+.sense .k{color:var(--faint);}
+.sense .t b{font-weight:600;letter-spacing:.06em;}
+.sense .t span{display:block;color:var(--dim);font-size:11.5px;line-height:1.4;}
+.sense.off{opacity:.32;}
+.scale{height:6px;border-radius:2px;margin-top:4px;background:linear-gradient(90deg,#08051a 0%,#240f80 18%,#851a94 36%,#e0294d 52%,#ff8514 68%,#ffe04d 84%,#fffff0 100%);}
+.row{display:flex;justify-content:space-between;gap:8px;}
+.row .v{color:var(--fg);} .row .v.tied{color:#ffe08a;text-shadow:0 0 6px #ffb84a;} .row .l{color:var(--dim);}
+.tiny{font-size:11.5px;margin-top:2px;}
+.con{display:grid;grid-template-columns:auto 1fr 3.2em;gap:8px;align-items:center;margin-top:4px;}
+.con .l{color:var(--dim);} .con .v{color:var(--fg);text-align:right;}
+.con input{width:100%;margin:0;height:14px;accent-color:var(--fg);background:transparent;cursor:pointer;}
+.meter{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:2px;}
+.meter i{display:block;height:100%;background:var(--fg);}
+.style{display:grid;gap:5px;}
+.pl,.tg{display:grid;gap:4px;}
+.tg .v{color:var(--fg);} .tg .l{color:var(--dim);line-height:1.4;}
+#tg-alert{background:#ff6a2a;}
+.opts{display:flex;flex-wrap:wrap;gap:3px;}
+.opts button{font:inherit;font-size:11.5px;color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:3px;padding:3px 7px;cursor:pointer;}
+.opts button:hover{color:var(--fg);}
+.opts button[aria-pressed="true"]{color:var(--fg);border-color:var(--fg);}
+.opts button:focus-visible{outline:1px solid var(--fg);outline-offset:1px;}
+[hidden]{display:none !important;}
+/* control legend: keycaps hung on a silk thread */
+.legend{position:relative;background:radial-gradient(120% 90% at 100% 0%,rgba(60,20,120,.28),transparent 60%),rgba(3,2,10,.58);backdrop-filter:blur(4px);border:1px solid rgba(80,50,160,.28);border-radius:10px 2px 10px 10px;padding:10px 12px 9px;display:grid;gap:8px;pointer-events:auto;box-shadow:0 8px 24px -12px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,242,160,.04);}
+.legend::before{content:"";position:absolute;top:-12px;right:22px;width:1px;height:12px;background:linear-gradient(rgba(255,242,160,0),rgba(255,242,160,.5));}  /* the dragline it hangs from */
+.lg-h{display:flex;align-items:center;gap:8px;}
+.lg-t{font-family:var(--mono);font-size:9.5px;letter-spacing:.32em;text-transform:uppercase;color:var(--dim);}
+.lg-silk{flex:1;height:1px;background:linear-gradient(90deg,rgba(208,48,106,.55),rgba(138,112,208,.25) 60%,transparent);}
+.lg{display:grid;gap:4px;font-size:12px;}
+.lg > div{display:grid;grid-template-columns:78px 1fr;gap:10px;align-items:center;}
+.lg > div b{display:flex;gap:2px;justify-content:flex-end;font-weight:600;}
+.lg span{color:#f0c8d6;line-height:1.3;} .lg span.on{color:#ff6fa0;font-weight:600;} .lg em{display:block;font-style:normal;color:#9a86d8;font-size:10.5px;}
+.legend kbd{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;box-sizing:border-box;font-size:10px;font-weight:600;color:var(--fg);background:linear-gradient(rgba(255,242,160,.07),rgba(255,242,160,.015));border:1px solid rgba(255,242,160,.22);border-bottom-color:rgba(255,242,160,.08);border-radius:4px;box-shadow:0 1px 0 rgba(208,48,106,.35);text-shadow:0 0 6px rgba(255,200,90,.35);}
+.legend kbd.w{padding:0 6px;letter-spacing:.04em;}
+.lg-f{display:flex;justify-content:space-between;gap:6px;padding-top:7px;border-top:1px dashed rgba(138,112,208,.22);font-size:11px;color:#8a70d0;}
+.lg-f span{display:flex;align-items:center;gap:5px;} .lg-f kbd{min-width:15px;height:15px;font-size:9px;}
+.lg.pd{padding-top:2px;}
+#target{position:absolute;width:250px;display:grid;gap:4px;transform:translate(-50%, -100%);background:rgba(3,2,10,.8);}
+#flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:22px;font-weight:800;letter-spacing:.12em;color:var(--fg);text-shadow:0 0 12px rgba(255,180,80,.6);opacity:0;pointer-events:none;text-align:center;}
+#flash small{display:block;font-family:var(--font);font-size:14px;font-weight:500;letter-spacing:.06em;color:var(--dim);}
+/* intro: title → controls → hunting (G reopens it) */
+#intro{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px 16px 18px;box-sizing:border-box;
+  background:radial-gradient(ellipse at 50% 42%,rgba(36,15,128,.55),rgba(3,2,10,.93) 68%);backdrop-filter:blur(3px);pointer-events:auto;cursor:pointer;}
+.in-scene{display:none;width:min(820px,100%);max-height:calc(100% - 110px);overflow-x:hidden;overflow-y:auto;text-align:center;scrollbar-width:thin;}
+.in-scene.on{display:block;animation:inRise .55s cubic-bezier(.2,.7,.2,1) both;}
+@keyframes inRise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.logo{font-size:clamp(52px,13vw,128px);font-weight:800;letter-spacing:.2em;margin-right:-.2em;line-height:1.05;white-space:nowrap;
+  background:linear-gradient(90deg,#240f80,#851a94,#e0294d,#ff8514,#ffe04d,#fffff0,#ffe04d,#ff8514,#e0294d,#851a94,#240f80);background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:heat 7s linear infinite;filter:drop-shadow(0 0 22px rgba(255,110,50,.35));}
+@keyframes heat{to{background-position:-200% 0;}}
+.in-eyes{display:flex;justify-content:center;align-items:center;gap:10px;margin-bottom:14px;}
+.in-eyes i{display:block;width:9px;height:9px;border-radius:50%;background:#ffe04d;box-shadow:0 0 10px #ff8514;animation:blink 5s infinite;}
+.in-eyes i:nth-child(2),.in-eyes i:nth-child(3){width:22px;height:22px;background:radial-gradient(circle at 38% 35%,#fffff0 0 12%,#ffe04d 13% 34%,#e0294d 70%,#240f80);}
+@keyframes blink{0%,46%,50%,100%{transform:scaleY(1);}48%{transform:scaleY(.1);}}
+.in-tag{margin-top:12px;font-size:11.5px;letter-spacing:.32em;color:var(--dim);}
+.in-scale{width:min(420px,80%);margin:14px auto 0;height:3px;}
+.in-lede{margin:22px auto 0;max-width:480px;color:#f4e6c8;font-size:17px;line-height:1.55;font-weight:400;}
+#intro h2{font-size:clamp(18px,3vw,26px);letter-spacing:.24em;margin:0 0 18px;font-weight:800;color:var(--fg);text-shadow:0 0 14px rgba(255,133,20,.4);}
+#intro h3{font-size:11px;letter-spacing:.22em;color:var(--dim);margin:0 0 8px;font-weight:600;}
+.in-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;text-align:left;}
+.in-box{border:1px solid rgba(80,50,160,.5);border-radius:6px;padding:11px 13px;background:rgba(3,2,10,.5);display:grid;gap:8px;color:#f4e6c8;font-size:14px;line-height:1.45;}
+.in-box i{color:#8a70d0;font-style:normal;}
+#intro kbd{font:inherit;font-family:var(--mono);font-size:.86em;font-weight:600;color:var(--fg);border:1px solid #5a3ab0;border-bottom-width:2px;border-radius:4px;padding:0 6px;background:rgba(58,26,138,.25);white-space:nowrap;}
+.in-steps{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;counter-reset:st;text-align:left;}
+.in-steps li{counter-increment:st;border-top:2px solid #e0294d;padding:10px 4px 0;color:#f4e6c8;font-size:14px;line-height:1.55;}
+.in-steps li:nth-child(2){border-color:#ff8514;} .in-steps li:nth-child(3){border-color:#ffe04d;}
+.in-steps b{display:block;font-size:12px;letter-spacing:.2em;color:var(--fg);margin-bottom:4px;} .in-steps b::before{content:counter(st) "  ";color:var(--dim);}
+.in-prey{display:grid;gap:6px;text-align:left;border:1px solid rgba(80,50,160,.5);border-radius:6px;padding:10px 13px;background:rgba(3,2,10,.5);}
+.in-prey div{display:grid;grid-template-columns:96px 1fr;gap:10px;font-size:14px;line-height:1.5;color:#f4e6c8;} .in-prey b{color:var(--fg);font-size:12.5px;}
+.in-note{margin:14px 0 0;color:#a890e0;font-size:13.5px;line-height:1.5;}
+.in-nav{display:flex;align-items:center;gap:16px;}
+.in-nav button{font:inherit;font-size:13px;color:var(--fg);background:transparent;border:1px solid var(--line);border-radius:4px;padding:5px 12px;cursor:pointer;}
+.in-nav button:hover{border-color:var(--fg);}
+.in-nav button:disabled{opacity:.25;cursor:default;}
+.in-dots{display:flex;gap:8px;} .in-dots button{width:8px;height:8px;padding:0;border-radius:50%;border:0;background:#3a1a8a;}
+.in-dots button[aria-current="true"]{background:var(--fg);box-shadow:0 0 8px #ff8514;}
+.in-hint{color:#6a5aa8;font-size:10.5px;letter-spacing:.14em;}
+@media (max-width:560px){ .in-prey div{grid-template-columns:1fr;gap:0;} }
+#toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 12px;opacity:0;transition:opacity .4s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis;}
+#toast.on{opacity:1;}
+#err{position:fixed;inset:auto 16px 16px 16px;color:#ff7a60;}
+.hidehud .tl,.hidehud .tr,.hidehud .bot,.hidehud #target,.hidehud #look,.hidehud #bossbar{display:none;}
+/* encounters: a spider you close in on gets a souls-style title card, then a boss bar with one plain instruction */
+#doom{position:absolute;inset:0;z-index:30;pointer-events:none;}
+#doom .dm-bg{position:absolute;inset:0;background:#000;opacity:0;}
+#doom .dm-txt{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);padding:0 16px;text-align:center;opacity:0;font-family:"Cinzel",serif;font-weight:500;font-size:clamp(18px,3.6vw,36px);letter-spacing:.16em;color:#d9c9a3;text-shadow:0 0 18px rgba(160,40,20,.55);}
+#encounter{position:absolute;z-index:4;left:0;right:0;top:34%;transform:translateY(-50%);text-align:center;pointer-events:none;opacity:0;padding:26px 16px;
+  background:linear-gradient(90deg,transparent,rgba(3,2,10,.82) 22%,rgba(3,2,10,.82) 78%,transparent);}
+#encounter::before,#encounter::after{content:"";position:absolute;left:12%;right:12%;height:1px;background:linear-gradient(90deg,transparent,var(--ec,#c9a25a),transparent);}
+#encounter::before{top:0;} #encounter::after{bottom:0;}
+#encounter .ec-pre{font-family:"Cinzel",serif;font-size:clamp(11px,1.6vw,14px);letter-spacing:.5em;margin-right:-.5em;color:#9c8a70;}
+#encounter .ec-name{font-family:"Cinzel",serif;font-weight:900;font-size:clamp(28px,6.4vw,64px);letter-spacing:.14em;margin:6px -.14em 2px 0;line-height:1.1;
+  color:#eadcc0;text-shadow:0 0 18px var(--eg,rgba(200,40,30,.55)),0 2px 0 #000;}
+#encounter .ec-epi{font-family:"Cinzel",serif;font-size:clamp(12px,2vw,18px);letter-spacing:.32em;margin-right:-.32em;color:var(--ec,#c9a25a);}
+#encounter .ec-do{margin:16px auto 0;max-width:560px;font-family:var(--font);font-size:clamp(14px,1.9vw,17px);color:#f4e6c8;letter-spacing:.02em;}
+#encounter .ec-do b{font-family:"Cinzel",serif;font-size:.78em;letter-spacing:.3em;color:#9c8a70;margin-right:10px;font-weight:700;}
+#encounter.ec-win .ec-name{color:#f2d27a;text-shadow:0 0 24px rgba(255,190,60,.55),0 2px 0 #000;}
+#bossbar{position:absolute;left:50%;bottom:62px;width:min(640px,calc(100% - 32px));transform:translateX(-50%);pointer-events:none;opacity:0;transition:opacity .6s;}
+#bossbar.on{opacity:1;}
+#bossbar .bb-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:4px;}
+#bossbar .bb-name{font-family:"Cinzel",serif;font-weight:700;font-size:15px;letter-spacing:.12em;color:#eadcc0;text-shadow:0 1px 3px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#bossbar .bb-lab{font-family:"Cinzel",serif;font-size:10px;letter-spacing:.28em;color:#9c8a70;white-space:nowrap;}
+#bossbar .bb-bar{height:9px;border:1px solid #6a5636;background:rgba(10,4,4,.85);box-shadow:0 0 0 1px #000,inset 0 0 6px #000;position:relative;overflow:hidden;}
+#bossbar .bb-bar i{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(180deg,#d8463a,#8c1414 60%,#5a0a0a);transition:width .25s;}
+#bossbar .bb-bar u{position:absolute;inset:0 auto 0 0;width:0;background:#e8c070;opacity:.55;transition:width 1.2s .4s;}
+#bossbar.nobar .bb-bar{display:none;}
+#bossbar.ally .bb-bar i{background:linear-gradient(180deg,#f2d27a,#b08a30 60%,#6a4e14);}
+#bossbar .bb-do{margin-top:7px;text-align:center;font-size:14px;color:#f4e6c8;text-shadow:0 1px 3px #000,0 0 8px #000;}
+#bossbar .bb-do.hot{color:#ff8a6a;font-weight:600;}
+@media (max-width:560px){ #bossbar{bottom:70px;} #bossbar .bb-name{font-size:13px;} }
+/* look lab: the left-hand panel of filters, palettes and highlight effects (V shows / hides it) */
+#look{position:absolute;top:12px;left:16px;bottom:12px;width:300px;overflow-y:auto;display:grid;align-content:start;gap:9px;background:rgba(3,2,10,.8);backdrop-filter:blur(3px);scrollbar-width:thin;}
+#look .lk-h{display:flex;justify-content:space-between;align-items:baseline;} #look .lk-h b{font-size:13px;letter-spacing:.14em;} #look .lk-h span{color:#8a70d0;font-size:10px;}
+#look .sec{display:grid;gap:4px;border-top:1px solid rgba(80,50,160,.45);padding-top:7px;}
+#look .sec>.label{margin:0 0 2px;}
+#look .con{margin-top:0;grid-template-columns:88px 1fr 2.8em;}
+#look .con .l{font-size:11.5px;}
+#look .opts button{padding:2px 6px;font-size:11px;}
+#look .pal{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+#look .pal button{font:inherit;font-size:10.5px;color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:3px;padding:2px 3px 3px;cursor:pointer;text-align:left;}
+#look .pal button i{display:block;height:6px;border-radius:2px;margin-bottom:2px;}
+#look .pal button[aria-pressed="true"]{color:var(--fg);border-color:var(--fg);}
+#look .sw{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
+#look .sw button{width:18px;height:18px;border-radius:50%;border:1px solid rgba(255,255,255,.25);cursor:pointer;padding:0;}
+#look .sw button[aria-pressed="true"]{outline:2px solid var(--fg);outline-offset:1px;}
+#look .sw input{width:26px;height:20px;border:0;background:none;padding:0;cursor:pointer;}
+#look .row2{display:flex;gap:4px;flex-wrap:wrap;}
+#look .row2 button{font:inherit;font-size:11px;color:var(--fg);background:rgba(255,242,160,.06);border:1px solid var(--line);border-radius:3px;padding:3px 7px;cursor:pointer;}
+#look .row2 button:hover{border-color:var(--fg);}
+@media (max-width:820px){ #look{width:220px;} }
+@media (max-width:820px){ .tl .sense .t span{display:none;} .status{display:none;} .tl{width:180px;} .tr{width:160px;} }
+</style>
+<canvas id="view" aria-label="A jumping spider's world drawn as braille glyphs coloured by temperature"></canvas>
+<div class="hud" id="hud">
+  <div class="tl card" style="display:none">   <!-- senses panel removed: all four senses are always on -->
+    <div><h1>PORTIA</h1><div class="sub">PROTOTYPE 2 · THERMAL</div></div>
+    <div id="senses"></div>
+    <div><div class="scale"></div><div class="row tiny"><span class="l">cold · dead</span><span class="l">warm · alive</span></div></div>
+  </div>
+  <div class="tr">
+    <div class="legend" id="legend">
+      <div class="lg-h"><span class="lg-t">controls</span><i class="lg-silk"></i></div>
+      <div class="lg kb">
+        <div><b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b><span>walk</span></div>
+        <div><b><kbd>C</kbd></b><span class="mv-sneak">sneak</span></div>
+        <div><b><kbd class="w">Shift</kbd></b><span class="mv-dash">dash</span></div>
+        <div><b><kbd class="w">Space</kbd></b><span>jump <em>hold mid-air to balloon</em></span></div>
+        <div><b><kbd>F</kbd></b><span>gesture</span></div>
+        <div><b><kbd>Q</kbd></b><span>pluck web</span></div>
+        <div><b><kbd>R</kbd></b><span>change pluck signal</span></div>
+        <div><b><kbd>X</kbd></b><span>tie dragline <em>again to hang · again to cut</em></span></div>
+      </div>
+      <div class="lg-f"><span><kbd>G</kbd>intro</span><span><kbd>H</kbd>hide</span><span><kbd>M</kbd>sound</span></div>
+      <div class="lg pd" hidden>
+        <div class="lg-h"><span class="lg-t">controller</span><i class="lg-silk"></i></div>
+        <div><b><kbd class="w">L-stick</kbd></b><span>walk <em>tilt sets pace</em></span></div>
+        <div><b><kbd class="w">R-stick</kbd></b><span>look · aim</span></div>
+        <div><b><kbd class="w">LT</kbd></b><span class="mv-sneak">sneak</span></div>
+        <div><b><kbd class="w">RT</kbd></b><span class="mv-dash">dash</span></div>
+        <div><b><kbd>A</kbd></b><span>jump <em>hold mid-air to balloon</em></span></div>
+        <div><b><kbd>X</kbd></b><span>gesture</span></div>
+        <div><b><kbd class="w">RB</kbd></b><span>pluck web</span></div>
+        <div><b><kbd class="w">LB</kbd></b><span>change signal</span></div>
+        <div><b><kbd>B</kbd></b><span>tie dragline <em>again to hang · again to cut</em></span></div>
+        <div><b><kbd class="w">D-pad</kbd></b><span>zoom</span></div>
+        <div><b><kbd class="w">Start</kbd></b><span>hide HUD</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="card tg" id="target" hidden>
+    <div class="label" id="tg-name"></div>
+    <div class="v" id="tg-state"></div>
+    <div class="l tiny" id="tg-hint"></div>
+    <div class="meter" title="alertness"><i id="tg-alert"></i></div>
+  </div>
+  <div id="look" class="card" hidden></div>
+  <div id="flash"></div>
+  <div id="encounter" aria-live="polite"><div class="ec-pre"></div><div class="ec-name"></div><div class="ec-epi"></div><div class="ec-do"></div></div>
+  <div id="doom" hidden><div class="dm-bg"></div><div class="dm-txt dm-a">It is the end for you..</div><div class="dm-txt dm-b">...but your sisters continue the hunt.</div></div>
+  <div id="bossbar"><div class="bb-top"><span class="bb-name"></span><span class="bb-lab"></span></div><div class="bb-bar"><u></u><i></i></div><div class="bb-do"></div></div>
+  <div id="intro" hidden>
+    <section class="in-scene" data-k="0">
+      <div class="in-eyes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="logo" id="logo" aria-label="Portia">PORTIA</div>
+      <div class="in-tag">PORTIA LABIATA · THE SPIDER THAT HUNTS SPIDERS</div>
+      <div class="scale in-scale"></div>
+      <p class="in-lede">You are a few millimetres of patience. Everything warm is alive, and most of it can kill you.</p>
+    </section>
+    <section class="in-scene" data-k="1">
+      <h2>CONTROLS</h2>
+      <div class="in-grid">
+        <div class="in-box"><h3>MOVE</h3>
+          <div><kbd>WASD</kbd> walk — up bark, stone, under leaves</div>
+          <div><kbd>C</kbd> toggle sneak</div>
+          <div><kbd>Shift</kbd> toggle dash: snap, dart, freeze</div></div>
+        <div class="in-box"><h3>LEAP</h3>
+          <div><kbd>hold Space</kbd> aim with the mouse</div>
+          <div><i>release</i> leap to the ring</div>
+          <div><kbd>Space</kbd> <i>in air</i> balloon on silk</div></div>
+        <div class="in-box"><h3>SILK</h3>
+          <div><kbd>X</kbd> tie dragline · again to hang · again to cut</div>
+          <div><kbd>hold Q</kbd> pluck · <kbd>R</kbd> change signal</div></div>
+        <div class="in-box"><h3>POSE</h3>
+          <div><kbd>hold F</kbd> raise front legs</div>
+          <div><kbd>H</kbd> hide HUD · <kbd>M</kbd> sound</div>
+          <div><kbd>G</kbd> this intro again</div></div>
+      </div>
+    </section>
+    <section class="in-scene" data-k="2">
+      <h2>HOW TO HUNT</h2>
+      <ol class="in-steps">
+        <li><b>READ</b><span>Point at or look at a spider to see its state and how alert it is.</span></li>
+        <li><b>STALK</b><span>Sneak with <kbd>C</kbd>. Come from behind or above. If it turns, freeze.</span></li>
+        <li><b>STRIKE</b><span>Hold <kbd>Space</kbd>, put it in the ring until your fangs bare and it burns bright, then release.</span></li>
+      </ol>
+      <div class="in-prey">
+        <div><b>Scytodes</b><span>Spits glue at whatever is in front of it. Never approach from the front, unless it's carrying its egg sac.</span></div>
+        <div><b>Badumna</b><span>Hides in a tube. Stand on its sheet, pluck with <kbd>Q</kbd>, try signals with <kbd>R</kbd> until it comes out. Move when the breeze gusts.</span></div>
+        <div><b>Argiope</b><span>Waits at the hub of its orb web. Sneak along the silk or drop in from above. If it pumps the web, freeze.</span></div>
+      </div>
+      <p class="in-note">A dark male dancing on a heart-shaped leaf? Go there and keep still.</p>
+    </section>
+    <nav class="in-nav">
+      <button type="button" data-go="-1">◂ back</button>
+      <span class="in-dots"><button type="button" data-to="0" aria-label="title"></button><button type="button" data-to="1" aria-label="controls"></button><button type="button" data-to="2" aria-label="hunting"></button></span>
+      <button type="button" data-go="1" id="in-next">next ▸</button>
+    </nav>
+    <div class="in-hint">→ / Enter next · ← back · Esc skip</div>
+  </div>
+  <div id="toast"></div>
+</div>
+<div id="err" hidden></div>
+
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+// Game code lives in js/*.js as classic scripts sharing one global scope (load order matters: a file may only
+// use, at its top level, things defined in files above it). THREE is exposed globally for them.
+import * as THREE from 'three';
+window.THREE = THREE;
+try { await Promise.race([document.fonts.load('400 16px "JetBrains Mono"'), new Promise(r => setTimeout(r, 1500))]); } catch(e){}
+const FILES = ['core', 'world', 'jungle', 'spider', 'actors', 'prey-spiders', 'life', 'hunt', 'shaders', 'atlas', 'input', 'player', 'predators', 'camera', 'encounter', 'render', 'audio', 'main'];
+for(const f of FILES){ const s = document.createElement('script'); s.src = 'js/' + f + '.js'; s.async = false; document.body.appendChild(s); }
+</script>
+</html>
