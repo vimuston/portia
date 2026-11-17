@@ -249,6 +249,18 @@ function reachBelow(own, f){
   }
   return best;
 }
+// overlapping tops: where another walkable top lies just above hers (its rim over her leaf, or the two touching),
+// that is the surface her feet meet; well above is headroom she walks under
+const STEP_UP = .08;
+function stepUpTo(own, x, z){
+  const y0 = surfAt(own, x, z); let best = null, by = 0;
+  for(const L of PLAT){
+    if(L === own || L.ground || L.kind === 'climb' || !inPlat(L, x, z)) continue;
+    const y = surfAt(L, x, z), dy = y - y0;
+    if(dy > .003 && dy < STEP_UP && (!best || y > by)){ best = L; by = y; }
+  }
+  return best;
+}
 function rollOnTop(S, v){
   const [q, o] = S.rimPoint(v.x, v.z), inw = o.clone().negate();
   startRoll(q, o, () => { sp.mode = 'ground'; sp.plat = S.top; sp.pos.copy(q).addScaledVector(inw, .12); sp.pos.y = S.top.y; sp.yaw = Math.atan2(inw.x, inw.z); });
@@ -379,7 +391,9 @@ function updateSpider(dt){
     spd *= gaitLimit(sp.m, dir.clone().multiplyScalar(spd*dt), snappy ? 1.02 : .93);   // a dart may pull the standing legs taut
     const nx = sp.pos.x + dir.x*spd*dt, nz = sp.pos.z + dir.z*spd*dt;
     const wall = sp.plat.ground && spd > 0 && sp.climbGrace <= 0 ? climbHit(nx, sp.pos.y + .05, nz, dir) : null;
-    if(snappy && spd > 0 && (wall || !inPlat(sp.plat, nx, nz))){ pc.t = pc.dur; spd = 0; }   // a dart stops at the edge of its surface
+    const up = !sp.plat.ground && spd > 0 ? stepUpTo(sp.plat, nx, nz) : null;
+    if(up){ sp.plat = up; sp.pos.set(nx, up.y, nz); }                               // another leaf lies over hers: walk up onto its top, not under it
+    else if(snappy && spd > 0 && (wall || !inPlat(sp.plat, nx, nz))){ pc.t = pc.dur; spd = 0; }   // a dart stops at the edge of its surface
     else if(wall){ enterClimb(wall, new V3(nx, sp.pos.y + .06, nz), dir); return; }
     else if(sp.plat.ground){ const r = Math.hypot(nx, nz), k = r > 30 ? 30/r : 1; sp.pos.set(nx*k, floorAt(nx*k, nz*k), nz*k); }
     else if(inPlat(sp.plat, nx, nz)){ sp.pos.x = nx; sp.pos.z = nz; }
