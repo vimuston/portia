@@ -597,29 +597,36 @@ function updateSpider(dt){
   // standing still a while she looks about: now and then the head swings a little to one side for a better view, and a
   // front leg lifts and slowly feels the air ahead before settling back on its foothold, one leg at a time
   { const P = m.userData.parts, legsDown = sp.mode === 'ground' || sp.mode === 'climb', pcs = sp.pc || {};
-    const I = sp.idle || (sp.idle = {t: 0, yaw: 0, tgt: 0, hT: 0, pr: null, wait: 1, side: 1});
+    const I = sp.idle || (sp.idle = {t: 0, yaw: 0, tgt: 0, hT: 0, roll: 0, rTgt: 0, rT: 2, pr: null, wait: 1, side: 1});
     const ok = legsDown && sp.speed < .02 && !sp.charging && !sp.posture && !sp.plucking && !sp.feed && raise === 0 && pcs.ph !== 'burst';
     I.t = ok ? I.t + dt : 0; const on = I.t > 1.5;
-    if(on){ I.hT -= dt; if(I.hT <= 0){ I.tgt = rnd() < .3 ? 0 : (rnd() < .5 ? -1 : 1)*rr(.18, .38); I.hT = rr(1.2, 3.5); } }
-    else { I.tgt = 0; I.hT = rr(.3, 1); }
-    I.yaw += (I.tgt - I.yaw)*(1 - Math.exp(-(on ? 3.5 : 10)*dt));
-    P.head.rotation.y = I.yaw; P.head.rotation.z = I.yaw*.2;                          // a slight cant into the turn
+    if(on){
+      I.hT -= dt; if(I.hT <= 0){ I.tgt = rnd() < .35 ? 0 : (rnd() < .5 ? -1 : 1)*rr(.04, .09); I.hT = rr(1.5, 4); }   // small glances, a few degrees
+      I.rT -= dt; if(I.rT <= 0){                                                          // a quizzical tilt, like a puzzled dog, held 5-8 s
+        if(I.rTgt){ I.rTgt = 0; I.rT = rr(2, 5); } else { I.rTgt = (rnd() < .5 ? -1 : 1)*rr(.14, .22); I.rT = rr(5, 8); } }
+    } else { I.tgt = I.rTgt = 0; I.hT = rr(.3, 1); I.rT = rr(1, 3); }
+    I.yaw += (I.tgt - I.yaw)*(1 - Math.exp(-(on ? 3 : 10)*dt));
+    I.roll += (I.rTgt - I.roll)*(1 - Math.exp(-(on ? 2.5 : 10)*dt));
+    P.head.rotation.y = I.yaw; P.head.rotation.z = I.roll;
     if(I.pr){
       const L = I.pr.L; I.pr.t += dt; const k = I.pr.t/I.pr.dur;
       if(!on || L.free || L.step || !L.planted || k >= 1){ I.pr = null; I.wait = rr(.8, 2.6); }
       else {
         const ss = x => x*x*(3 - 2*x), e = ss(Math.min(1, k/.3))*ss(Math.min(1, (1 - k)/.25)), t = I.pr.t, s = P.s;
-        const fb = P.body.worldToLocal(L.foot.clone());
-        fb.y += e*(.032 + .01*Math.sin(t*4.3))*s;                                       // lifted, bobbing gently
-        fb.z += e*(.022 + .014*Math.sin(t*2.1 + .7))*s;                                 // reaching ahead and drawing back
-        fb.x += e*L.side*(.008 + .01*Math.sin(t*1.6))*s;                                // and sweeping a touch outward
+        const fb = P.body.worldToLocal(L.foot.clone()), front = L.k === 0;
+        if(front){
+          fb.y += e*(.05 + .012*Math.sin(t*4.3))*s;                                     // lifted, bobbing gently
+          fb.z += e*(.024 + .014*Math.sin(t*2.1 + .7))*s;                               // reaching ahead and drawing back
+          fb.x += e*L.side*(.008 + .01*Math.sin(t*1.6))*s;                              // and sweeping a touch outward
+        } else fb.y += e*.02*s;                                                         // another leg: just raised a little and set down again
         legIK(L, fb);
       }
     } else if(on){
       I.wait -= dt;
-      if(I.wait <= 0){ I.side = -I.side;
-        const L = P.legs.find(L => L.k === 0 && L.side === I.side && L.planted && !L.step && !L.free);
-        if(L) I.pr = {L, t: 0, dur: rr(1.8, 3)}; else I.wait = .3; }
+      if(I.wait <= 0){                                                                  // mostly the front legs, now and then one of the others
+        const other = rnd() < .25, k = other ? 1 + Math.floor(rnd()*3) : 0, side = other ? (rnd() < .5 ? -1 : 1) : (I.side = -I.side);
+        const L = P.legs.find(L => L.k === k && L.side === side && L.planted && !L.step && !L.free);
+        if(L) I.pr = {L, t: 0, dur: other ? rr(.7, 1.2) : rr(1.8, 3)}; else I.wait = .3; }
     }
   }
   updateHair(m, dt);
