@@ -304,12 +304,19 @@ function catchFly(f){
   toast('You land on the fly — fangs in, venom pumping.');
   return true;
 }
-// a fly in her fangs, or its husk: shrunken, the abdomen sucked flat, its colour gone dull
+// a fly in her fangs, or its husk: shrunken, the abdomen sucked flat, its colour and sheen gone dull. The dulling
+// only ever darkens (black bristles and legs must not fade up to grey), and the whole fly shrinks as feedTick expects
 function flyLook(f, d){
   const m = f.m, U = m.userData;
-  if(!U.mats){ U.mats = []; m.traverse(o => { if(o.material && o.material.color && !U.mats.some(e => e.m === o.material)) U.mats.push({m: o.material, c0: o.material.color.clone()}); }); }
-  for(const e of U.mats) e.m.color.copy(e.c0).lerp(DEAD_C, .7*d);
-  U.ab.scale.copy(U.ab0).multiply(new V3(1 - .45*d, 1 - .6*d, 1 - .3*d)); U.th.scale.copy(U.th0).multiply(new V3(1 - .15*d, 1 - .2*d, 1 - .1*d));
+  if(!U.mats){ U.mats = []; m.traverse(o => { if(o.material && o.material.color && !U.mats.some(e => e.m === o.material))
+    U.mats.push({m: o.material, c0: o.material.color.clone(), e0: o.material.emissive ? o.material.emissive.clone() : null, mt0: o.material.metalness, r0: o.material.roughness}); }); }
+  for(const e of U.mats){
+    const c = e.m.color.copy(e.c0).lerp(DEAD_C, .85*d); c.r = Math.min(c.r, e.c0.r); c.g = Math.min(c.g, e.c0.g); c.b = Math.min(c.b, e.c0.b);
+    if(e.e0) e.m.emissive.copy(e.e0).multiplyScalar(1 - d);
+    if(e.mt0 != null){ e.m.metalness = e.mt0*(1 - d); e.m.roughness = e.r0 + (.9 - e.r0)*d; }   // the wet sheen of a live fly gone
+  }
+  U.ab.scale.copy(U.ab0).multiply(new V3(1 - .55*d, 1 - .75*d, 1 - .35*d)); U.th.scale.copy(U.th0).multiply(new V3(1 - .2*d, 1 - .25*d, 1 - .12*d));
+  m.scale.setScalar(1 - .15*d);
 }
 function flyAway(f, from){
   const choices = HUNT.filter(p => p !== f.plat);
