@@ -279,21 +279,69 @@ function makeMantis(){
       const hip = joint(sg, .06, .26, z); hip.rotation.order = 'YZX'; hip.rotation.y = yaw; hip.rotation.z = .55; tubeX(hip, .42*k, .016, .012, GRN);
       const knee = joint(hip, .42*k, 0, 0); knee.rotation.z = -1.8; tubeX(knee, .5*k, .012, .008, GRN);
       const tar = joint(knee, .5*k, 0, 0); tar.rotation.z = 1.15; tubeX(tar, .14*k, .007, .005, SPN);
-      legs.push({hip, knee, yaw, ph: (i + (s > 0 ? 0 : 1)) % 2*Math.PI});
+      legs.push({sg, hip, knee, tar, yaw, side: s, i, A: .42*k, B: .5*k, C: .14*k, grp: (i + (s > 0 ? 0 : 1)) % 2,
+        rest: new V3(.06 + Math.cos(yaw)*.655*k, -.008, -Math.sin(yaw)*.655*k), foot: new V3(), planted: false, step: null});
     });
   }
+  // each foot's rest spot in its side's frame: where the default pose puts the tarsus tip (a relaxed ~60% stretch)
+  root.updateMatrixWorld(true);
+  for(const L of legs) L.rest = L.sg.worldToLocal(L.tar.localToWorld(new V3(L.C, 0, 0)));
   root.userData.parts = {body, pro, head, jaw, fore, legs};
   return root;
+}
+// ---- the mantis walks like the spiders do: every walking foot is planted on the surface and stays put while the
+// body moves over it, bent onto its foothold by IK. A foot that falls a stride behind its rest spot (led ahead along
+// the motion) steps there in an arc; the four legs go in diagonal pairs (L1+R2, R1+L2), a pair only lifting while the
+// other stands, so it walks with the slow rocking gait of a real mantis.
+const MPHI = -.1;                                                // the tarsus lies along the surface
+function mantisLegIK(L, fw){
+  const d = L.sg.worldToLocal(fw.clone()).sub(L.hip.position);
+  L.hip.rotation.y = Math.atan2(-d.z, d.x);
+  const {A, B, C} = L, cl = v => Math.max(-1, Math.min(1, v));
+  const px = Math.hypot(d.x, d.z) - C*Math.cos(MPHI), py = d.y - C*Math.sin(MPHI);
+  const D = Math.min(A + B - 1e-4, Math.max(Math.abs(A - B) + 1e-4, Math.hypot(px, py)));
+  const t0 = Math.atan2(py, px) + Math.acos(cl((A*A + D*D - B*B)/(2*A*D)));        // knee up, as a mantis holds them
+  const t1 = t0 - Math.PI + Math.acos(cl((A*A + B*B - D*D)/(2*A*B)));
+  L.hip.rotation.z = t0; L.knee.rotation.z = t1 - t0; L.tar.rotation.z = MPHI - t1;
+}
+function mantisGaitRelease(pr){ for(const L of pr.m.userData.parts.legs){ L.planted = false; L.step = null; } pr.gv = null; }
+function mantisGait(pr, dt, moved){
+  const P = pr.m.userData.parts, up = pr.up;
+  pr.m.updateMatrixWorld(true);
+  const v = moved && dt > 0 ? moved.clone().multiplyScalar(1/dt) : new V3();
+  pr.gv = pr.gv ? pr.gv.lerp(v, 1 - Math.exp(-10*dt)) : v;                      // smoothed, so a stalled frame doesn't jerk the lead
+  const spd = pr.gv.length(), dur = Math.max(.13, .24 - spd*.15), stride = .11, tmp = new V3();
+  const busy = g => P.legs.some(o => o.step && o.grp !== g);
+  for(const L of P.legs){
+    const des = pr.surf.proj(L.sg.localToWorld(L.rest.clone()).addScaledVector(pr.gv, dur*1.1 + .03));
+    if(!L.planted){                                              // (re)plant: from where the foot hangs now, a quick step down
+      const tip = L.tar.localToWorld(new V3(L.C, 0, 0));
+      L.planted = true; L.foot.copy(tip); L.step = {from: tip, to: des, t: 0, dur: .15};
+    }
+    if(L.step){
+      L.step.to.copy(des); L.step.t += dt/L.step.dur;
+      const k = Math.min(1, L.step.t), e = k*k*(3 - 2*k);
+      L.foot.lerpVectors(L.step.from, L.step.to, e).addScaledVector(up, Math.sin(Math.PI*k)*(.06 + spd*.05));
+      if(k >= 1){ L.foot.copy(L.step.to); L.step = null; }
+    } else {
+      tmp.subVectors(L.foot, des); const vert = tmp.dot(up); tmp.addScaledVector(up, -vert);
+      const err = tmp.length();
+      if(err > 1.2) L.foot.copy(des);                                               // teleported: just plant
+      else if((err > stride || Math.abs(vert) > .08 || (spd < .02 && err > .07)) && !busy(L.grp))
+        L.step = {from: L.foot.clone(), to: des, t: 0, dur: spd < .02 ? .2 : dur};   // at rest it tidies its feet under it
+    }
+  }
+  for(const L of P.legs) mantisLegIK(L, L.foot);
+  // the body dips a touch while a pair is in the air
+  const n = P.legs.filter(L => L.step).length;
+  pr.bob = (pr.bob || 0) + ((n ? -.012 : 0) - (pr.bob || 0))*(1 - Math.exp(-12*dt));
 }
 function poseMantis(pr, o){
   const P = pr.m.userData.parts, t = pr.t;
   P.body.position.set(0, (o.bob || 0), (o.sway || 0));
   P.pro.rotation.x = -.6 - (o.rear || 0)*.35;
-  for(const L of P.legs){
-    const ph = pr.walkPh + L.ph, w = o.walk || 0;
-    L.hip.rotation.y = L.yaw + Math.sin(ph)*.3*w;
-    L.hip.rotation.z = .55 + Math.max(0, Math.cos(ph))*.35*w + (o.spread || 0)*.4;
-    L.knee.rotation.z = -1.8 + (o.spread || 0)*.9;
+  if(o.air != null) for(const L of P.legs){                       // airborne (a hop): legs off their feet, flung wide
+    L.hip.rotation.y = L.yaw; L.hip.rotation.z = .55 + o.air*.4; L.knee.rotation.z = -1.8 + o.air*.9; L.tar.rotation.z = 1.15;
   }
   // forelegs: ext 0 = folded in prayer, 1 = flung out; grip closes the tibiae on the catch
   const ext = o.ext || 0, grip = o.grip || 0;
@@ -308,7 +356,7 @@ function poseMantis(pr, o){
 // ---- the predator
 function makePred(kind){
   const m = makeMantis(), home = new V3(-2.6, 0, 11.4);
-  const pr = {kind, m, home, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10, walkPh: 0,
+  const pr = {kind, m, home, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10,
     reach: .32, range: 6, climby: .4, tree: true, trunk: null, hunting: false, sees: false, seenT: 0, last: new V3(),
     goal: null, pause: prr(1, 3), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, gaveUp: false,
     motion: 0, temp: .42, self: false, hl: 0};
@@ -331,6 +379,7 @@ function predHome(pr){
   const a = Math.random()*6.28; pr.fwd.set(Math.sin(a), 0, Math.cos(a));
   pr.m.scale.setScalar(1);
   predOrient(pr, 1, null);
+  mantisGaitRelease(pr); pr.gp = null;
 }
 
 // ---- Portia in its grip
@@ -359,8 +408,9 @@ function updMantis(pr, dt){
     const eat = k > .5;
     if(eat){ const bite = Math.sin(pr.t*3.2); P.head.rotation.x = .95 + .18*Math.max(0, bite); }
     if(k > .5) holdPortia(hp, null, Math.max(0, 1 - (k - .5)/1.5), Math.max(.35, 1 - (k - .5)*.22));
-    poseMantis(pr, {ext, grip, chew: eat, rear: 1 - sstep(.3, .8, k)*.6});
+    poseMantis(pr, {ext, grip, chew: eat, rear: 1 - sstep(.3, .8, k)*.6, bob: pr.bob});
     predOrient(pr, dt, null);
+    mantisGait(pr, dt, null);
     pr.motion = k < .3 ? 1 : .3;
     return;
   }
@@ -391,14 +441,16 @@ function updMantis(pr, dt){
     else if(pr.stuckT > 2.5){ const T = predHopTarget(pr, pr.goal, 1.2); if(T) predStartHop(pr, T, .35); else pr.goal = null; pr.stuckT = 0; pr.best = d; }
     else { const b = pr.pos.clone(); predWalk(pr, pr.goal, .38*dt); want = pr.pos.clone().sub(b); walk = 1; sway = Math.sin(pr.t*7)*.012; }
   }
+  const p0 = pr.gp || pr.pos.clone();
   predOrient(pr, dt, want, pr.hunting ? 2.5 : 4);
-  pr.walkPh += dt*9*walk;
+  pr.gp = pr.pos.clone();
   // the head swivels to keep its eyes on her (or on where she was)
   const look = pr.hunting ? pr.last : null;
   if(look){ const l = P.pro.worldToLocal(look.clone()); P.head.rotation.y += (Math.max(-1, Math.min(1, Math.atan2(l.x, l.z))) - P.head.rotation.y)*(1 - Math.exp(-6*dt)); }
   else P.head.rotation.y += (Math.sin(pr.t*.4)*.35 - P.head.rotation.y)*(1 - Math.exp(-2*dt));
   P.head.rotation.x = .95;
-  poseMantis(pr, {walk, sway, spread: pr.hop ? Math.sin(Math.PI*pr.hop.k) : 0, rear: pr.hunting ? .5 : 0});
+  if(pr.hop){ mantisGaitRelease(pr); poseMantis(pr, {sway, air: Math.sin(Math.PI*pr.hop.k), rear: pr.hunting ? .5 : 0}); }
+  else { poseMantis(pr, {sway, rear: pr.hunting ? .5 : 0, bob: pr.bob}); mantisGait(pr, dt, pr.pos.clone().sub(p0)); }
   pr.motion = walk ? .5 : pr.hop ? .8 : .04;
 }
 
