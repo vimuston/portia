@@ -482,11 +482,15 @@ function updateSpider(dt){
       if(!(sp.webFlipT > performance.now()/1000)){                       // nothing beyond: round the frame thread onto the other face
         // a real 180° roll about the thread, as at a leaf's rim. Just flipping the side would leave the body upright on
         // the old face: its up follows the feet's normals by lerp, and a lerp toward the exact opposite never turns
+        // the orb sways along its normal (a few cm when the Argiope pumps it), so the pivot rides with the web and the
+        // far face is set outright: re-reading it from a world point after the roll can land back on the old one
         const n0 = S.normal(np), out = t.clone().addScaledVector(n0, -t.dot(n0)).normalize(), inw = out.clone().negate(), piv = np.clone();
+        const pivL = np.clone().sub(ARG_WEB.position), face = -S.side;
         sp.webFlipT = performance.now()/1000 + .55 + .8;
         startRoll(piv, out, () => {
-          S.side = -S.side;
-          enterClimb(S, piv.clone().addScaledVector(inw, .12).addScaledVector(n0, -.03), inw);
+          S.side = face;
+          const at = S.project(pivL.clone().add(ARG_WEB.position).addScaledVector(inw, .12));   // on the sheet itself, so enterClimb keeps the face
+          enterClimb(S, at, inw); S.side = face;
           cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null;
           pulses.push({pos: sp.pos.clone(), amp: .3, decay: 6});
         });
