@@ -65,6 +65,12 @@ function camFrame(dt){
   camQ.premultiply(new THREE.Quaternion().setFromUnitVectors(camUp, nu)).normalize(); camUp.copy(UP).applyQuaternion(camQ);
   if(tu.y > .999 && camUp.y > .9999){ const f = new V3(0, 0, 1).applyQuaternion(camQ); cam.yaw += Math.atan2(f.x, f.z); camQ.identity(); camUp.set(0, 1, 0); }
 }
+let _smallOcc = null, _smallOccN = -1;
+function smallOccluders(){
+  if(_smallOccN !== OCCLUDERS.length){ _smallOccN = OCCLUDERS.length;
+    _smallOcc = OCCLUDERS.filter(m => { const g = m.geometry; if(!g.boundingSphere) g.computeBoundingSphere(); return g.boundingSphere.radius < 40; }); }
+  return _smallOcc;
+}
 function updateCamera(dt){
   camFrame(dt);
   if(cam.swing != null){                                                       // swing to face a world heading
@@ -79,7 +85,12 @@ function updateCamera(dt){
   const climbing = sp.mode === 'climb' && sp.plat && !sp.plat.web, sn = climbing ? sp.plat.normal(sp.pos) : camUp;
   const under = climbing && sp.plat.thin && sn.y < -.3 && sp.pos.y - floorAt(sp.pos.x, sp.pos.z) > .5;
   const tDir = climbing && (under || sn.y > -.2) ? sn : camUp;
-  const tgt = sp.pos.clone().addScaledVector(tDir, cam.tY ?? (climbing ? .3 : .18));   // cam.tY: a debug override
+  // on a leaf top her logical height is the blade's base level, but the blade folds up toward its edges and its
+  // surface can sit well above that: orbit from the surface her feet are on, or the pivot sits inside the leaf,
+  // every line of sight is blocked at once, and the view collapses into her eyes
+  const pivot = sp.pos.clone();
+  if(sp.mode === 'ground' && sp.plat && sp.plat.leaf) pivot.y = Math.max(pivot.y, surfAt(sp.plat, pivot.x, pivot.z));
+  const tgt = pivot.clone().addScaledVector(tDir, cam.tY ?? (climbing ? .3 : .18));   // cam.tY: a debug override
   cam.target.lerp(tgt, 1 - Math.exp(-8*dt));
   // the look angle is always yours: full range (negative = from below, looking up), and it follows quickly
   // under a leaf the view stays level and looks up at her from below: your whole pitch range maps onto the angles
@@ -90,21 +101,68 @@ function updateCamera(dt){
   // the point the camera orbits must itself be clear of solids (at a root/trunk join it can fall inside the
   // neighbour): walk it back toward her body until it is
   const solidAt = (q, m) => q.y < floorAt(q.x, q.z) + m || climbsNear(q.x, q.z, .3).some(S => !S.web && S.inside(q, m));
-  if(solidAt(cam.target, .05)){ const base = sp.pos.clone().addScaledVector(tDir, .07), q = new V3();
+  if(solidAt(cam.target, .05)){ const base = pivot.clone().addScaledVector(tDir, .07), q = new V3();
     for(let f = 1; f >= 0; f -= .1){ q.copy(base).lerp(cam.target, f); if(!solidAt(q, .05) || f <= 0){ cam.target.copy(q); break; } } }
   cam.target.y = Math.max(cam.target.y, soilTop(cam.target.x, cam.target.z) + .05);    // whatever else, never below the soil
-  const cp = Math.cos(cam.pitchEff), spn = Math.sin(cam.pitchEff), T = cam.target;
-  const off = new V3(-Math.sin(cam.yaw)*cp, spn, -Math.cos(cam.yaw)*cp).applyQuaternion(camQ);
-  ray.set(T, off); ray.far = cam.dist;
-  const hit = ray.intersectObjects(OCCLUDERS, false)[0];
-  let want = hit ? Math.max(.06, hit.distance - .08) : cam.dist;
-  // march the line of sight out from her: stop short of any solid (bark, roots, branches, stone, leaves, the soil),
-  // keeping a little clearance so the near plane never cuts into a surface
-  { const q = new V3();
-    for(let d = .04; d < want; d += Math.min(.1, .03 + d*.04)){ q.copy(T).addScaledVector(off, d);
+  const T = cam.target;
+  const offAt = (yw, pt) => { const c = Math.cos(pt); return new V3(-Math.sin(yw)*c, Math.sin(pt), -Math.cos(yw)*c).applyQuaternion(camQ); };
+  // how far the camera can sit out along a line of sight: stop short of any occluder mesh, then march the line out
+  // from her and stop short of any solid (bark, roots, branches, stone, leaves, the soil), keeping a little
+  // clearance so the near plane never cuts into a surface
+  // (treeM: a wider berth from the big trees past the first stretch, whose bark mesh bulges beyond its solid, so a
+  // line grazing along the trunk isn't taken for clear)
+  const sight = (o, far, meshes = OCCLUDERS, treeM = .06) => {
+    let w = far;
+    if(meshes){ ray.set(T, o); ray.far = far; const hit = ray.intersectObjects(meshes, false)[0]; if(hit) w = Math.max(.06, hit.distance - .08); }
+    const q = new V3();
+    for(let d = .04; d < w; d += Math.min(.1, .03 + d*.04)){ q.copy(T).addScaledVector(o, d);
       let blocked = q.y < floorAt(q.x, q.z) + .06;
-      if(!blocked) for(const S of climbsNear(q.x, q.z, .3)){ if(S.web) continue; if(S.inside(q, .06)){ blocked = true; break; } }
-      if(blocked){ want = Math.max(.04, d - .05); break; } } }
+      if(!blocked) for(const S of climbsNear(q.x, q.z, .3)){ if(S.web) continue; if(S.inside(q, S.tree && d > .15 ? treeM : .06)){ blocked = true; break; } }
+      if(blocked){ w = Math.max(.04, d - .05); break; } }
+    return w;
+  };
+  // a trunk, stem or rock right behind her, or a second leaf lying just over hers (both common by the trees) would
+  // squeeze the orbit in until the view dropped into her eyes. Instead the camera slides round the obstacle,
+  // sideways, then up, or flattens out to look in under a leaf overhead, to the nearest angle with room, and eases
+  // back once your own angle is clear. Looking up from below, zoomed right in, or under a leaf, the squeeze into her
+  // eyes is still what you want, so it is left alone there.
+  let dY = 0, dP = 0;
+  const need = Math.min(cam.dist, .8);
+  if(cam.dist > .45 && cam.pitch > -.15 && cam.under < .5){
+    // the solid march first; a line it finds clear is confirmed against the small meshes (a leaf's blade and its
+    // solid proxy differ a little), at most a few raycasts a frame. The giant trunks are left to the march: their
+    // solids are exact, and their meshes are most of what a raycast costs
+    // A slot that still proves blocked once the camera has settled in it (the bark mesh, which only the final line
+    // of sight tests) is struck off until she moves on
+    let casts = 4;
+    if(!cam.badAt || cam.badAt.distanceToSquared(sp.pos) > .15*.15){ cam.bad = []; cam.badAt = sp.pos.clone(); }
+    const pitchAt = p => Math.min(1.45, cam.pitchEff + p);
+    const isBad = (y, p) => cam.bad.some(b => angDiff(cam.yaw + y, b.yaw) < .3 && Math.abs(p - b.p) < .2);
+    const roomAt = (y, p, floor) => { if((y || p) && isBad(y, p)) return 0;
+      const o = offAt(cam.yaw + y, pitchAt(p)), r = sight(o, need, null, .18);
+      return r < floor || casts-- <= 0 ? Math.min(r, floor - 1e-3) : Math.min(r, sight(o, need, smallOccluders(), .18)); };
+    const pY = cam.dodgeY || 0, pP = cam.dodgeP || 0, sg = pY < 0 ? -1 : 1;
+    if(roomAt(0, 0, need*.9) < need*.9){
+      if((pY || pP) && roomAt(pY, pP, need*.9) >= need*.9){ dY = pY; dP = pP; }    // the slot found last frame is still clear: stay in it
+      else {
+        const flat = cam.pitchEff > .2 ? .06 - cam.pitchEff : null, pitches = [0, .35, flat, .7].filter(p => p !== null);
+        let best = .45, found = false;                                         // short of this the view would drop into her eyes anyway
+        for(const p of pitches){
+          for(const y of [0, .35*sg, -.35*sg, .7*sg, -.7*sg, 1.05*sg, -1.05*sg, 1.4*sg, -1.4*sg, 1.75*sg, -1.75*sg]){
+            if(!y && !p) continue;
+            const r = roomAt(y, p, best);
+            if(r >= need*.9){ dY = y; dP = p; found = true; break; }
+            if(r > best){ best = r; dY = y; dP = p; } }
+          if(found) break; } }
+    }
+  }
+  const kD = 1 - Math.exp(-4*dt);
+  cam.dodgeY = (cam.dodgeY || 0) + (dY - (cam.dodgeY || 0))*kD; cam.dodgeP = (cam.dodgeP || 0) + (dP - (cam.dodgeP || 0))*kD;
+  if(Math.abs(cam.dodgeY) < 1e-3) cam.dodgeY = 0; if(Math.abs(cam.dodgeP) < 1e-3) cam.dodgeP = 0;
+  const off = offAt(cam.yaw + cam.dodgeY, Math.min(1.45, cam.pitchEff + cam.dodgeP));
+  let want = sight(off, cam.dist);
+  if((dY || dP) && want < .45 && Math.abs(cam.dodgeY - dY) < .08 && Math.abs(cam.dodgeP - dP) < .08 && cam.bad && cam.bad.length < 24)
+    cam.bad.push({yaw: cam.yaw + dY, p: dP});
   cam.distEff = want < cam.distEff ? want : cam.distEff + (want - cam.distEff)*(1 - Math.exp(-4*dt));
   camera.position.copy(T).addScaledVector(off, cam.distEff);
   { const P = camera.position; let fl = soilTop(P.x, P.z);                       // clear of the floor and of any litter edge beside it,
