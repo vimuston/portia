@@ -26,7 +26,7 @@ const AUDIO = (() => {
     court:   {keys: 1,  bass: .8, kick: .4, snare: 0,  hat: .6, mel: .45, lp: 4500},
     danger:  {keys: .8, bass: 1,  kick: 1,  snare: 0,  hat: .5, mel: 0,   lp: 1400, dark: true},
   };
-  let mood = 'explore', moodHold = 0, nextT = 0, step = 0, bar = 0, pluckT = 0, stepT = 0;
+  let mood = 'explore', moodHold = 0, nextT = 0, step = 0, bar = 0, stepT = 0;
 
   function init(){
     if(ctx) return;
@@ -124,7 +124,6 @@ const AUDIO = (() => {
       if(Math.random() < M.mel){ const pool = mood === 'air' || mood === 'balloon' ? PENTA.slice(3) : PENTA; ep(pool[Math.random()*pool.length | 0], t, .9, L.mel, 1.8); }
       nextT += BEAT/2; step++; if(step % 8 === 0) bar++;
     }
-    if(sp.plucking){ pluckT -= dt; if(pluckT <= 0){ pluckT = .16 + Math.random()*.05; sfx.twang(); } } else pluckT = 0;
     if((sp.mode === 'ground' || sp.mode === 'climb') && (sp.speed || 0) > .05){ stepT -= dt*(sp.sprinting ? 2.5 : 1)*Math.min(3, .6 + sp.speed*4);
       if(stepT <= 0){ stepT = .09; noise(now, .018, sp.sneaking ? .012 : .04, 'bandpass', 2600 + Math.random()*1500, 1800, 3); } }
   }
@@ -142,6 +141,13 @@ const AUDIO = (() => {
     spit(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .3, .3, 'lowpass', 2600, 300, 3); noise(t + .02, .16, .14, 'bandpass', 900, 400, 5); },
     stuck(){ if(!ctx) return; const t = ctx.currentTime; for(let k = 0; k < 5; k++) noise(t + k*.07, .09, .12, 'bandpass', 500 + k*60, 300, 8); },
     twang(){ if(!ctx) return; const t = ctx.currentTime; ep(74 + (Math.random()*3 | 0)*2, t, .7, sfxBus, .5); },
+    // one pluck stroke, voiced by the signal: a midge is a faint high tick, a fly a low buzzing rattle, calm a soft thud
+    pluck(id, amp){ if(!ctx) return; const t = ctx.currentTime, r = Math.random();
+      if(id === 'midge'){ ep(86 + (r*3 | 0)*2, t, .35, sfxBus, .2); noise(t, .02, .03, 'highpass', 6500, 5000, 1); }
+      else if(id === 'fly'){ noise(t, .08, .4*amp, 'bandpass', 520 + r*160, 300, 3); osc('sawtooth', 140 + r*30, t, .05*amp, .003, .07, sfxBus, 1400);
+        ep(67 + (r*3 | 0), t, 1.1*amp, sfxBus, .2); }
+      else if(id === 'calm'){ noise(t, .12, .18, 'lowpass', 900, 250, 1); ep(62, t, 1, sfxBus, .7); ep(50, t, .8, sfxBus, .5); }
+      else sfx.twang(); },
     balloon(){ if(!ctx) return; const t = ctx.currentTime; noise(t, 1, .08, 'bandpass', 800, 3500, 3); [74, 81, 86].forEach((m, k) => ep(m, t + k*.1, .7, sfxBus, 1.5)); },
     snip(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .03, .2, 'highpass', 6000, 4000, 1); },
     silk(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .22, .07, 'bandpass', 2000, 4500, 6); },
@@ -167,5 +173,6 @@ const AUDIO = (() => {
   cutLine = wrap(cutLine, () => { if(sp.line) AUDIO.sfx.snip(); });
   dropLine = wrap(dropLine, () => AUDIO.sfx.silk());
   cyclePluck = wrap(cyclePluck, () => AUDIO.sfx.signal());
+  doPluck = after(doPluck, amp => { if(amp > 0) AUDIO.sfx.pluck(PLUCKS[pluckIdx].id, amp); });
   flash = wrap(flash, big => { if(big === 'MATED') AUDIO.sfx.mated(); });
 }

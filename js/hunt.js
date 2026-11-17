@@ -10,7 +10,7 @@ const SCY = [PLAT[2], PLAT[6]].map((pl, i) => {
   p.want = p.yaw; pl.silk = p; return p;
 });
 const BADU = addPrey({kind:'badumna', name:'Badumna longinqua · grey house spider', m: makeBadumna(), plat: BAD.plat, pos: BAD.mouth.clone(), yaw: 0,
-  state:'retreat', pref: rnd() < .5 ? 'midge' : 'fly', interest: 0, rush: 0, sulk: 0, known: false, peekT: 0});
+  state:'retreat', pref: 'fly', interest: 0, rush: 0, sulk: 0, known: false, peekT: 0});
 BAD.plat.silk = BADU;
 const ARGI = addPrey({kind:'argiope', name:'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: ARG.side, pos: ARG.C.clone(), state:'hub', wary: 0, fwd: new V3(0, -1, 0)});
 ARG.side.silk = ARGI; ARG.above.silk = ARGI;
@@ -18,7 +18,7 @@ const WEB = webSurface(); WEB.silk = ARGI;
 
 // mimicry signals Portia can pluck into silk
 const PLUCKS = [
-  {id:'midge', name:'tiny midge', glyph:'⠁⠂⠄⠂'},
+  {id:'midge', name:'tiny midge', glyph:'⠁   ⠂   ⠁'},
   {id:'fly',   name:'struggling fly', glyph:'⣿⡇⣷⣿'},
   {id:'calm',  name:'calming taps', glyph:'⠂  ⠂'}
 ];
@@ -291,12 +291,13 @@ function doPluck(dt){
   sp.plucking = true; sp.pluckT -= dt;
   if(sp.pluckT > 0) return;
   const id = PLUCKS[pluckIdx].id; let amp = 0, next = .2;
-  if(id === 'midge'){ amp = .3; next = rr(.1, .22); }
+  if(id === 'midge'){ amp = .25; next = rr(.45, .85); }                 // a tiny midge: faint, lone ticks far apart
   else if(id === 'fly'){ const burst = (time % 1) < .55; amp = burst ? rr(.7, 1) : 0; next = burst ? rr(.04, .1) : .06; }
   else if(id === 'male'){ const ph = time % .9; amp = ph < .4 ? .5 : 0; next = ph < .4 ? .16 : .9 - ph; }
   else { amp = .2; next = .9; }
   sp.pluckT = next;
   if(amp > 0){ pulses.push({pos: sp.pos.clone(), amp, decay: 7}); sp.tap = .12; sp.pluckSide = -(sp.pluckSide || 1); }
+  return amp;   // > 0 when a stroke landed this frame (the sound hooks on this)
 }
 function deadTick(p, dt){
   if(!p.dead) return false;
@@ -328,7 +329,7 @@ function respawnPrey(p){
   p.drain = 0; p.flip = 0; p.held = false; p.dropped = false; p.limp = 0; p.fallH = 0; p.hl = 0;
   Object.assign(p, {dead: false, deadT: 0, alert: 0, temp: p.temp0, close: 0, idleT: 0});
   if(p.kind === 'scytodes'){ p.pos.copy(p.home); p.egg = rnd() < .5; p.state = 'idle'; }
-  if(p.kind === 'badumna'){ p.pos.copy(BAD.mouth); Object.assign(p, {state:'retreat', interest: 0, pref: rnd() < .5 ? 'midge' : 'fly', known: false, sulk: 0}); }
+  if(p.kind === 'badumna'){ p.pos.copy(BAD.mouth); Object.assign(p, {state:'retreat', interest: 0, known: false, sulk: 0}); }
   if(p.kind === 'argiope'){ p.pos.copy(ARG.C); p.state = 'hub'; p.wary = 0; p.fwd.set(0, -1, 0); }
 }
 
@@ -368,8 +369,8 @@ function updBadumna(p, dt){
   if(p.alert > 1 && p.sulk <= 0 && (p.state === 'retreat' || p.state === 'peek')){ p.sulk = 12; p.alert = .3; p.interest = 0; toast('It felt your footsteps. It will stay hidden for a while.'); }
   if(p.state === 'retreat' || p.state === 'peek'){
     if(pk && p.sulk <= 0){
-      if(pk === p.pref){ p.interest += dt*.32; p.peekT = 1; }
-      else if(pk !== 'calm'){ p.interest += dt*.04; p.peekT = .5; }
+      if(pk === p.pref){ p.interest += dt*.32; p.peekT = 1; }        // only a heavy struggling fly is worth leaving the tube for
+      else p.interest = Math.max(0, p.interest - dt*.08);
     } else p.interest = Math.max(0, p.interest - dt*.08);
     p.peekT = Math.max(0, p.peekT - dt);
     p.state = p.peekT > 0 ? 'peek' : 'retreat';
