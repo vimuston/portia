@@ -134,7 +134,8 @@ function predWanderGoal(pr){
   }
   return pr.home.clone();
 }
-const PRED_FORGET = 8;   // seconds out of sight before it gives up the hunt (the boss bar drains over this)
+const PRED_FORGET = 8;
+const PRED_STANDOFF = 1.0;   // how far short of a frozen Portia it halts while stalking   // seconds out of sight before it gives up the hunt (the boss bar drains over this)
 // what it sees: only Portia moving, and not sneaking
 function portiaVisible(){ return DOOM.t < 0 && PRED.grace <= 0 && !sp.sneaking && (SEEN.speed > .12 || sp.mode === 'air'); }
 function predSense(pr, dt){
@@ -323,9 +324,13 @@ function updMantis(pr, dt){
     if(pr.sees && reachPt.distanceTo(spAt) < .85 && spAt.clone().sub(pr.pos).dot(pr.fwd) > 0){
       pr.state = 'strike'; pr.kt = 0; doomStart(pr); return;
     }
+    // stalking a Portia that has frozen where it last saw her: halt a body length short and wait, rather than walk onto her
+    const stop = !pr.sees && pr.last.distanceTo(sp.pos) < .3 ? PRED_STANDOFF : .45;
     const d = predProgress(pr, pr.last, dt);
-    if(d > .45 && pr.stuckT < 3){ const b = pr.pos.clone(); predWalk(pr, pr.last, .55*dt); want = pr.pos.clone().sub(b); walk = 1; }
-    else if(d > .45 && pr.stuckT >= 3){ const T = predHopTarget(pr, pr.last, 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
+    if(d > stop && pr.stuckT < 3){ const b = pr.pos.clone(); predWalk(pr, pr.last, .55*dt); want = pr.pos.clone().sub(b); walk = 1; }
+    else if(d > stop && pr.stuckT >= 3){   // hop aims for the standoff point, not onto her
+      const aim = stop > .45 ? pr.last.clone().add(pr.pos.clone().sub(pr.last).setLength(stop)) : pr.last;
+      const T = predHopTarget(pr, aim, 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
     if(walk === 0) want = pr.last.clone().sub(pr.pos);
   } else if(pr.pause > 0){ pr.pause -= dt; sway = Math.sin(pr.t*2.6)*.025; }       // swaying like a leaf in a breeze
   else {
