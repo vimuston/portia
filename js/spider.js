@@ -416,7 +416,7 @@ function setRestStance(body, legs){
 function playerPlace(v){
   const pl = sp.plat;
   if(pl && pl.web){ pl.project(v); return pl.normal(v); }          // on the orb every foot takes the silk: no reaching for nearby leaves or stems, which tilts her and locks her legs
-  if(pl && !pl.ground && pl.kind !== 'climb' && !pl.climb){ placeOn(pl, v); return UP.clone(); }
+  if(pl && !pl.ground && pl.kind !== 'climb' && !pl.climb){ (sp.mode === 'ground' ? placeTop : placeOn)(pl, v); return UP.clone(); }
   let bd = 1e9; const best = new V3(), bn = new V3(0, 1, 0), q = new V3();
   const take = n => { const d2 = q.distanceToSquared(v); if(d2 < bd){ bd = d2; best.copy(q); bn.copy(n); } };
   const walls = [], tops = [];
@@ -627,7 +627,7 @@ function dartPlace(v){
     for(const S of climbsNear(v.x, v.z, .5)) if(S.inside(q, -.005)){ playerPlace(v); return sn; }   // a foot against a trunk grips the bark, but she stays level
     v.copy(q); return sn;
   }
-  placeOn(pl, v); return UP.clone();
+  (sp.mode === 'ground' && !pl.climb ? placeTop : placeOn)(pl, v); return UP.clone();
 }
 // game logic (silk noise, scaring flies, the male's "is she still?") reads her average pace, not the burst peaks
 // (quick to rise on a dart, slow to fall through a freeze, capped at her steady walking pace)
