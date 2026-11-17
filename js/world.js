@@ -332,9 +332,11 @@ function litterFinish(){
   for(let k = 0; k < h.length; k++) if(h[k] < -.5) h[k] = -.5;
   LIT.h = h; LIT.top = null;
 }
-// ramps: no cell lower than a neighbour minus a gentle slope, so a curl or a twig is walked up onto, not hit like a wall
+// ramps: no cell lower than a neighbour minus a gentle slope, so a curl or a twig is walked up onto, not hit like a wall.
+// A tall piece (a curl standing a leg-span high) loses a share of its height per cell instead, so its ramp hugs it: a
+// fixed gentle slope would spread a skirt of floor metres out into thin air around it, and she'd walk on nothing
 function litterRamps(h){
-  const N = LIT.N, a = .6*LIT.C, b = a*Math.SQRT2, m = (k, j, d) => { const q = h[j] - d; if(q > h[k]) h[k] = q; };
+  const N = LIT.N, a = .6*LIT.C, b = a*Math.SQRT2, F = .35, m = (k, j, d) => { const q = h[j] - Math.max(d, h[j]*F*d/a); if(q > h[k]) h[k] = q; };
   for(let iz = 1; iz < N - 1; iz++) for(let ix = 1; ix < N - 1; ix++){ const k = iz*N + ix; m(k, k - 1, a); m(k, k - N, a); m(k, k - N - 1, b); m(k, k - N + 1, b); }
   for(let iz = N - 2; iz > 0; iz--) for(let ix = N - 2; ix > 0; ix--){ const k = iz*N + ix; m(k, k + 1, a); m(k, k + N, a); m(k, k + N + 1, b); m(k, k + N - 1, b); }
 }
