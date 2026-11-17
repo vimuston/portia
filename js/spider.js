@@ -433,7 +433,12 @@ function playerPlace(v){
     }
   }
   for(const S of walls){ q.copy(v); S.project(q); take(S.normal(q)); }
-  for(const T of tops){ const [cx, cz] = clampTo(T, v.x, v.z); q.set(cx, T.y + .002, cz); take(UP); }
+  // a stalk's blade is a curved leaf, not a flat disc at its centre height: put the foot on the real top, and only
+  // from above it. Under the blade a foot can't reach the top through it, or half her feet stand "up" and half
+  // "down" and the averaged normal tips her body on its side, through the leaf.
+  for(const T of tops){ const [cx, cz] = clampTo(T, v.x, v.z), y = T.leaf ? surfAt(T, cx, cz) : T.y;
+    if(T.leaf && (pl === T.under || v.y < y - .01)) continue;
+    q.set(cx, y + .002, cz); take(UP); }
   v.copy(best); return bn.clone();
 }
 // carry the body on the feet: "up" from the standing feet's surface normals, height from where they stand,
