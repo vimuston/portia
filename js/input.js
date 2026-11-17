@@ -52,7 +52,7 @@ function cyclePluck(d){ pluckIdx = (pluckIdx + d + PLUCKS.length) % PLUCKS.lengt
 // a big word in the middle of the screen that fades away
 let flashT = 0;
 function flash(big, small){ $('#flash').innerHTML = `<small>${small}</small>${big}`; flashT = 1.6; }
-// intro: title → controls → hunting. Open on first visit and with G; it swallows game keys while open.
+// intro: title → controls → hunting. Open on every page load and with G; it swallows game keys while open.
 const intro = {el: $('#intro'), i: 0, scenes: [...document.querySelectorAll('#intro .in-scene')], logoRaf: 0};
 const introOpen = () => !intro.el.hidden;
 function decodeLogo(){   // each letter flickers through braille glyphs, then settles
@@ -91,7 +91,7 @@ intro.el.addEventListener('click', e => {
   else if(b.dataset.go === '-1') introShow(intro.i - 1);
   b.blur();
 });
-try{ if(!localStorage.getItem('guide.seen')){ toggleGuide(true); localStorage.setItem('guide.seen', '1'); } }catch(e){ toggleGuide(true); }   // first visit: open the guide
+toggleGuide(true);   // every page load opens the guide
 function padActions(dt){
   if(!pad.connected) return;
   if(introOpen()){ if(pressed('a')) introNext(); if(pressed('x')) introShow(intro.i - 1); if(pressed('b') || pressed('back')) toggleGuide(false); return; }
