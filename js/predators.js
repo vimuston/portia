@@ -160,7 +160,7 @@ function makeMantis(){
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({color: c, roughness: .5}, o));
   const GRN = mat(0x7fb547), LIME = mat(0xa9d266), WING = mat(0x93c457, {roughness: .35, transparent: true, opacity: .92}),
-        EYE = mat(0xd3e6a0, {roughness: .2}), DOT = mat(0x1d2a0c), SPN = mat(0x5d7f2c);
+        DOT = mat(0x1d2a0c), SPN = mat(0x5d7f2c);
   const SPH = new THREE.SphereGeometry(1, 18, 12), CONE = new THREE.ConeGeometry(.007, .04, 5).rotateX(Math.PI);
   const add = (par, o) => { o.castShadow = true; par.add(o); return o; };
   const ell = (par, m, sx, sy, sz, x, y, z) => { const o = add(par, new THREE.Mesh(SPH, m)); o.scale.set(sx, sy, sz); o.position.set(x, y, z); return o; };
@@ -174,15 +174,49 @@ function makeMantis(){
   ell(body, GRN, .085, .075, .17, 0, .28, .02);                                           // meso/metathorax
   const pro = joint(body, 0, .3, .12); pro.rotation.x = -.6;                                // the long neck-like prothorax
   tubeZ(pro, .5, .045, .035, GRN); ell(pro, GRN, .062, .045, .09, 0, 0, .42);
+  // the head: a broad inverted triangle, eyes at the upper corners, tapering to the mouthparts at the chin
   const head = joint(pro, 0, .01, .53); head.rotation.x = .95;
-  ell(head, GRN, .125, .075, .06, 0, 0, 0);
-  for(const s of [-1, 1]){
-    ell(head, EYE, .052, .062, .052, s*.108, .025, 0);
-    ell(head, DOT, .013, .016, .01, s*.124, .028, .045);                                    // the pseudopupil: it seems to follow you
-    const a = joint(head, s*.03, .05, .03); a.rotation.set(-1.0, s*.35, 0); tubeZ(a, .5, .006, .003, SPN);
+  const HEADG = mat(0x86b83e, {roughness: .42}),
+        CEYE = new THREE.MeshPhysicalMaterial({color: 0xb4d455, roughness: .3, clearcoat: 1, clearcoatRoughness: .15}),
+        PUP = mat(0x141c08, {roughness: .7}), MOUTH = mat(0x6f6232, {roughness: .45}), MTIP = mat(0x3b2a17, {roughness: .4}),
+        OCEL = new THREE.MeshPhysicalMaterial({color: 0xcfe88a, roughness: .1, clearcoat: 1}), ANT = mat(0xc4a46c, {roughness: .5});
+  const capsule = new THREE.SphereGeometry(1, 32, 24), cp = capsule.attributes.position;
+  for(let i = 0; i < cp.count; i++){
+    let x = cp.getX(i), y = cp.getY(i), z = cp.getZ(i);
+    const w = .2 + .8*sstep(-1, .6, y);                                                     // wide at the vertex, narrow at the chin
+    x *= w; z *= z < 0 ? .55 : .7 + .2*w;                                                   // flat behind, the face a shallow shield
+    y -= .1*x*x;                                                                            // the vertex dips between the eyes
+    cp.setXYZ(i, x, y, z);
   }
-  ell(head, LIME, .045, .05, .035, 0, -.07, .025);
-  const jaw = [-1, 1].map(s => ell(head, SPN, .016, .03, .015, s*.02, -.11, .035));
+  capsule.computeVertexNormals();
+  const hc = add(head, new THREE.Mesh(capsule, HEADG)); hc.scale.set(.12, .135, .055); hc.position.set(0, -.015, 0);
+  ell(head, HEADG, .042, .02, .005, 0, -.05, .036);                                          // clypeus, a broad low plate
+  ell(head, MOUTH, .018, .012, .008, 0, -.082, .03);                                         // labrum
+  // compound eyes: big glossy ovoids bulging out of the upper corners, the same green as the head, each with a
+  // small dark pseudopupil facing forward that seems to follow you
+  for(const s of [-1, 1]){
+    const eg = joint(head, s*.1, .045, .004); eg.rotation.z = -s*.2;
+    const er = new V3(.05, .068, .05);
+    ell(eg, CEYE, er.x, er.y, er.z, 0, 0, 0);
+    const u = new V3(s*.12, -.05, 1).normalize(), t = 1/Math.hypot(u.x/er.x, u.y/er.y, u.z/er.z);
+    const pd = ell(eg, PUP, .0062, .0075, .003, 0, 0, 0); pd.position.copy(u).multiplyScalar(t - .0015);
+    pd.quaternion.setFromUnitVectors(new V3(0, 0, 1), u);
+    // antenna: a green socket and scape between the eyes, then a long thin tan flagellum sweeping up and out
+    ell(head, LIME, .01, .01, .006, s*.028, .066, .033);
+    const a = joint(head, s*.028, .068, .033); a.rotation.set(-1.15, s*.3, 0);
+    tubeZ(a, .03, .006, .005, LIME);
+    const fl = joint(a, 0, 0, .03); fl.rotation.x = .12; tubeZ(fl, .75, .004, .0015, ANT);
+    // maxillary palps folded beside the mouth
+    const pa = joint(head, s*.024, -.088, .03); pa.rotation.set(1.2, 0, s*.25);
+    tubeZ(pa, .025, .005, .004, MOUTH); const pb = joint(pa, 0, 0, .025); pb.rotation.x = .9;
+    tubeZ(pb, .02, .004, .003, MTIP);
+  }
+  for(const [x, y] of [[0, .086], [-.016, .074], [.016, .074]]) ell(head, OCEL, .005, .005, .004, x, y, .036);   // three ocelli
+  const jaw = [-1, 1].map(s => {                                                            // mandibles, dark-tipped
+    const j = joint(head, s*.011, -.103, .028);
+    ell(j, MOUTH, .012, .016, .01, 0, 0, 0); ell(j, MTIP, .006, .009, .006, -s*.004, -.013, .003);
+    return j;
+  });
   const fore = [-1, 1].map(s => {
     const coxa = joint(pro, s*.055, -.03, .4); coxa.rotation.y = s*.1; tubeZ(coxa, .2, .03, .024, GRN);
     const femur = joint(coxa, 0, 0, .2); tubeZ(femur, .3, .032, .022, GRN);
