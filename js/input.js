@@ -56,17 +56,26 @@ function flash(big, small){ $('#flash').innerHTML = `<small>${small}</small>${bi
 const intro = {el: $('#intro'), i: 0, scenes: [...document.querySelectorAll('#intro .in-scene')], logoRaf: 0};
 const introOpen = () => !intro.el.hidden;
 function decodeLogo(){   // each letter flickers through braille glyphs, then settles
-  const word = 'PORTIA', el = $('#logo'), t0 = performance.now();
+  // Time is accumulated per frame with each step clamped, so a long stall (the rest of the game loading and
+  // compiling shaders right after the intro opens on page load) pauses the decode instead of skipping past it.
+  const word = 'PORTIA', el = $('#logo');
+  let t = 0, last = 0;
   cancelAnimationFrame(intro.logoRaf);
-  const step = now => {
-    const t = now - t0; let s = '', done = true;
+  const draw = () => {
+    let s = '', done = true;
     for(let k = 0; k < word.length; k++){
       if(t > 350 + k*150) s += word[k];
       else { s += String.fromCharCode(0x2801 + Math.floor(Math.random()*254)); done = false; }
     }
     el.textContent = s;
-    if(!done && introOpen()) intro.logoRaf = requestAnimationFrame(step); else el.textContent = word;
+    return done;
   };
+  const step = now => {
+    if(last) t += Math.min(50, now - last);
+    last = now;
+    if(!draw() && introOpen()) intro.logoRaf = requestAnimationFrame(step); else el.textContent = word;
+  };
+  draw();   // scrambled from the start, so the plain word never flashes before the decode
   intro.logoRaf = requestAnimationFrame(step);
 }
 function introShow(i){
@@ -91,7 +100,7 @@ intro.el.addEventListener('click', e => {
   else if(b.dataset.go === '-1') introShow(intro.i - 1);
   b.blur();
 });
-toggleGuide(true);   // every page load opens the guide
+// (index.html opens the guide once every script has loaded and the first frame is drawn)
 function padActions(dt){
   if(!pad.connected) return;
   if(introOpen()){ if(pressed('a')) introNext(); if(pressed('x')) introShow(intro.i - 1); if(pressed('b') || pressed('back')) toggleGuide(false); return; }
