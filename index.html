@@ -122,6 +122,11 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 12px;opacity:0;transition:opacity .4s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis;}
 #toast.on{opacity:1;}
 #err{position:fixed;inset:auto 16px 16px 16px;color:#ff7a60;}
+/* loading screen: shown from first paint until the game has drawn its first frame, then fades into the intro */
+#loader{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:0 16px;background:var(--bg);transition:opacity .4s;}
+#loader.done{opacity:0;pointer-events:none;}
+#loader .ld-bar{width:min(240px,100%);height:2px;background:rgba(201,162,90,.15);overflow:hidden;}
+#loader .ld-bar i{display:block;height:100%;width:100%;transform:scaleX(0);transform-origin:0 50%;will-change:transform;background:var(--gold);}
 .hidehud .tl,.hidehud .tr,.hidehud .bot,.hidehud #target,.hidehud #look,.hidehud #bossbar{display:none;}
 /* encounters: a spider you close in on gets a souls-style title card, then a boss bar with one plain instruction */
 #doom{position:absolute;inset:0;z-index:30;pointer-events:none;}
@@ -272,6 +277,9 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
   </div>
   <div id="toast"></div>
 </div>
+<div id="loader" role="progressbar" aria-label="Loading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+  <div class="ld-bar"><i></i></div>
+</div>
 <div id="err" hidden></div>
 
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
@@ -280,13 +288,36 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 // use, at its top level, things defined in files above it). THREE is exposed globally for them.
 import * as THREE from 'three';
 window.THREE = THREE;
-try { await Promise.race([document.fonts.load('400 16px "JetBrains Mono"'), new Promise(r => setTimeout(r, 1500))]); } catch(e){}
 const FILES = ['core', 'world', 'jungle', 'spider', 'actors', 'prey-spiders', 'life', 'hunt', 'shaders', 'atlas', 'input', 'player', 'predators', 'camera', 'encounter', 'render', 'audio', 'main', 'snapshot'];
+// LOADING BAR: fonts → fetch (hash) → run each script → first rendered frame. A script runs synchronously (world.js
+// builds the world for seconds), so the page can't repaint mid-step. Instead each step's share of the bar and its
+// duration come from how long it took on the last load (remembered; defaults measured once), and the bar glides there
+// with a transform transition, which the compositor keeps playing while the main thread is busy. Scripts run one at
+// a time with a frame yielded before each, so every step's transition is committed before the block starts.
+const STEPS = ['fonts', 'fetch', ...FILES, 'frame'];
+const DEF_MS = {fonts: 80, fetch: 150, world: 7400, jungle: 1100, spider: 220, 'prey-spiders': 190, life: 2100, hunt: 170, frame: 400};
+let lastMs = {}; try { lastMs = JSON.parse(localStorage.getItem('load.ms') || '{}') || {}; } catch(e){}
+const expMs = STEPS.map(s => Math.max(30, +lastMs[s] || DEF_MS[s] || 120)), totalMs = expMs.reduce((a, b) => a + b, 0);
+const LD = document.getElementById('loader'), ldBar = LD.querySelector('.ld-bar i');
+const tookMs = {}; let stepI = -1, stepT = 0, doneMs = 0;
+const nextFrame = () => new Promise(r => { requestAnimationFrame(() => r()); setTimeout(r, 120); });   // (timeout: rAF stalls in a hidden tab)
+async function step(name){   // close the running step, aim the bar at the end of this one
+  const now = performance.now();
+  if(stepI >= 0){ tookMs[STEPS[stepI]] = Math.round(now - stepT); doneMs += expMs[stepI]; }
+  stepI = STEPS.indexOf(name); stepT = now;
+  const p = (doneMs + expMs[stepI])/totalMs;
+  ldBar.style.transition = `transform ${expMs[stepI]}ms linear`; ldBar.style.transform = `scaleX(${p.toFixed(4)})`;
+  LD.setAttribute('aria-valuenow', Math.round(doneMs/totalMs*100));
+  await nextFrame();
+}
+await step('fonts');
+try { await Promise.race([document.fonts.load('400 16px "JetBrains Mono"'), new Promise(r => setTimeout(r, 1500))]); } catch(e){}
 // BUILD: a hash of the game code as served (FNV-1a over every js file, CRs skipped so checkouts agree), so a debug snapshot says which code made
 // it. The files are revalidated first (the static server sends no Cache-Control, so the browser may otherwise
 // reuse old copies), and the scripts then load under ?v=<hash>, so they are exactly the code that was hashed and
 // the browser never runs a stale cached script.
 let build = '';
+await step('fetch');
 try {
   const texts = await Promise.all(FILES.map(f => fetch('js/' + f + '.js', {cache: 'no-cache'}).then(r => r.text())));
   let h = 0x811c9dc5; for(const t of texts) for(let i = 0; i < t.length; i++){ const c = t.charCodeAt(i); if(c === 13) continue; h ^= c; h = Math.imul(h, 0x01000193); }
@@ -294,6 +325,17 @@ try {
 } catch(e){ console.warn('build hash failed', e); }
 window.BUILD = build;
 console.info('Portia build', build || '?');
-for(const f of FILES){ const s = document.createElement('script'); s.src = 'js/' + f + '.js' + (build ? '?v=' + build : ''); s.async = false; document.body.appendChild(s); }
+for(const f of FILES){
+  await step(f);
+  await new Promise(r => { const s = document.createElement('script'); s.src = 'js/' + f + '.js' + (build ? '?v=' + build : ''); s.onload = s.onerror = r; document.body.appendChild(s); });
+}
+// main.js started the render loop: wait until its first frame (shader compiles) is done before showing the intro
+await step('frame');
+await nextFrame(); await nextFrame();
+tookMs.frame = Math.round(performance.now() - stepT);
+try { localStorage.setItem('load.ms', JSON.stringify(tookMs)); } catch(e){}
+ldBar.style.transition = 'transform .15s'; ldBar.style.transform = 'scaleX(1)'; LD.setAttribute('aria-valuenow', 100);
+LD.classList.add('done'); setTimeout(() => LD.remove(), 600);
+if(typeof toggleGuide === 'function') toggleGuide(true);   // every page load opens the guide
 </script>
 </html>
