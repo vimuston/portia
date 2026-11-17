@@ -475,15 +475,14 @@ const ATMO = new THREE.Group(); scene.add(ATMO);
     fragmentShader:`void main(){ vec2 q = gl_PointCoord*2. - 1.; if(dot(q, q) > 1.) discard; gl_FragColor = vec4(.08, .07, .05, .9); }`}));
   gnats.frustumCulled = false; ATMO.add(gnats);
 }
-// water dripping from leaf tips, with a small splash ring
+// water dripping from leaf tips
 const DRIPS = [];
 {
   const dropG = new THREE.SphereGeometry(.05, 10, 8), dropM = new THREE.MeshStandardMaterial({color:0xdff2ff, roughness:.05, transparent:true, opacity:.75, emissive:0x101a20});
-  const ringM = new THREE.MeshBasicMaterial({color:0xcfe6f0, transparent:true, opacity:.6, side:THREE.DoubleSide, depthWrite:false});
   for(const p of PLAT.filter(q => q.kind === 'leaf').slice(0, 9)){
     const c = Math.cos(p.rot), s = Math.sin(p.rot), tip = new V3(p.x - p.rz*.95*s, 0, p.z - p.rz*.95*c); tip.y = surfAt(p, tip.x, tip.z) - .02;
-    const drop = new THREE.Mesh(dropG, dropM), ring = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 24).rotateX(-Math.PI/2), ringM.clone());
-    ATMO.add(drop, ring); DRIPS.push({tip, drop, ring, t: rr(0, 4), period: rr(2.5, 6), y: tip.y, v: 0, ground: hAt(tip.x, tip.z), splash: -1});
+    const drop = new THREE.Mesh(dropG, dropM);
+    ATMO.add(drop); DRIPS.push({tip, drop, t: rr(0, 4), period: rr(2.5, 6), y: tip.y, v: 0, ground: hAt(tip.x, tip.z)});
   }
 }
 function updateJungle(dt){
@@ -492,9 +491,7 @@ function updateJungle(dt){
     d.t += dt;
     if(d.t < d.period){ const g = Math.min(1, d.t/d.period); d.drop.position.copy(d.tip); d.drop.scale.setScalar(.4 + .8*g); d.drop.scale.y *= 1 + .5*g; d.y = d.tip.y; d.v = 0; }
     else { d.v += 120*dt; d.y -= d.v*dt;                                               // (true g is ~330 units/s²; a little slowed so the fall reads) d.drop.position.set(d.tip.x, d.y, d.tip.z);
-      if(d.y <= d.ground){ d.t = 0; d.period = rr(2.5, 6); d.splash = 0; } }
-    if(d.splash >= 0){ d.splash += dt; const k = d.splash/.6; d.ring.position.set(d.tip.x, d.ground + .008, d.tip.z); d.ring.scale.setScalar(.04 + k*.5); d.ring.material.opacity = .6*(1 - k); d.ring.visible = k < 1; if(k >= 1) d.splash = -1; }
-    else d.ring.visible = false;
+      if(d.y <= d.ground){ d.t = 0; d.period = rr(2.5, 6); } }
   }
 }
 
