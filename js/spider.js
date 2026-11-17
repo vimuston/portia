@@ -589,7 +589,7 @@ function dartRoomGround(p, dir, maxD){
   const pl = sp.plat, st = .03; let d = 0;
   for(; d + st <= maxD; d += st){
     const x = p.x + dir.x*(d + st), z = p.z + dir.z*(d + st);
-    if(pl.ground ? Math.hypot(x, z) > AREA || climbHit(x, floorAt(x, z) + .05, z, dir) : !inPlat(pl, x, z)) break;
+    if(pl.ground ? Math.hypot(x, z) > AREA || climbHit(x, floorAt(x, z) + .05, z, dir) : !inPlat(pl, x, z) || climbHit(x, surfAt(pl, x, z) + .05, z, dir)) break;
   }
   return d;
 }
