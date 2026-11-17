@@ -175,47 +175,67 @@ function makeMantis(){
   ell(body, GRN, .085, .075, .17, 0, .28, .02);                                           // meso/metathorax
   const pro = joint(body, 0, .3, .12); pro.rotation.x = -.6;                                // the long neck-like prothorax
   tubeZ(pro, .5, .045, .035, GRN); ell(pro, GRN, .062, .045, .09, 0, 0, .42);
-  // the head: a broad inverted triangle, eyes at the upper corners, tapering to the mouthparts at the chin
+  // the head: a rounded three-sided pyramid. One smooth skin is stretched over a few rounded lobes (the two compound
+  // eyes at the upper tips, the narrow chin, the occiput behind where the neck joins, a low bulge of frons): each
+  // surface direction takes a soft blend of the lobes' support points, so the faces between them come out flat-ish
+  // and the tips round.
   const head = joint(pro, 0, .01, .53); head.rotation.x = .95;
-  const HEADG = mat(0x86b83e, {roughness: .42}),
-        CEYE = new THREE.MeshPhysicalMaterial({color: 0xb4d455, roughness: .3, clearcoat: 1, clearcoatRoughness: .15}),
-        PUP = mat(0x141c08, {roughness: .7}), MOUTH = mat(0x6f6232, {roughness: .45}), MTIP = mat(0x3b2a17, {roughness: .4}),
+  const HEADG = mat(0x86b83e, {roughness: .42}), MOUTH = mat(0x6f6232, {roughness: .45}), MTIP = mat(0x3b2a17, {roughness: .4}),
         OCEL = new THREE.MeshPhysicalMaterial({color: 0xcfe88a, roughness: .1, clearcoat: 1}), ANT = mat(0xc4a46c, {roughness: .5});
-  const capsule = new THREE.SphereGeometry(1, 32, 24), cp = capsule.attributes.position;
-  for(let i = 0; i < cp.count; i++){
-    let x = cp.getX(i), y = cp.getY(i), z = cp.getZ(i);
-    const w = .2 + .8*sstep(-1, .6, y);                                                     // wide at the vertex, narrow at the chin
-    x *= w; z *= z < 0 ? .55 : .7 + .2*w;                                                   // flat behind, the face a shallow shield
-    y -= .1*x*x;                                                                            // the vertex dips between the eyes
-    cp.setXYZ(i, x, y, z);
+  const EYEC = new V3(.088, .045, 0), EYER = new V3(.042, .055, .042), EYEB = .009;   // the eye bulges EYEB past the skin
+  const lobes = [[EYEC.clone(), EYER], [new V3(-EYEC.x, EYEC.y, EYEC.z), EYER],
+    [new V3(0, -.1, .016), new V3(.019, .016, .016)],                                       // chin
+    [new V3(0, .012, -.034), new V3(.046, .042, .03)],                                      // occiput
+    [new V3(0, -.01, .016), new V3(.034, .045, .022)]];                                     // frons
+  const hp = d => {                                                                          // the skin point facing direction d
+    let hm = -1e9; const sp = lobes.map(([c, R]) => { const rd = Math.hypot(R.x*d.x, R.y*d.y, R.z*d.z), h = c.dot(d) + rd;
+      hm = Math.max(hm, h); return {h, p: new V3(c.x + R.x*R.x*d.x/rd, c.y + R.y*R.y*d.y/rd, c.z + R.z*R.z*d.z/rd)}; });
+    const out = new V3(); let W = 0;
+    for(const {h, p} of sp){ const w = Math.exp(160*(h - hm)); out.addScaledVector(p, w); W += w; }
+    return out.multiplyScalar(1/W);
+  };
+  const hg = new THREE.SphereGeometry(1, 72, 54), hpos = hg.attributes.position, hnrm = hg.attributes.normal, d = new V3();
+  for(let i = 0; i < hpos.count; i++){
+    d.fromBufferAttribute(hpos, i).normalize(); const q = hp(d);
+    hpos.setXYZ(i, q.x, q.y, q.z); hnrm.setXYZ(i, d.x, d.y, d.z);                           // a support point's normal is its direction
   }
-  capsule.computeVertexNormals();
-  const hc = add(head, new THREE.Mesh(capsule, HEADG)); hc.scale.set(.12, .135, .055); hc.position.set(0, -.015, 0);
-  ell(head, HEADG, .042, .02, .005, 0, -.05, .036);                                          // clypeus, a broad low plate
-  ell(head, MOUTH, .018, .012, .008, 0, -.082, .03);                                         // labrum
-  // compound eyes: big glossy ovoids bulging out of the upper corners, the same green as the head, each with a
-  // small dark pseudopupil facing forward that seems to follow you
+  const hm = add(head, new THREE.Mesh(hg, HEADG));
+  const RC = new THREE.Raycaster(), hx = new THREE.Mesh(hg, new THREE.MeshBasicMaterial({side: THREE.DoubleSide}));                                                          // a point on the skin, seen from inside
+  const at = (x, y, z) => { RC.set(new V3(0, .01, -.01), new V3(x, y, z).normalize()); const h = RC.intersectObject(hx, false);
+    return h.length ? h[h.length - 1].point : hp(new V3(x, y, z).normalize()); };
+  // compound eyes: glossy caps over the two upper tips, a little paler than the head; the pseudopupil is a small
+  // soft dark spot painted on, facing forward, that seems to follow you
+  const ecv = document.createElement('canvas'); ecv.width = 256; ecv.height = 128;
+  const g2 = ecv.getContext('2d'); g2.fillStyle = '#b7d35a'; g2.fillRect(0, 0, 256, 128);
+  const rim = g2.createLinearGradient(0, 0, 256, 0);                                         // darker toward the back of the eye
+  rim.addColorStop(0, 'rgba(60,80,20,.35)'); rim.addColorStop(.3, 'rgba(60,80,20,0)'); rim.addColorStop(.7, 'rgba(60,80,20,0)'); rim.addColorStop(1, 'rgba(60,80,20,.35)');
+  g2.fillStyle = rim; g2.fillRect(0, 0, 256, 128);
+  g2.save(); g2.translate(128, 64); g2.scale(1, 1.25);
+  const pg = g2.createRadialGradient(0, 0, 0, 0, 0, 5.5);
+  pg.addColorStop(0, 'rgba(14,20,5,.95)'); pg.addColorStop(.3, 'rgba(14,20,5,.75)'); pg.addColorStop(1, 'rgba(14,20,5,0)');
+  g2.fillStyle = pg; g2.beginPath(); g2.arc(0, 0, 5.5, 0, 6.29); g2.fill(); g2.restore();
+  const etex = new THREE.CanvasTexture(ecv); etex.colorSpace = THREE.SRGBColorSpace; etex.anisotropy = 4;
+  const CEYE = new THREE.MeshPhysicalMaterial({map: etex, roughness: .28, clearcoat: 1, clearcoatRoughness: .12});
   for(const s of [-1, 1]){
-    const eg = joint(head, s*.1, .045, .004); eg.rotation.z = -s*.2;
-    const er = new V3(.05, .068, .05);
-    ell(eg, CEYE, er.x, er.y, er.z, 0, 0, 0);
-    const u = new V3(s*.12, -.05, 1).normalize(), t = 1/Math.hypot(u.x/er.x, u.y/er.y, u.z/er.z);
-    const pd = ell(eg, PUP, .0062, .0075, .003, 0, 0, 0); pd.position.copy(u).multiplyScalar(t - .0015);
-    pd.quaternion.setFromUnitVectors(new V3(0, 0, 1), u);
+    const look = new V3(s*.3, -.05, 1).normalize();                                          // where the pupil sits (uv centre is +x)
+    const eg = new THREE.SphereGeometry(1, 40, 28).applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new V3(1, 0, 0), look));
+    const eye = add(head, new THREE.Mesh(eg, CEYE)); eye.position.set(s*EYEC.x, EYEC.y, EYEC.z);
+    eye.scale.set(EYER.x + EYEB, EYER.y + EYEB*1.2, EYER.z + EYEB);
     // antenna: a green socket and scape between the eyes, then a long thin tan flagellum sweeping up and out
-    ell(head, LIME, .01, .01, .006, s*.028, .066, .033);
-    const a = joint(head, s*.028, .068, .033); a.rotation.set(-1.15, s*.3, 0);
+    const sk = at(s*.36, .62, 1); ell(head, LIME, .009, .009, .005, sk.x, sk.y, sk.z);
+    const a = joint(head, sk.x, sk.y, sk.z); a.rotation.set(-1.15, s*.3, 0);
     tubeZ(a, .03, .006, .005, LIME);
     const fl = joint(a, 0, 0, .03); fl.rotation.x = .12; tubeZ(fl, .75, .004, .0015, ANT);
     // maxillary palps folded beside the mouth
-    const pa = joint(head, s*.024, -.088, .03); pa.rotation.set(1.2, 0, s*.25);
+    const pa = joint(head, s*.017, -.1, .026); pa.rotation.set(1.2, 0, s*.25);
     tubeZ(pa, .025, .005, .004, MOUTH); const pb = joint(pa, 0, 0, .025); pb.rotation.x = .9;
     tubeZ(pb, .02, .004, .003, MTIP);
   }
-  for(const [x, y] of [[0, .086], [-.016, .074], [.016, .074]]) ell(head, OCEL, .005, .005, .004, x, y, .036);   // three ocelli
+  for(const [x, y] of [[0, .9], [-.12, .78], [.12, .78]]){ const o = at(x, y, 1); ell(head, OCEL, .0045, .0045, .003, o.x, o.y, o.z); }   // three ocelli
+  ell(head, MOUTH, .014, .01, .007, 0, -.097, .03);           // labrum
   const jaw = [-1, 1].map(s => {                                                            // mandibles, dark-tipped
-    const j = joint(head, s*.011, -.103, .028);
-    ell(j, MOUTH, .012, .016, .01, 0, 0, 0); ell(j, MTIP, .006, .009, .006, -s*.004, -.013, .003);
+    const j = joint(head, s*.008, -.112, .024);
+    ell(j, MOUTH, .011, .015, .009, 0, 0, 0); ell(j, MTIP, .006, .009, .006, -s*.004, -.012, .003);
     return j;
   });
   const fore = [-1, 1].map(s => {
