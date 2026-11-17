@@ -51,7 +51,7 @@ function predCands(pos, reach, cur, tree){
     for(const S of climbsNear(pos.x, pos.z, reach + .3)) if(treeBark(S) && pos.y > S.y0 - reach && pos.y < S.y1 + reach) out.push(predTree(S));
     for(const p of PLAT){
       if(p.kind !== 'leaf') continue;
-      const e = Math.max(p.rx, p.rz) + reach;
+      const e = platR(p) + reach;
       if(Math.abs(p.x - pos.x) < e && Math.abs(p.z - pos.z) < e && Math.abs(p.y - pos.y) < .8 + reach) out.push(predPlat(p));
     }
     if(cur && !out.includes(cur)) out.push(cur);
@@ -62,7 +62,7 @@ function predCands(pos, reach, cur, tree){
     if(!S.web && S.label !== 'leaf' && S.label !== 'vine' && S.project && S.normal && pos.y > S.y0 - reach && pos.y < S.y1 + reach) out.push(predClimb(S));
   for(const p of PLAT){
     if(p.kind === 'web' || p.kind === 'flower') continue;
-    const e = Math.max(p.rx, p.rz) + reach;
+    const e = platR(p) + reach;
     if(Math.abs(p.x - pos.x) < e && Math.abs(p.z - pos.z) < e && Math.abs(p.y - pos.y) < .8 + reach) out.push(predPlat(p));
   }
   if(cur && !out.includes(cur)) out.push(cur);

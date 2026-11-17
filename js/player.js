@@ -37,7 +37,7 @@ function pickTarget(px, py){
   // Argiope in its orb: pointing at her aims at her (seen edge-on, the sheet itself is too thin to pick out)
   let argB = !ARGI.dead && !ARGI.dropped ? ARGI.m.userData.parts.body.getWorldPosition(new V3()) : null;
   const tA = argB ? argB.clone().sub(o).dot(d) : -1; if(!(tA > 0 && o.clone().addScaledVector(d, tA).distanceTo(argB) < .3)) argB = null;   // only if the ray passes over her
-  for(const P of PLAT) if(P._br === undefined) P._br = Math.max(P.rx || 0, P.rz || 0) + .01;   // bounding radius: cheap reject before the ellipse test
+  for(const P of PLAT) if(P._br === undefined) P._br = platR(P) + .01;   // bounding radius: cheap reject before the outline test
   for(let i = 0; i < 260 && t < 26; i++){
     q.copy(p); p.copy(o).addScaledVector(d, t);
     // well above the baked coarse soil (and the litter on it)? then she can't be at the floor: skip the full noise lookup
@@ -190,9 +190,7 @@ function jump(){
 function climbOver(){
   const p = sp.anchorPlat;
   if(p.kind === 'climb' || p.ground){ sp.pos.copy(sp.anchor); land(p); toast('Back up the line.'); return; }
-  const c = Math.cos(p.rot), s = Math.sin(p.rot), dx = sp.anchor.x - p.x, dz = sp.anchor.z - p.z;
-  const lx = dx*c - dz*s, lz = dx*s + dz*c, gx = lx/(p.rx*p.rx), gz = lz/(p.rz*p.rz);
-  const inw = new V3(-(gx*c + gz*s), 0, -(-gx*s + gz*c));                       // inward across the nearest rim
+  const inw = platOut(p, sp.anchor.x, sp.anchor.z).negate();                    // inward across the nearest rim
   if(inw.lengthSq() < 1e-8) inw.set(-Math.sin(sp.yaw), 0, -Math.cos(sp.yaw));
   inw.normalize();
   let d = .26; for(let i = 0; i < 6 && !inPlat(p, sp.anchor.x + inw.x*d, sp.anchor.z + inw.z*d, .06); i++) d *= .7;
@@ -238,7 +236,7 @@ function dropToBelow(dir, spd){
 function reachBelow(own, f){
   let best = null; const P = sp.pos;
   for(const L of PLAT){
-    if(L === own || L.ground || L.kind === 'climb' || Math.hypot(L.x - P.x, L.z - P.z) > Math.max(L.rx, L.rz) + DROP_REACH) continue;
+    if(L === own || L.ground || L.kind === 'climb' || Math.hypot(L.x - P.x, L.z - P.z) > platR(L) + DROP_REACH) continue;
     for(let i = 1; i <= 6; i++) for(let j = -4; j <= 4; j++){
       const d = DROP_REACH*i/6, a = Math.atan2(f.x, f.z) + j*.3, x = P.x + Math.sin(a)*d, z = P.z + Math.cos(a)*d;
       if(!inPlat(L, x, z, .08) || inPlat(own, x, z)) continue;
@@ -254,7 +252,7 @@ function reachBelow(own, f){
 // A rim higher up but within a leg's reach she climbs onto as she crosses under it (her front feet are already up
 // on it: placeTop); once she is under a leaf, anything above STEP_UP is headroom she walks under
 const STEP_UP = .08, REACH_UP = .22;
-const nearTop = (L, x, z) => !(L.ground || L.kind === 'climb' || Math.abs(L.x - x) > L.rx + L.rz || Math.abs(L.z - z) > L.rx + L.rz) && inPlat(L, x, z);
+const nearTop = (L, x, z) => !(L.ground || L.kind === 'climb' || Math.abs(L.x - x) > platR(L) || Math.abs(L.z - z) > platR(L)) && inPlat(L, x, z);
 function stepUpTo(own, x, z){
   const y0 = surfAt(own, x, z); let best = null, by = 0;
   for(const L of PLAT){
@@ -423,6 +421,9 @@ function updateSpider(dt){
     else if(spd > 0 && sp.plat.under && dropToBelow(dir, spd)) return;            // a leaf just below the rim: step down onto it
     else if(spd > 0 && sp.plat.under){ wrapUnder(sp.plat.under, nx, nz); return; }
     else if(spd > 0){ startAir(); sp.vel.set(dir.x*spd, 0, dir.z*spd); sp.charging = false; toast(sp.line ? 'You step off the edge — the dragline holds.' : 'You step off the edge — no dragline tied.'); }
+    // on a leaf top she stands on the blade, not at its base level: out on a big leaf's drooping tip the two are a body
+    // length or more apart, and the camera's orbit and her leaps start from here
+    if(sp.mode === 'ground' && sp.plat.leaf) sp.pos.y = surfAt(sp.plat, sp.pos.x, sp.pos.z);
     sp.speed = paceSpeed(spd, snappy, dt, 1.1*mag); sp.phase += Math.max(spd, dir.lengthSq() > 0 ? .2 : 0)*dt*16;
     if(sp.mode === 'ground' && sp.plat.silk) sp.noise = sp.speed*(stalk ? .05 : Math.min(1, sp.speed/1.1))*(1 - .85*wind.gust);   // slow steps are quiet steps
     if((keys.KeyQ || pad.rb) && !sp.charging && sp.mode === 'ground'){
