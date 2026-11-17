@@ -46,9 +46,14 @@ function predPlat(p){
   return w;
 }
 function predCands(pos, reach, cur, tree){
-  if(tree){                                                     // trunks and limbs only: never the soil, a leaf or a log
+  if(tree){                                                     // trunks, limbs and leaves: never the soil, a log or a stump
     const out = [];
     for(const S of climbsNear(pos.x, pos.z, reach + .3)) if(treeBark(S) && pos.y > S.y0 - reach && pos.y < S.y1 + reach) out.push(predTree(S));
+    for(const p of PLAT){
+      if(p.kind !== 'leaf') continue;
+      const e = Math.max(p.rx, p.rz) + reach;
+      if(Math.abs(p.x - pos.x) < e && Math.abs(p.z - pos.z) < e && Math.abs(p.y - pos.y) < .8 + reach) out.push(predPlat(p));
+    }
     if(cur && !out.includes(cur)) out.push(cur);
     return out;
   }
@@ -138,7 +143,11 @@ function predTreeSpot(S){
 }
 function predWanderGoal(pr){
   const r = Math.random(), near = (x, z, R) => Math.hypot(x - pr.pos.x, z - pr.pos.z) < R && Math.hypot(x, z) < 15;
-  if(pr.tree){                                                  // mostly about its own tree, now and then across to a neighbour
+  if(pr.tree){                                                  // its own tree or leaf, a nearby leaf, now and then another tree
+    if(r < .45){
+      const L = PLAT.filter(p => p.kind === 'leaf' && p !== START && p !== (pr.surf && pr.surf.p) && near(p.x, p.z, 9));
+      if(L.length){ const p = L[Math.random()*L.length | 0], q = randomIn(p, .15); q.y = surfAt(p, q.x, q.z); return q; }
+    }
     const own = pr.surf && pr.surf.S, L = CLIMBS.filter(S => treeBark(S) && near(S.cx, S.cz, r < .8 ? 4 : pr.treeHop));
     if(own && r < .8) L.push(own, own, own);
     for(let i = 0; i < 6 && L.length; i++){ const q = predTreeSpot(L[Math.random()*L.length | 0]); if(q) return q; }
@@ -386,7 +395,7 @@ function updMantis(pr, dt){
     if(d > stop && pr.stuckT < 3){ const b = pr.pos.clone(); predWalk(pr, pr.last, .55*dt); want = pr.pos.clone().sub(b); walk = 1; }
     else if(d > stop && pr.stuckT >= 3){   // hop aims for the standoff point, not onto her
       const aim = stop > .45 ? pr.last.clone().add(pr.pos.clone().sub(pr.last).setLength(stop)) : pr.last;
-      const T = predHopTarget(pr, aim, pr.tree ? 3 : 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
+      const T = predHopTarget(pr, aim, pr.tree ? 4 : 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
     if(walk === 0) want = pr.last.clone().sub(pr.pos);
   } else if(pr.pause > 0){ pr.pause -= dt; sway = Math.sin(pr.t*2.6)*.025; }       // swaying like a leaf in a breeze
   else {
