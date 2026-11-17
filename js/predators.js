@@ -23,10 +23,19 @@ const PRED_GROUND = {
   ok: q => { if(Math.hypot(q.x, q.z) > AREA*.75) return false; const t = new V3(q.x, q.y + .12, q.z);
     for(const S of climbsNear(q.x, q.z, .3)) if(predBlocks(S) && S.inside(t, 0)) return false; return true; }
 };
-const PRED_WRAP = new Map();
+const PRED_WRAP = new Map(), TREE_WRAP = new Map();
 function predClimb(S){
   let w = PRED_WRAP.get(S);
   if(!w) PRED_WRAP.set(S, w = {id: S.id, S, proj: v => S.project(v.clone()), norm: q => S.normal(q), ok: q => q.y > floorAt(q.x, q.z) - .05});
+  return w;
+}
+// a tree-dweller's view of the same bark: only the part held well clear of the soil counts, so the trunk base and
+// the root flare are no way down
+const TREE_CLEAR = .7;
+const treeBark = S => !S.web && S.label === 'bark' && !S.top && !S.log && S.project && S.normal;
+function predTree(S){
+  let w = TREE_WRAP.get(S);
+  if(!w) TREE_WRAP.set(S, w = {id: S.id, S, tree: true, proj: v => S.project(v.clone()), norm: q => S.normal(q), ok: q => q.y > floorAt(q.x, q.z) + TREE_CLEAR});
   return w;
 }
 function predPlat(p){
@@ -36,7 +45,13 @@ function predPlat(p){
     norm: () => UP.clone(), ok: q => inPlat(p, q.x, q.z, .03)});
   return w;
 }
-function predCands(pos, reach, cur){
+function predCands(pos, reach, cur, tree){
+  if(tree){                                                     // trunks and limbs only: never the soil, a leaf or a log
+    const out = [];
+    for(const S of climbsNear(pos.x, pos.z, reach + .3)) if(treeBark(S) && pos.y > S.y0 - reach && pos.y < S.y1 + reach) out.push(predTree(S));
+    if(cur && !out.includes(cur)) out.push(cur);
+    return out;
+  }
   const out = [PRED_GROUND];
   for(const S of climbsNear(pos.x, pos.z, reach + .3))
     if(!S.web && S.label !== 'leaf' && S.label !== 'vine' && S.project && S.normal && pos.y > S.y0 - reach && pos.y < S.y1 + reach) out.push(predClimb(S));
@@ -54,7 +69,7 @@ function predWalk(pr, goal, dist){
   const n = Math.max(1, Math.ceil(dist/.05)), sub = dist/n;
   for(let i = 0; i < n; i++){
     let best = null, bs = 1e9;
-    for(const C of predCands(pr.pos, pr.reach, pr.surf)){
+    for(const C of predCands(pr.pos, pr.reach, pr.surf, pr.tree)){
       const q = C === pr.surf ? pr.pos.clone() : C.proj(pr.pos), off = q.distanceTo(pr.pos);
       if(off > pr.reach) continue;
       const nn = C.norm(q), d = goal.clone().sub(q); d.addScaledVector(nn, -d.dot(nn));
@@ -75,7 +90,7 @@ function predHopTarget(pr, goal, Lmax){
   let best = null, bs = pr.pos.distanceTo(goal) - .05;
   for(const a of [0, .45, -.45, .9, -.9]){
     const dir = d.clone().applyAxisAngle(pr.up, a), P = pr.pos.clone().addScaledVector(dir, L);
-    for(const C of predCands(P, 1.1)){
+    for(const C of predCands(P, 1.1, null, pr.tree)){
       const q = C.proj(P); if(q.distanceTo(P) > 1.1 || !C.ok(q) || q.distanceTo(pr.pos) > Lmax*1.5) continue;
       const s = q.distanceTo(goal) + Math.abs(a)*.1;
       if(s < bs){ bs = s; best = {C, q}; }
@@ -85,7 +100,7 @@ function predHopTarget(pr, goal, Lmax){
 }
 function predStartHop(pr, T, dur){
   const n1 = T.C.norm(T.q), D = pr.pos.distanceTo(T.q);
-  pr.hop = {p0: pr.pos.clone(), p1: T.q.clone(), C: T.C, k: 0, dur: dur*(.7 + .3*Math.min(1.5, D)), H: .15 + .3*D,
+  pr.hop = {p0: pr.pos.clone(), p1: T.q.clone(), C: T.C, k: 0, dur: D > 2 ? .3 + D*.12 : dur*(.7 + .3*Math.min(1.5, D)), H: D > 2 ? .4 + .08*D : .15 + .3*D,
     lift: pr.up.clone().add(n1).add(new V3(0, .6, 0)).normalize(), dir: T.q.clone().sub(pr.pos)};
 }
 function predHopTick(pr, dt){
@@ -111,8 +126,24 @@ function predOrient(pr, dt, want, rate = 4){
   M4.makeBasis(x, pr.up, z); pr.m.quaternion.setFromRotationMatrix(M4); pr.m.position.copy(pr.pos);
 }
 // somewhere to go: a young trunk or a limb, a leaf, stump, rock or the log, or open soil — all near the play area
+// a spot on a trunk or limb, high enough off the soil
+function predTreeSpot(S){
+  for(let i = 0; i < 12; i++){
+    let q;
+    if(S.tube){ const pt = S._pts[Math.random()*S._pts.length | 0]; q = S.project(pt.clone().add(new V3(prr(-.3, .3), .5, prr(-.3, .3)))); }
+    else { const a = prr(0, 6.28), y = Math.min(S.y1 - .5, floorAt(S.cx, S.cz) + prr(1.2, 5)); q = S.project(new V3(S.cx + Math.cos(a)*40, y, S.cz + Math.sin(a)*40)); }
+    if(q && predTree(S).ok(q) && q.y < floorAt(q.x, q.z) + 6) return q;      // low enough to hunt from, not up in the canopy
+  }
+  return null;
+}
 function predWanderGoal(pr){
   const r = Math.random(), near = (x, z, R) => Math.hypot(x - pr.pos.x, z - pr.pos.z) < R && Math.hypot(x, z) < 15;
+  if(pr.tree){                                                  // mostly about its own tree, now and then across to a neighbour
+    const own = pr.surf && pr.surf.S, L = CLIMBS.filter(S => treeBark(S) && near(S.cx, S.cz, r < .8 ? 4 : pr.treeHop));
+    if(own && r < .8) L.push(own, own, own);
+    for(let i = 0; i < 6 && L.length; i++){ const q = predTreeSpot(L[Math.random()*L.length | 0]); if(q) return q; }
+    return pr.home.clone();
+  }
   if(r < pr.climby){
     const L = CLIMBS.filter(S => !S.web && S.label === 'bark' && S.project && near(S.cx, S.cz, 11));
     if(L.length){
@@ -285,7 +316,7 @@ function poseMantis(pr, o){
 function makePred(kind){
   const m = makeMantis(), home = new V3(-2.6, 0, 11.4);
   const pr = {kind, m, home, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10, walkPh: 0,
-    reach: .32, range: 6, climby: .4, hunting: false, sees: false, seenT: 0, last: new V3(),
+    reach: .32, range: 6, climby: .4, tree: true, treeHop: 24, hunting: false, sees: false, seenT: 0, last: new V3(),
     goal: null, pause: prr(1, 3), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, gaveUp: false,
     motion: 0, temp: .42, self: false, hl: 0};
   m.userData.owner = pr; m.rotation.order = 'YXZ';
@@ -297,7 +328,12 @@ function makePred(kind){
   return pr;
 }
 function predHome(pr){
-  pr.pos.copy(PRED_GROUND.proj(pr.home)); pr.surf = PRED_GROUND; pr.up.set(0, 1, 0); pr.hop = null; pr.state = 'roam'; pr.kt = 0;
+  pr.pos.copy(PRED_GROUND.proj(pr.home)); pr.surf = PRED_GROUND; pr.up.set(0, 1, 0);
+  if(pr.tree){                                                   // up on the nearest trunk
+    const T = CLIMBS.filter(S => treeBark(S) && !S.tube).sort((a, b) => Math.hypot(a.cx - pr.home.x, a.cz - pr.home.z) - Math.hypot(b.cx - pr.home.x, b.cz - pr.home.z))[0];
+    if(T){ const g = floorAt(T.cx, T.cz), d = new V3(pr.home.x - T.cx, 0, pr.home.z - T.cz).normalize();
+      pr.pos.copy(T.project(new V3(T.cx + d.x*40, g + 1.8, T.cz + d.z*40))); pr.surf = predTree(T); pr.up.copy(T.normal(pr.pos)); pr.home.copy(pr.pos); }
+  } pr.hop = null; pr.state = 'roam'; pr.kt = 0;
   pr.hunting = false; pr.sees = false; pr.goal = null; pr.pause = prr(2, 4); pr.best = 1e9; pr.stuckT = 0;
   const a = Math.random()*6.28; pr.fwd.set(Math.sin(a), 0, Math.cos(a));
   pr.m.scale.setScalar(1);
@@ -350,14 +386,14 @@ function updMantis(pr, dt){
     if(d > stop && pr.stuckT < 3){ const b = pr.pos.clone(); predWalk(pr, pr.last, .55*dt); want = pr.pos.clone().sub(b); walk = 1; }
     else if(d > stop && pr.stuckT >= 3){   // hop aims for the standoff point, not onto her
       const aim = stop > .45 ? pr.last.clone().add(pr.pos.clone().sub(pr.last).setLength(stop)) : pr.last;
-      const T = predHopTarget(pr, aim, 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
+      const T = predHopTarget(pr, aim, pr.tree ? 3 : 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
     if(walk === 0) want = pr.last.clone().sub(pr.pos);
   } else if(pr.pause > 0){ pr.pause -= dt; sway = Math.sin(pr.t*2.6)*.025; }       // swaying like a leaf in a breeze
   else {
     if(!pr.goal){ pr.goal = predWanderGoal(pr); pr.best = 1e9; pr.stuckT = 0; }
     const d = predProgress(pr, pr.goal, dt);
     if(d < .3){ pr.goal = null; pr.pause = prr(3, 9); }
-    else if(pr.stuckT > 2.5){ const T = predHopTarget(pr, pr.goal, 1.2); if(T) predStartHop(pr, T, .35); else pr.goal = null; pr.stuckT = 0; pr.best = d; }
+    else if(pr.stuckT > 2.5){ const T = predHopTarget(pr, pr.goal, pr.tree ? pr.treeHop : 1.2); if(T) predStartHop(pr, T, .35); else pr.goal = null; pr.stuckT = 0; pr.best = d; }
     else { const b = pr.pos.clone(); predWalk(pr, pr.goal, .38*dt); want = pr.pos.clone().sub(b); walk = 1; sway = Math.sin(pr.t*7)*.012; }
   }
   predOrient(pr, dt, want, pr.hunting ? 2.5 : 4);
