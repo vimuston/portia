@@ -194,7 +194,7 @@ function climbOver(){
   if(inw.lengthSq() < 1e-8) inw.set(-Math.sin(sp.yaw), 0, -Math.cos(sp.yaw));
   inw.normalize();
   let d = .26; for(let i = 0; i < 6 && !inPlat(p, sp.anchor.x + inw.x*d, sp.anchor.z + inw.z*d, .06); i++) d *= .7;
-  sp.pos.copy(sp.anchor); sp.pos.y = p.y + .01;
+  sp.pos.copy(sp.anchor); sp.pos.y = surfAt(p, sp.anchor.x, sp.anchor.z) + .01;
   sp.mode = 'air'; sp.plop = true; sp.braked = false; sp.committed = false; sp.charging = false;
   sp.vel.set(inw.x*d/.16, 3, inw.z*d/.16); sp.yaw = Math.atan2(inw.x, inw.z);
   cam.swing = sp.yaw; sp.holdIn = true;
@@ -276,7 +276,7 @@ function placeTop(pl, v){
 }
 function rollOnTop(S, v){
   const [q, o] = S.rimPoint(v.x, v.z), inw = o.clone().negate();
-  startRoll(q, o, () => { sp.mode = 'ground'; sp.plat = S.top; sp.pos.copy(q).addScaledVector(inw, .12); sp.pos.y = S.top.y; sp.yaw = Math.atan2(inw.x, inw.z); });
+  startRoll(q, o, () => { sp.mode = 'ground'; sp.plat = S.top; sp.pos.copy(q).addScaledVector(inw, .12); sp.pos.y = surfAt(S.top, sp.pos.x, sp.pos.z); sp.yaw = Math.atan2(inw.x, inw.z); });
 }
 // ballooning: she tips up her abdomen and lets fine silk stream into the breeze. The threads catch the air:
 // she drifts downwind, sinks slowly in still air and lifts on gusts. Release to let them go.
@@ -410,13 +410,13 @@ function updateSpider(dt){
     if(!snappy && !stalk) spd *= .25 + .75*gaitSupport(sp.m);       // a dart is carried on whipping legs; a stalk glides on its slow wave
     spd *= gaitLimit(sp.m, dir.clone().multiplyScalar(spd*dt), snappy ? 1.02 : .93);   // a dart may pull the standing legs taut
     const nx = sp.pos.x + dir.x*spd*dt, nz = sp.pos.z + dir.z*spd*dt;
-    const wall = sp.plat.ground && spd > 0 && sp.climbGrace <= 0 ? climbHit(nx, sp.pos.y + .05, nz, dir) : null;
+    const wall = spd > 0 && sp.climbGrace <= 0 ? climbHit(nx, sp.pos.y + .05, nz, dir) : null;   // a trunk or stem in her way, from the soil or from a leaf whose blade runs into it
     const up = !sp.plat.ground && spd > 0 ? stepUpTo(sp.plat, nx, nz) : null;
-    if(up){ sp.plat = up; sp.pos.set(nx, up.y, nz); }                               // another leaf lies over hers: walk up onto its top, not under it
+    if(up){ sp.plat = up; sp.pos.set(nx, surfAt(up, nx, nz), nz); }                               // another leaf lies over hers: walk up onto its top, not under it
     else if(snappy && spd > 0 && (wall || !inPlat(sp.plat, nx, nz))){ pc.t = pc.dur; spd = 0; }   // a dart stops at the edge of its surface
     else if(wall){ enterClimb(wall, new V3(nx, sp.pos.y + .06, nz), dir); return; }
     else if(sp.plat.ground){ const r = Math.hypot(nx, nz), k = r > 30 ? 30/r : 1; sp.pos.set(nx*k, floorAt(nx*k, nz*k), nz*k); }
-    else if(inPlat(sp.plat, nx, nz)){ sp.pos.x = nx; sp.pos.z = nz; }
+    else if(inPlat(sp.plat, nx, nz)){ sp.pos.set(nx, surfAt(sp.plat, nx, nz), nz); }   // her height rides the blade's droop and fold, or the camera and the next step start inside it
     else if(spd > 0 && sp.plat.climb && sp.plat.climb.canEnter(new V3(nx, 0, nz))){ enterClimb(sp.plat.climb, new V3(nx, surfAt(sp.plat, nx, nz) - .05, nz), dir); return; }   // over the rim, down the side
     else if(spd > 0 && sp.plat.under && dropToBelow(dir, spd)) return;            // a leaf just below the rim: step down onto it
     else if(spd > 0 && sp.plat.under){ wrapUnder(sp.plat.under, nx, nz); return; }

@@ -156,7 +156,9 @@ function updateCamera(dt){
           if(found) break; } }
     }
   }
-  const kD = 1 - Math.exp(-4*dt);
+  // ease into a clear slot, faster the further the view has already squeezed in: dropping past the rim of the leaf
+  // she walked off, the blade cuts the line of sight at once and a slow swing would leave the view in her eyes meanwhile
+  const squeeze = Math.max(0, 1 - (cam.distEff ?? need)/need), kD = 1 - Math.exp(-(4 + 22*squeeze)*dt);
   cam.dodgeY = (cam.dodgeY || 0) + (dY - (cam.dodgeY || 0))*kD; cam.dodgeP = (cam.dodgeP || 0) + (dP - (cam.dodgeP || 0))*kD;
   if(Math.abs(cam.dodgeY) < 1e-3) cam.dodgeY = 0; if(Math.abs(cam.dodgeP) < 1e-3) cam.dodgeP = 0;
   const off = offAt(cam.yaw + cam.dodgeY, Math.min(1.45, cam.pitchEff + cam.dodgeP));

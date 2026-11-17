@@ -388,7 +388,7 @@ function makeClimb(o){
     const vn = vel.x*ux + vel.z*uz; if(vn < 0){ vel.x -= ux*vn; vel.z -= uz*vn; } };
   S.topAt = (v, vel) => !!S.top && vel.y <= 0 && v.y > S.y1 - .12 && inPlat(S.top, v.x, v.z);       // dropping onto the top, not its rim
   S.atRim = (v, t) => t.y >= 0 && v.y >= S.y1 - .01;
-  S.rimLand = v => { const inw = new V3(S.top.x - v.x, 0, S.top.z - v.z).normalize(); return {pos: new V3(v.x + inw.x*.14, S.top.y, v.z + inw.z*.14), yaw: Math.atan2(inw.x, inw.z)}; };
+  S.rimLand = v => { const inw = new V3(S.top.x - v.x, 0, S.top.z - v.z).normalize(); const x = v.x + inw.x*.14, z = v.z + inw.z*.14; return {pos: new V3(x, surfAt(S.top, x, z), z), yaw: Math.atan2(inw.x, inw.z)}; };
   S.atBottom = v => v.y <= floorAt(v.x, v.z) + .04;
   S.soilExit = (v, n) => { const q = new V3(v.x + n.x*.18, 0, v.z + n.z*.18); q.y = floorAt(q.x, q.z); return q; };
   S.canEnter = () => true;
@@ -415,7 +415,7 @@ function leafUnder(p){
   S.hit = () => false; S.pushOut = () => {}; S.atBottom = () => false; S.soilExit = v => v; S.canEnter = () => true;
   S.topAt = (v, vel) => vel.y <= 0 && v.y >= surfAt(p, v.x, v.z) - .015;
   S.atRim = (v, t) => { const [lx, lz, c, s] = leafLocal(p, v); return E(lx, lz) > .95 && t.dot(out(lx, lz, c, s)) > .3; };
-  S.rimLand = v => { const [lx, lz, c, s] = leafLocal(p, v), o = out(lx, lz, c, s), q = v.clone().addScaledVector(o, -.12); q.y = p.y;
+  S.rimLand = v => { const [lx, lz, c, s] = leafLocal(p, v), o = out(lx, lz, c, s), q = v.clone().addScaledVector(o, -.12); q.y = surfAt(p, q.x, q.z);
     return {pos: q, yaw: Math.atan2(-o.x, -o.z), swing: true}; };
   S.rimPoint = (x, z) => { const [lx, lz, c, s] = leafLocal(p, new V3(x, 0, z)), e = E(lx, lz) || 1, k = .985/e, q = new V3(p.x + (lx*c + lz*s)*k, 0, p.z + (-lx*s + lz*c)*k);
     q.y = surfAt(p, q.x, q.z) - LEAF_TH*.5; return [q, out(lx, lz, c, s)]; };
@@ -994,7 +994,7 @@ const barkStumpM = antiTile(new THREE.MeshStandardMaterial({vertexColors:true, m
 // walkable platforms
 const PLAT = [];
 const GROUND = {id:'ground', ground:true, y:0};
-const surfY = (p, x, z) => p.ground ? floorAt(x, z) : p.y;
+const surfY = (p, x, z) => p.ground ? floorAt(x, z) : surfAt(p, x, z);   // the real top: a big blade droops and curls by a metre or more
 // a blade's half-width (in units of w) at t along it: 0 at the base, 1 at the tip (as leafPoint draws it)
 const leafWd = (type, t) => type === 'heart' ? Math.pow(Math.sin(Math.PI*(.12 + .88*Math.pow(t, .8))), .7)*1.05
   : type === 'round' ? Math.sqrt(Math.max(0, 1 - (2*t - 1)**2)) : Math.pow(Math.sin(Math.PI*Math.pow(t, .85)), .8);
