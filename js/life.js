@@ -243,7 +243,7 @@ const CATS = [];
     for(let k = 0; k <= 12; k++){ const lz = p.rz*(.85 - 1.7*k/12), lx = Math.sin(k*.6)*p.rx*.25, x = p.x + lx*c + lz*s, z = p.z - lx*s + lz*c; P.push(new V3(x, surfAt(p, x, z) + .004, z)); } paths.push(P); }
   { const ax = new V3(Math.sin(LOG.ang), 0, Math.cos(LOG.ang)), top = PLAT.find(q => q.kind === 'log'), P = [];
     for(let k = 0; k <= 16; k++){ const al = (k/16 - .5)*LOG.len*.8, q = new V3(LOG.x, 0, LOG.z).addScaledVector(ax, al); q.y = surfAt(top, q.x, q.z) + .004; P.push(q); } paths.push(P); }
-  for(let i = 0; i < 3; i++){ const [x, z] = scatter(14*AK, 3); paths.push(groundPath(x, z, 20, .6)); }
+  for(let i = 0; i < 3; i++){ const [x, z] = scatter(14*AK, 3), P = groundPath(x, z, 20, .6); P.ground = true; paths.push(P); }   // ground paths: heights re-read from the floor as she crawls (see updateCats)
   paths.forEach((P, i) => {
     const K = kinds[i % kinds.length], segs = [], rads = [], n = 12, SC = 2.6, owner = {temp:.5, motion:.15, self:false};
     const bodyC = new THREE.Color(K.body);
@@ -295,8 +295,9 @@ function updateCats(dt, t){
     c.segs.forEach((sg, k) => {
       const lift = Math.max(0, Math.sin(t*5 + c.ph - k*.55));           // travelling hump; humped rings bunch up so the body stays joined
       off += c.gaps[k]*(1 - .3*lift);
-      const [p, d] = pathAt(c.P, c.s - c.dir*off), r = k ? c.gaps[k]/1.9 : .038;
-      sg.position.copy(p).add(new V3(0, r*.9 + lift*r*.55, 0)); sg.lookAt(p.clone().addScaledVector(d, c.dir).add(new V3(0, r*.9, 0))); });
+      const [p, d] = pathAt(c.P, c.s - c.dir*off), r = k ? c.gaps[k]/1.9 : .038, ahead = p.clone().addScaledVector(d, c.dir*.05);
+      if(c.P.ground){ p.y = floorAt(p.x, p.z) + .004; ahead.y = floorAt(ahead.x, ahead.z) + .004; }   // path samples are .6 apart: a straight chord between them sinks into humps
+      sg.position.copy(p).add(new V3(0, r*.9 + lift*r*.55, 0)); sg.lookAt(ahead.add(new V3(0, r*.9, 0))); });
   }
 }
 
