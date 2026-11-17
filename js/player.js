@@ -251,15 +251,30 @@ function reachBelow(own, f){
 }
 // overlapping tops: where another walkable top lies just above hers (its rim over her leaf, or the two touching),
 // that is the surface her feet meet; well above is headroom she walks under
-const STEP_UP = .08;
+// A rim higher up but within a leg's reach she climbs onto as she crosses under it (her front feet are already up
+// on it: placeTop); once she is under a leaf, anything above STEP_UP is headroom she walks under
+const STEP_UP = .08, REACH_UP = .22;
+const nearTop = (L, x, z) => !(L.ground || L.kind === 'climb' || Math.abs(L.x - x) > L.rx + L.rz || Math.abs(L.z - z) > L.rx + L.rz) && inPlat(L, x, z);
 function stepUpTo(own, x, z){
   const y0 = surfAt(own, x, z); let best = null, by = 0;
   for(const L of PLAT){
-    if(L === own || L.ground || L.kind === 'climb' || !inPlat(L, x, z)) continue;
+    if(L === own || !nearTop(L, x, z)) continue;
     const y = surfAt(L, x, z), dy = y - y0;
-    if(dy > .003 && dy < STEP_UP && (!best || y > by)){ best = L; by = y; }
+    if(dy > .003 && (dy < STEP_UP || (dy < REACH_UP && !inPlat(L, sp.pos.x, sp.pos.z))) && (!best || y > by)){ best = L; by = y; }
   }
   return best;
+}
+// a foot on a leaf-like top: one reaching out under the rim of a higher top (a leaf lying over hers, not yet climbed)
+// goes up onto it; one left out past her own rim (the leaf she just climbed from) stays on the top below, if in reach
+function placeTop(pl, v){
+  const own = inPlat(pl, v.x, v.z), y0 = surfAt(pl, ...clampTo(pl, v.x, v.z)); let best = null, by = 0;
+  for(const L of PLAT){
+    if(L === pl || !nearTop(L, v.x, v.z)) continue;
+    const y = surfAt(L, v.x, v.z), dy = own ? y - y0 : y0 - y;
+    if(own ? dy > .003 && dy < REACH_UP && !inPlat(L, sp.pos.x, sp.pos.z) : dy > -.01 && dy < REACH_UP)
+      if(!best || y > by){ best = L; by = y; } }
+  if(!best) return placeOn(pl, v);
+  v.y = by + .002; return v;
 }
 function rollOnTop(S, v){
   const [q, o] = S.rimPoint(v.x, v.z), inw = o.clone().negate();
