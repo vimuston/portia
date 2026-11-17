@@ -6,12 +6,15 @@ const BOSS = {
   scytodes: {pre: 'YOUR PREY', name: 'SCYTODES PALLIDA', epi: 'THE SPITTING SPIDER', lab: 'AWARENESS'},
   badumna:  {pre: 'YOUR PREY', name: 'BADUMNA LONGINQUA', epi: 'THE LURKER IN THE TUBE', lab: 'AWARENESS'},
   argiope:  {pre: 'YOU ARE ON ITS WEB', name: 'ARGIOPE', epi: 'WEAVER OF THE CROSS', lab: 'AWARENESS'},
+  mantis:   {pre: 'YOU ARE HUNTED', name: 'PRAYING MANTIS', epi: 'THE PATIENT REAPER', lab: 'HUNTING YOU'},
   male:     {pre: 'A SUITOR', name: 'PORTIA LABIATA', epi: 'HE WHO COURTS', lab: 'TRUST', ally: true},
 };
-const ENC = {tg: null, seen: new Map(), cardT: 0, cardDur: 0, won: false, key: ''};
+const ENC = {tg: null, seen: new Map(), cardT: 0, cardDur: 0, won: false, key: '', hunter: null, huntCardT: -1e9};
 const ENC_IN = 2.0, ENC_OUT = 3.0, ENC_AGAIN = 45;
 // [the one thing to do now, whether it is urgent]
 function bossDo(p){
+  if(PREDS.includes(p)) return p.sees ? ['It sees you! Freeze, or sneak away (C).', true]
+    : ['It has lost sight of you. Keep still or sneak until it gives up.', false];
   if(p === male){
     if(male.state === 'linger') return !male.pang ? ['He lingers beside you.', false]
       : male.timid ? ['He is losing his nerve. Strike now!', true] : ['Leap on him and devour him.', false];
@@ -58,9 +61,20 @@ function updateEncounter(dt){
       if(now - (ENC.seen.get(ENC.tg) ?? -1e9) > ENC_AGAIN && !(ENC.tg === male && male.state === 'linger')) encCard(B.pre, B.name, B.epi, bossDo(ENC.tg)[0]);
       bar.querySelector('.bb-name').textContent = B.name; }
   }
-  const tg = ENC.tg;
-  if(tg){ ENC.seen.set(tg, now);
+  // a predator hunting her overrides any prey: its bar is how long until it gives up (drains while she stays unseen)
+  const hunter = DOOM.t < 0 ? PREDS.find(p => p.hunting) : null;
+  for(const p of PREDS) if(p.gaveUp){ p.gaveUp = false; if(DOOM.t < 0 && ENC.hunter === p) bossWin('ESCAPED', 'THE MANTIS HAS LOST YOU'); }
+  if(hunter && ENC.hunter !== hunter && now - ENC.huntCardT > 20){ const B = BOSS[hunter.kind]; encCard(B.pre, B.name, B.epi, bossDo(hunter)[0]); ENC.huntCardT = now; }
+  ENC.hunter = hunter;
+  const tg = hunter || ENC.tg;
+  if(hunter){ const B = BOSS[hunter.kind], w = `${Math.round(Math.max(0, 1 - hunter.seenT/PRED_FORGET)*100)}%`;
+    bar.classList.remove('ally', 'nobar'); bar.querySelector('.bb-lab').textContent = B.lab; bar.querySelector('.bb-name').textContent = B.name;
+    bar.querySelector('.bb-bar i').style.width = w; bar.querySelector('.bb-bar u').style.width = w;
+    const [todo, hot] = bossDo(hunter), D = bar.querySelector('.bb-do');
+    if(ENC.key !== todo){ D.textContent = todo; ENC.key = todo; } D.classList.toggle('hot', hot); }
+  else if(tg){ ENC.seen.set(tg, now);
     const B = BOSS[tg === male ? 'male' : tg.kind], hunt = tg === male && male.pang, court = tg === male && !hunt;
+    const N = bar.querySelector('.bb-name'); if(N.textContent !== B.name) N.textContent = B.name;
     const v = hunt ? 1 - male.stare/MALE_NERVE : tg === male ? 0 : tg.alert;
     const w = `${Math.round(Math.max(0, Math.min(1, v || 0))*100)}%`;
     bar.classList.toggle('ally', court); bar.classList.toggle('nobar', court);   // courtship: no meter, just what to do
