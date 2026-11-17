@@ -130,7 +130,10 @@ function pounce(p){
     startFeed(p, null, p.plat, HOLD_D, .8); return true;
   }
   killPrey(p); endBalloon();
-  const up = p.kind === 'argiope' ? ARG.n.clone().multiplyScalar(Math.sign(sp.pos.clone().sub(p.m.getWorldPosition(new V3())).dot(ARG.n)) || 1) : null;
+  // the face she bites from: the one she is on, or leapt from; a leap along the web can drift through its plane
+  // before it reaches her, and that mustn't flip her onto the far face
+  const fromWeb = sp.plat === WEB || (sp.mode === 'air' && sp.leftFrom === WEB);
+  const up = p.kind === 'argiope' ? ARG.n.clone().multiplyScalar(fromWeb ? WEB.side : Math.sign(sp.pos.clone().sub(p.m.getWorldPosition(new V3())).dot(ARG.n)) || 1) : null;
   const F = startFeed(p, up, p.kind === 'argiope' ? null : p.plat, HOLD_D, .55);
   if(p.kind === 'badumna') F.base.y = Math.max(F.base.y, F.p0.y);
   return true;
@@ -206,7 +209,9 @@ function endFeed(drained){
   if(p.kind === 'argiope'){ p.dropped = true; p.pos.set(at.x, floorAt(at.x, at.z), at.z); }
   else { const [x, z] = clampTo(p.plat, at.x, at.z); p.pos.set(x, surfY(p.plat, x, z), z); if(p.kind === 'badumna') p.pos.y = Math.max(p.pos.y, F.p0.y); }
   p.fallH = Math.max(0, at.y - p.pos.y); p.fallV = 0; p.yaw = Math.atan2(F.fw.x, F.fw.z) + rr(-.8, .8); p.flip = 0;
-  if(p.kind === 'argiope'){ WEB.side = Math.sign(F.up.dot(ARG.n)) || 1; enterClimb(WEB, F.base.clone().sub(ARG_WEB.position), F.fw.clone()); }
+  // back onto the face she fed from. F.base is already in world space (it rides the sway): taking the sway off again
+  // set her a few cm off the plane, and enterClimb's setSide then flipped her to whichever way the orb was swinging
+  if(p.kind === 'argiope'){ const face = Math.sign(F.up.dot(ARG.n)) || 1; WEB.side = face; enterClimb(WEB, F.base.clone(), F.fw.clone()); WEB.side = face; }
   else { sp.mode = 'ground'; sp.plat = p.plat; sp.pos.copy(F.base); sp.yaw = Math.atan2(F.fw.x, F.fw.z); }
   toast(drained ? 'Drained. You let the shrivelled husk drop.' : 'You let it drop, half-drained.');
 }
