@@ -242,6 +242,8 @@ function updateCamera(dt){
   camera.updateMatrixWorld();
   SU.uInvVP.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
   SU.uCamPos.value.copy(camera.position);
+  SU.uCfCam.value.copy(camera.position);
+  { const B = sp.m.userData.parts.body.getWorldPosition(new V3()); SU.uCfT.value.set(B.x, B.y, B.z, cam.eye > .5 || sp.mode === 'feed' ? 0 : 1); }
   SU.uCamYaw.value = Math.atan2(cf.z, cf.x);
   SU.uVib.value.forEach((u, i) => {
     const o = SU.uVibScr.value[i];

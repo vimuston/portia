@@ -15,6 +15,7 @@ const SU = {
   uGust:{value: Array.from({length:4}, () => new THREE.Vector4())},
   uWind: WIND_U, uTime:{value: 0}, uCamYaw:{value: 0},
   uInvVP:{value: new THREE.Matrix4()}, uCamPos:{value: new V3()},
+  uCfCam:{value: new V3()}, uCfT:{value: new THREE.Vector4()},   // see-through: the camera, and her (xyz) with the line-of-sight cut on (w)
   uAux:{value: null}, uGrid:{value: new THREE.Vector2(1, 1)},
   uOn:{value: new THREE.Vector4(1, 1, 1, 1)}, uChemOn:{value: 1},
   uBg:v3u(PAL.bg), uLo:v3u(PAL.lo), uMid:v3u(PAL.mid), uHi:v3u(PAL.hi),
@@ -512,24 +513,38 @@ const drawables = []; scene.traverse(o => { if(o.isMesh || o.isLine) drawables.p
    is unchanged. Needs float blending; without it the old separate aux pass is used. ---------- */
 const GL = renderer.getContext();
 const AUX_MRT = renderer.capabilities.isWebGL2 && !!GL.getExtension('EXT_float_blend') && GL.getParameter(GL.MAX_DRAW_BUFFERS) >= 3;
+const AUX_F = new WeakMap();
 const AUX_U = new WeakMap(), AUX_SRC = new WeakMap(), AUX_KEY = new WeakMap(), AUX_CLONES = new WeakMap();
 const AUX_STAT = {patched: 0, clones: 0};
 const AUX_MAIN = /void\s+main\s*\(\s*(void\s*)?\)/;
 const AUX_VS = `
 uniform mat4 uAuxIVP; varying vec3 vAuxW;
 void main(){ auxMain0(); vec4 w = uAuxIVP*gl_Position; vAuxW = w.xyz/w.w; }`;   // clip -> world: includes sway, hair physics, instancing
+// see-through: small scenery the camera's collision doesn't know about (mushrooms, grass, flowers, stems: instanced, too
+// many to raycast) dithers away where it would crowd the lens or stand between the camera and her, instead of
+// filling the view. Not her, not lines, not the soil and litter (the camera already keeps clear of those).
 const AUX_FS = `
 uniform vec4 uAuxO; varying vec3 vAuxW;   // temperature, motion, self, kind (0 surface, 1 skip, 2 line)
-void main(){ auxMain0();
+uniform vec3 uCfCam; uniform vec4 uCfT; uniform float uCfOn;
+void main(){
+  if(uCfOn > .5 && uAuxO.z < .5 && uAuxO.w < .5){
+    vec3 d = vAuxW - uCfCam; float a = 1. - smoothstep(.12, .32, length(d));          // crowding the lens
+    vec3 seg = uCfT.xyz - uCfCam; float L = length(seg);
+    if(uCfT.w > .5 && L > .3){                                                         // a thin cone from the lens to just short of her
+      vec3 u = seg/L; float s = dot(d, u), rr = length(d - u*s), r = .05 + .1*clamp(1. - s/L, 0., 1.);
+      if(s > 0. && s < L - .2) a = max(a, (1. - smoothstep(r*.55, r, rr))*(1. - smoothstep(L - .35, L - .2, s))); }
+    float th = fract(52.9829189*fract(dot(gl_FragCoord.xy, vec2(.06711056, .00583715))));
+    if(a > th) discard; }
+  auxMain0();
   if(uAuxO.w > .5 && uAuxO.w < 1.5){ gAuxP = vec4(0.); gAuxC = vec4(0.); }
   else { gAuxP = vec4(vAuxW, 1.);
     gAuxC = vec4((uAuxO.z > .5 ? -1. : 1.)*(1. + floor(clamp(uAuxO.x, 0., 1.)*255. + .5)), min(uAuxO.y, .99), step(1.5, uAuxO.w), 1.); } }`;   // (half floats: the code's integer and motion kept apart)
 function auxPatch(mat){
-  const prev = mat.onBeforeCompile, key = mat.customProgramCacheKey(), U = {value: new THREE.Vector4(.3, 0, 0, 0)};
-  AUX_SRC.set(mat, {prev, key}); AUX_U.set(mat, U); AUX_STAT.patched++;
+  const prev = mat.onBeforeCompile, key = mat.customProgramCacheKey(), U = {value: new THREE.Vector4(.3, 0, 0, 0)}, F = {value: 0};
+  AUX_SRC.set(mat, {prev, key}); AUX_U.set(mat, U); AUX_F.set(mat, F); AUX_STAT.patched++;
   mat.onBeforeCompile = function(sh, r){
     prev.call(this, sh, r);
-    sh.uniforms = Object.assign({}, sh.uniforms, {uAuxO: U, uAuxIVP: SU.uInvVP});
+    sh.uniforms = Object.assign({}, sh.uniforms, {uAuxO: U, uAuxIVP: SU.uInvVP, uCfCam: SU.uCfCam, uCfT: SU.uCfT, uCfOn: F});
     sh.vertexShader = sh.vertexShader.replace(AUX_MAIN, 'void auxMain0()') + AUX_VS;
     sh.fragmentShader = 'layout(location = 1) out highp vec4 gAuxP;\nlayout(location = 2) out highp vec4 gAuxC;\n'
       + sh.fragmentShader.replace(AUX_MAIN, 'void auxMain0()') + AUX_FS;
@@ -546,7 +561,8 @@ function auxInfo(o){
     if(!owner){ if(temp == null && p.userData.temp != null) temp = p.userData.temp; if(p.userData.owner) owner = p.userData.owner; }
   }
   if(temp == null) temp = .3;
-  return o.userData.auxI = {owner, temp, skip, key: skip ? 'skip' : owner || 'T' + temp};
+  const fade = !skip && !owner && temp !== TEMP.soil && temp !== TEMP.litter;
+  return o.userData.auxI = {owner, temp, skip, fade, key: skip ? 'skip' : owner || 'T' + temp};
 }
 // one material per aux key: a material shared by objects that write different values is cloned per key
 function auxMat(o, I){
@@ -567,7 +583,8 @@ function auxUpdate(){
   const fl = .5 + .5*Math.sin(time*13);
   scene.traverse(o => {
     if(!(o.isMesh || o.isLine || o.isPoints)) return;
-    const I = auxInfo(o), v = AUX_U.get(auxMat(o, I)).value;
+    const I = auxInfo(o), mm = auxMat(o, I), v = AUX_U.get(mm).value;
+    AUX_F.get(mm).value = I.fade ? 1 : 0;
     if(I.skip){ v.set(0, 0, 0, 1); return; }
     const ow = I.owner, hl = ow && ow.hl > .01 ? ow.hl : 0;
     v.set(ow ? Math.min(1, ow.temp + hl*(.2 + .1*fl)) : I.temp, ow && !ow.self ? Math.max(ow.motion, hl*(.3 + .45*fl)) : 0, ow && ow.self ? 1 : 0, o.isLine ? 2 : 0);
