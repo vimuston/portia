@@ -146,6 +146,7 @@ function pounce(p){
   if(p.kind === 'scytodes' && !p.egg && angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .6){ spit(p); return false; }
   if(p.kind === 'badumna' && (p.state === 'retreat' || p.state === 'peek')) return false;
   if(p.kind === 'argiope' && p.state === 'pump'){ toast('The web is bucking — you cannot get a grip.'); return false; }
+  if(p.kind === 'argiope' && p.state === 'lunge'){ toast('It meets you fangs-first.'); die(); return false; }
   if(p === male){                                  // the spent suitor: no defence but flight
     p.dead = true; p.deadT = 0; p.drain = 0; p.flip = 0; sp.caught++; endBalloon();
     pulses.push({pos: p.pos.clone(), amp: 1.4, decay: .7}); AUDIO.sfx.bite(); toast('You turn on your mate. Fangs in, venom pumping.');
@@ -437,12 +438,22 @@ function updArgiope(p, dt, t){
   p.alert = Math.max(0, p.alert + preyNoise(p)*dt*2.4 - dt*(pk === 'male' ? .7 : .15));
   p.motion = 0; p.vib = 0;
   if(p.wary > 0) p.wary -= dt;
-  if(p.state !== 'pump' && p.state !== 'wrap' && p.state !== 'rush' && pk !== 'male' && p.alert > 1){ p.state = 'pump'; p.pumpT = 3; p.alert = .4; p.spot = false; toast('The orb-weaver pumps its web — freeze!'); }
+  // the pump is a test: it shakes the orb and feels for anything that moves against the shaking. Real prey is
+  // already stuck and struggles in rhythm with it; a hunter creeping on the silk gives itself away. Hold still and
+  // it settles back on the hub; move, and it lunges straight down the threads at you.
+  const onWeb = onSilkOf(p) || (sp.mode === 'hang' && nearWeb);
+  if(p.state !== 'pump' && p.state !== 'wrap' && p.state !== 'rush' && p.state !== 'lunge' && pk !== 'male' && p.alert > 1 && DOOM.t < 0){ p.state = 'pump'; p.pumpT = 3; p.alert = .4; toast('The orb-weaver pumps its web — freeze, or it will strike!'); }
   if(p.state === 'pump'){
     p.pumpT -= dt; p.vib = 1.4; p.motion = .5;
     const moving = sp.speed > 0 || sp.plucking || (sp.mode === 'hang' && (keys.KeyW || keys.KeyS || keys.KeyA || keys.KeyD));
-    if(moving && (onSilkOf(p) || (sp.mode === 'hang' && nearWeb))){ p.wary = 15; p.spot = true; }
-    if(p.pumpT <= 0){ p.state = 'hub'; if(p.spot) toast('It saw you move. It stays wary.'); }
+    if(moving && onWeb && DOOM.t < 0){ p.state = 'lunge'; p.alert = 1; toast('It felt you move — the orb-weaver lunges!'); }
+    else if(p.pumpT <= 0) p.state = 'hub';
+  }
+  if(p.state === 'lunge'){                                   // fast and fatal; only getting off its silk saves her
+    p.motion = 1; p.vib = 1.3;
+    if(DOOM.t >= 0) p.state = 'return';
+    else if(!onWeb){ p.state = 'return'; p.wary = 15; p.alert = .6; toast('You got off the web in time. It stays wary.'); }
+    else if(argMove(p, webPoint(sp.pos, R), 1.8, dt) < .3){ toast('The orb-weaver drives its fangs into you.'); die(); p.state = 'return'; p.alert = 0; }
   }
   if(p.state === 'hub'){
     argMove(p, C.clone().addScaledVector(n, .01), .3, dt); p.fwd.lerp(new V3(0, -1, 0), 1 - Math.exp(-3*dt));
@@ -532,7 +543,7 @@ function preyInfo(p){
       out: p.rush > .6 ? 'RUSHING — switch to calming taps' : 'creeping toward the signal', back: 'returning to its retreat'}[p.state];
     return [st, p.known ? `it answers to: ${PLUCKS.find(q => q.id === p.pref).name}` : 'pluck the sheet, try different signals · step during gusts'];
   }
-  const st = {hub: 'motionless at the hub', pump: 'PUMPING the web — freeze', walk: 'walking toward the signal', rush: 'RUSHING to wrap', return: 'returning to the hub', wrap: 'coming to wrap you'}[p.state];
+  const st = {hub: 'motionless at the hub', pump: 'PUMPING the web — freeze or it strikes', lunge: 'LUNGING — it felt you move', walk: 'walking toward the signal', rush: 'RUSHING to wrap', return: 'returning to the hub', wrap: 'coming to wrap you'}[p.state];
   return [st + (p.wary > 0 ? ' · wary' : ''), 'walk its web softly (Shift), drop from the leaf above (X), or pluck from the frame leaf'];
 }
 
