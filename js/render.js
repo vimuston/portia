@@ -104,5 +104,33 @@ function render(dt){
   cu.uImg.value = imgRT.texture; cu.uMask.value = maskRT.texture; cu.uFull.value = fullTex; cu.uDepth.value = FT.depthTexture;
   cu.uNear.value = camera.near; cu.uFar.value = camera.far;
   cu.uFMode.value = braille ? 0 : 1; cu.uHasFull.value = needFull ? 1 : 0; cu.uHerClean.value = LOOK.herStyle === 'clean' ? 1 : 0;
-  pass(compMat, null);
+  motionBlur(() => pass(compMat, MB.cur), () => pass(compMat, null));
+}
+// slow-motion blur: while the world is slowed, each finished frame is blended over the frames before it, so anything
+// moving leaves a soft smear behind it. Strength follows SLOWMO.scale, so it swells in on release and fades as time
+// speeds back up; with no slow motion the composite goes straight to the screen as before (no extra passes).
+const MB = {k: 0, cur: null, hist: [], i: 0, fresh: true, max: .8};
+const mbBlendMat = new THREE.ShaderMaterial({
+  uniforms: {uCur: {value: null}, uPrev: {value: null}, uK: {value: 0}},
+  vertexShader: VS_UV,
+  fragmentShader: 'uniform sampler2D uCur, uPrev; uniform float uK; varying vec2 vUv; void main(){ gl_FragColor = vec4(mix(texture2D(uCur, vUv).rgb, texture2D(uPrev, vUv).rgb, uK), 1.); }',
+  depthTest: false, depthWrite: false});
+const mbCopyMat = new THREE.ShaderMaterial({
+  uniforms: {uSrc: {value: null}}, vertexShader: VS_UV,
+  fragmentShader: 'uniform sampler2D uSrc; varying vec2 vUv; void main(){ gl_FragColor = texture2D(uSrc, vUv); }',
+  depthTest: false, depthWrite: false});
+function motionBlur(drawToCur, drawToScreen){
+  const slow = SLOWMO.scale < 1 ? (1 - SLOWMO.scale)/(1 - SLOWMO.rate) : 0;
+  MB.k = MB.max*Math.min(1, Math.max(0, slow));
+  if(MB.k < .02){ MB.fresh = true; drawToScreen(); return; }
+  if(!MB.cur || MB.cur.width !== R.W || MB.cur.height !== R.H){         // made on first use, remade if the window resized
+    [MB.cur, ...MB.hist].forEach(t => t && t.dispose());
+    MB.cur = rt(R.W, R.H, THREE.HalfFloatType, true, false); MB.hist = [rt(R.W, R.H, THREE.HalfFloatType, true, false), rt(R.W, R.H, THREE.HalfFloatType, true, false)];
+    MB.fresh = true; }
+  drawToCur();
+  const prev = MB.hist[MB.i], next = MB.hist[1 - MB.i];
+  mbBlendMat.uniforms.uCur.value = MB.cur.texture; mbBlendMat.uniforms.uPrev.value = prev.texture;
+  mbBlendMat.uniforms.uK.value = MB.fresh ? 0 : MB.k;                   // the first blurred frame has no history yet
+  pass(mbBlendMat, next); MB.i = 1 - MB.i; MB.fresh = false;
+  mbCopyMat.uniforms.uSrc.value = next.texture; pass(mbCopyMat, null);
 }

@@ -256,6 +256,30 @@ function toggleMove(m){
   for(const el of document.querySelectorAll('.mv-sneak')){ el.textContent = moveMode === 'sneak' ? 'sneaking' : 'sneak'; el.classList.toggle('on', moveMode === 'sneak'); }
   for(const el of document.querySelectorAll('.mv-dash')){ el.textContent = moveMode === 'dash' ? 'dashing' : 'dash'; el.classList.toggle('on', moveMode === 'dash'); }
 }
+// while gauging a leap (Space held), holding Shift arms slow motion; on release of Space the whole world runs at SLOWMO.rate
+// until Shift is let go, or at the latest until her landing dip bottoms out.
+// The prompt hangs under Portia while she aims, and the legend's Shift row reads "slow motion" instead of dash.
+const SLOWMO = {armed: false, on: false, scale: 1, rate: .1};
+const slowTip = document.getElementById('slowtip'), legendEl = document.getElementById('legend'), tipV = new THREE.Vector3(), tipBox = new THREE.Box3();
+function updateSlowTip(){
+  const aiming = !!sp.charging && !introOpen();
+  if(!aiming) SLOWMO.armed = false;
+  legendEl.classList.toggle('aiming', aiming); slowTip.hidden = !aiming;
+  for(const el of document.querySelectorAll('.mv-slow')){ const t = SLOWMO.armed ? 'slow motion armed' : 'hold for slow motion'; if(el.textContent !== t) el.textContent = t; el.classList.toggle('on', SLOWMO.armed); }
+  if(!aiming) return;
+  tipBox.setFromObject(sp.m); let low = -Infinity;                      // the lowest point of her (legs included) on screen
+  for(let i = 0; i < 8; i++){ tipV.set(i & 1 ? tipBox.max.x : tipBox.min.x, i & 2 ? tipBox.max.y : tipBox.min.y, i & 4 ? tipBox.max.z : tipBox.min.z).project(camera); low = Math.max(low, (1 - tipV.y)/2); }
+  tipV.copy(sp.pos).project(camera); const r = canvas.getBoundingClientRect();
+  slowTip.style.left = (r.left + (tipV.x + 1)/2*r.width).toFixed(1) + 'px';
+  slowTip.style.top = Math.min(r.bottom - 40, r.top + low*r.height + 14).toFixed(1) + 'px';   // just under her feet, kept on screen
+}
+function slowmoScale(realDt){
+  if(SLOWMO.on && sp.mode !== 'air' && !(sp.bounce && sp.bounce.t < .15)) SLOWMO.on = false;   // landed and the dip has bottomed out (.15 s, its peak in updateSpider), or caught on the line / pounced: back to speed
+  const want = SLOWMO.on ? SLOWMO.rate : 1;
+  SLOWMO.scale += (want - SLOWMO.scale)*(1 - Math.exp(-6*realDt));   // set straight to rate on release (keyup); eases back out after she lands
+  if(Math.abs(SLOWMO.scale - want) < 1e-3) SLOWMO.scale = want;
+  return SLOWMO.scale;
+}
 addEventListener('keydown', e => {
   if(introOpen()){   // the intro owns the keyboard while it's up
     if(e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
@@ -268,8 +292,9 @@ addEventListener('keydown', e => {
   if(e.repeat){ if(e.code === 'Space') e.preventDefault(); return; }
   keys[e.code] = true;
   if(e.code === 'ShiftLeft' || e.code === 'ShiftRight') shiftSolo = true; else shiftSolo = false;   // Shift toggles dash on release, unless it was a modifier (Shift+R)
+  if((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && sp.charging){ shiftSolo = false; SLOWMO.armed = true; }   // aiming: holding Shift arms slow motion, not dash
   if(e.code === 'KeyC') toggleMove('sneak');
-  if(e.code === 'Space'){ e.preventDefault(); if((sp.mode === 'ground' || sp.mode === 'hang' || sp.mode === 'climb') && sp.stuck <= 0){ sp.charging = true; sp.aimShake = 0; updateAim(true); } else if(sp.mode === 'air' && !sp.plop) startBalloon(); }
+  if(e.code === 'Space'){ e.preventDefault(); if((sp.mode === 'ground' || sp.mode === 'hang' || sp.mode === 'climb') && sp.stuck <= 0){ sp.charging = true; sp.aimShake = 0; updateAim(true); SLOWMO.armed = !!(keys.ShiftLeft || keys.ShiftRight); } else if(sp.mode === 'air' && !sp.plop) startBalloon(); }
   if(sp.stuck > 0 && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) sp.stuck = Math.max(.01, sp.stuck - .3);
   if(e.code === 'KeyX') dropLine();
   if(e.code === 'KeyR') cyclePluck(e.shiftKey ? -1 : 1);
@@ -279,8 +304,10 @@ addEventListener('keydown', e => {
   if(e.code === 'KeyP'){ cam.pov = cam.pov === false; toast(cam.pov ? 'camera: follows her roll' : 'camera: stays level'); }
   if(e.code === 'KeyV' && e.ctrlKey && e.shiftKey){ e.preventDefault(); toggleLook(); }
 });
-addEventListener('keyup', e => { keys[e.code] = false; if((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && shiftSolo && !introOpen()){ shiftSolo = false; toggleMove('dash'); }if(e.code === 'Space' && sp.charging) jump(); if(e.code === 'Space' && sp.balloon) endBalloon(); });
-addEventListener('blur', () => { for(const k in keys) keys[k] = false; sp.charging = false; });
+addEventListener('keyup', e => { keys[e.code] = false;
+  if((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && !keys.ShiftLeft && !keys.ShiftRight){ SLOWMO.armed = false; SLOWMO.on = false; }   // let go of Shift: slow motion ends (it eases back up)
+  if((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && shiftSolo && !introOpen()){ shiftSolo = false; toggleMove('dash'); }if(e.code === 'Space' && sp.charging){ jump(); if(SLOWMO.armed){ SLOWMO.armed = false; SLOWMO.on = sp.mode === 'air'; if(SLOWMO.on) SLOWMO.scale = SLOWMO.rate; } } if(e.code === 'Space' && sp.balloon) endBalloon(); });
+addEventListener('blur', () => { for(const k in keys) keys[k] = false; sp.charging = false; SLOWMO.armed = false; });
 let drag = null;
 canvas.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY}; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener('pointermove', e => {

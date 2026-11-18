@@ -76,6 +76,12 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 .legend kbd.w{padding:0 6px;letter-spacing:.06em;}
 .lg-f{display:flex;justify-content:space-between;gap:6px;padding-top:8px;border-top:1px solid transparent;border-image:linear-gradient(90deg,transparent,rgba(201,162,90,.45),transparent) 1;font-family:var(--cz);font-size:11px;letter-spacing:.08em;color:var(--bronze);}
 .lg-f span{display:flex;align-items:center;gap:5px;} .lg-f kbd{min-width:16px;height:16px;font-size:9.5px;}
+/* while Space is held the legend's Shift row reads "slow motion" instead of dash; armed, it lights up like an active toggle */
+.legend .mv-slow{display:none;} .legend.aiming .mv-dash{display:none;} .legend.aiming .mv-slow{display:inline;}
+.legend .mv-slow.on{color:var(--ember);font-weight:600;text-shadow:0 0 8px rgba(216,70,58,.5);}
+#slowtip{position:fixed;left:0;top:0;display:flex;align-items:center;gap:7px;padding:5px 9px;font-family:var(--cz);font-size:11.5px;letter-spacing:.06em;color:var(--ink);pointer-events:none;transform:translate(-50%,0);z-index:3;}
+#slowtip[hidden]{display:none;} #slowtip .mv-slow{display:inline;} #slowtip::before{left:50%;right:auto;}
+.hidehud #slowtip{display:none;}
 .lg.pd{padding-top:2px;}
 #target{position:absolute;width:250px;display:grid;gap:4px;transform:translate(-50%, -100%);background:rgba(3,2,10,.8);}
 #flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:22px;font-weight:800;letter-spacing:.12em;color:var(--fg);text-shadow:0 0 12px rgba(255,180,80,.6);opacity:0;pointer-events:none;text-align:center;}
@@ -176,6 +182,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 </style>
 <canvas id="view" aria-label="A jumping spider's world drawn as braille glyphs coloured by temperature"></canvas>
 <div class="hud" id="hud">
+  <div class="legend" id="slowtip" hidden><kbd class="w">Shift</kbd><span class="mv-slow">slow motion</span></div>   <!-- under Portia while she gauges a leap -->
   <div class="tl card" style="display:none">   <!-- senses panel removed: all four senses are always on -->
     <div><h1>PORTIA</h1><div class="sub">PROTOTYPE 2 · THERMAL</div></div>
     <div id="senses"></div>
@@ -187,7 +194,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
       <div class="lg kb">
         <div><b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b><span>walk</span></div>
         <div><b><kbd>C</kbd></b><span class="mv-sneak">sneak</span></div>
-        <div><b><kbd class="w">Shift</kbd></b><span class="mv-dash">dash</span></div>
+        <div><b><kbd class="w">Shift</kbd></b><span class="mv-dash">dash</span><span class="mv-slow">slow motion</span></div>
         <div><b><kbd class="w">Space</kbd></b><span>jump <em>hold mid-air to balloon</em></span></div>
         <div><b><kbd>F</kbd></b><span>gesture</span></div>
         <div><b><kbd>Q</kbd></b><span>pluck web</span></div>
