@@ -103,8 +103,31 @@ function hurt(amount, msg){
   sp.vigor -= amount; toast(msg); pulses.push({pos: sp.pos.clone(), amp: 1.2, decay: 2});
   if(sp.vigor <= 0) die();
 }
-// a fatal bite: the same fade as the mantis kill (predators.js), with Portia dying where she was bitten
-function die(){ doomStart(null); }
+// a fatal bite: the same fade as the mantis kill (predators.js), with Portia dying where she was bitten. The
+// spider whose update dealt the bite (KILLER_NOW) stays to feed on her
+let KILLER_NOW = null;
+function die(by = KILLER_NOW){ doomStart(null); if(by && !by.dead){ DOOM.killer = by; DOOM.lag = 1.6; DOOM.eatT = 0; } }
+// the killer walks up to the corpse, fangs to it, and feeds, head dipping as it chews
+const EAT_D = .13;
+function eatCorpse(p, dt){
+  const at = DOOM.at;
+  let d;
+  if(p.kind === 'argiope'){                         // along its own silk, to the point nearest her, a jaw's length short
+    const aim = webPoint(at.clone().add(p.pos.clone().sub(at).setLength(EAT_D)), ARG.R);
+    p.motion = argMove(p, aim, .5, dt) > .02 ? .4 : 0; d = p.pos.distanceTo(at);
+  } else { d = Math.hypot(at.x - p.pos.x, at.z - p.pos.z);
+    if(d > EAT_D){                                  // straight to her: the legs catch up (no gait limit, so it can't stall)
+      const st = Math.min(d - EAT_D, .3*dt); p.pos.x += (at.x - p.pos.x)/d*st; p.pos.z += (at.z - p.pos.z)/d*st;
+      p.yaw = lerpAngle(p.yaw, Math.atan2(at.x - p.pos.x, at.z - p.pos.z), 1 - Math.exp(-8*dt)); p.phase += st*40; p.motion = .4; }
+    else { p.motion = 0; p.yaw = lerpAngle(p.yaw, Math.atan2(at.x - p.pos.x, at.z - p.pos.z), 1 - Math.exp(-6*dt)); } }
+  if(DOOM.eatT > 0 || d <= EAT_D + .04) DOOM.eatT += dt;   // out of reach (she fell off its silk), it just waits
+  p.vib = 0;
+}
+function eatPose(p, t){
+  if(!(DOOM.eatT > 0)) return;
+  const P = p.m.userData.parts, k = Math.min(1, DOOM.eatT*2);
+  P.body.rotation.x = k*(.22 + .1*Math.max(0, Math.sin(t*5.5)));
+}
 function killPrey(p){
   p.dead = true; p.deadT = 0; p.state = 'dead'; p.drain = 0; p.flip = 0; sp.caught++;
   pulses.push({pos: p.pos.clone(), amp: 1.4, decay: .7});
@@ -446,7 +469,10 @@ function updArgiope(p, dt, t){
 }
 function updatePrey(dt, t){
   for(const p of PREY){
-    if(p.kind === 'scytodes') updScytodes(p, dt); else if(p.kind === 'badumna') updBadumna(p, dt); else updArgiope(p, dt, t);
+    KILLER_NOW = p;
+    if(DOOM.killer === p && DOOM.t >= 0 && !DOOM.reset) eatCorpse(p, dt);
+    else if(p.kind === 'scytodes') updScytodes(p, dt); else if(p.kind === 'badumna') updBadumna(p, dt); else updArgiope(p, dt, t);
+    KILLER_NOW = null;
     if(!p.dead) p.temp += ((p.motion > .6 ? .72 : .56) - p.temp)*(1 - Math.exp(-.8*dt));
     // pose: walking prey are carried on planted feet; resting or dead ones hold a pose
     const vNow = p.pos.clone().sub(p.prevPos || p.pos).divideScalar(Math.max(dt, 1e-4));
@@ -475,6 +501,7 @@ function updatePrey(dt, t){
         poseArach(p.m, {curl: p.dead, tuck: !p.dead && p.kind === 'badumna' && p.state === 'retreat', walk: p.motion > .25 ? 1 : 0, phase: p.phase});
       }
     }
+    if(DOOM.killer === p) eatPose(p, t);
     if(p.kind === 'scytodes') p.m.userData.egg.visible = p.egg && !p.dead;
     deadLook(p, dt);
     if(p.fallH > 0){ p.fallV += 9*dt; p.fallH = Math.max(0, p.fallH - p.fallV*dt); p.m.position.y += p.fallH;   // the dropped husk falls,
