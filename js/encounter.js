@@ -50,7 +50,7 @@ function updateEncounter(dt){
   if(introOpen()){ bar.classList.remove('on'); E.style.opacity = 0; return; }
   const live = p => p === male ? !male.gone && !male.dead && (!sp.mated || male.state === 'mount' || male.state === 'linger') : !p.dead;
   const onOrb = sp.mode === 'climb' && sp.plat && sp.plat.web;
-  const dist = p => p.kind === 'argiope' ? (onOrb ? 0 : 1e9) : p.pos.distanceTo(sp.pos);   // the orb weaver: when she's on its web
+  const dist = p => p.kind === 'argiope' ? (onOrb && sp.plat.silk === p ? 0 : 1e9) : p.pos.distanceTo(sp.pos);   // an orb weaver: when she's on its own web
   // the engaged one is kept until you are well clear of it; otherwise the nearest live spider within reach
   if(ENC.tg && (dist(ENC.tg) > ENC_OUT || !live(ENC.tg))){
     if(ENC.tg.dead && !ENC.won && sp.feed && sp.feed.p === ENC.tg) bossWin('PREY DEVOURED', ENC.tg === male ? 'PORTIA LABIATA' : BOSS[ENC.tg.kind].name);
@@ -93,18 +93,6 @@ function updateEncounter(dt){
 
 function updateHud(dt){
   updateEncounter(dt);
-  // the spider card appears over a spider when you look straight at it (not the one you're engaged with); pointer hover does nothing
-  const W = innerWidth || 1280, H = innerHeight || 800, cands = [[W/2, H/2, 90]];
-  let tg = null, best = 1e9, at = null;
-  for(const p of [...PREY, male]){ if(p === ENC.tg || (p === male && (male.gone || male.dead))) continue; const c = (p.m.userData.parts.body || p.m).getWorldPosition(new V3()); if(c.distanceTo(camera.position) > 9) continue;
-    const v = c.clone().project(camera); if(v.z > 1 || v.z < -1) continue; const sx = (v.x*.5 + .5)*W, sy = (.5 - v.y*.5)*H;
-    for(const [x, y, r] of cands){ const d = Math.hypot(sx - x, sy - y); if(d < r && d < best){ best = d; tg = p; at = [sx, sy]; } } }
-  const T = $('#target'); T.hidden = !tg;
-  if(tg){ const [nm, st, hint, al] = tg === male ? ['PORTIA LABIATA · MALE', {display: 'displaying to you', approach: 'edging closer', mount: 'mating', leave: 'leaving', linger: male.timid ? 'losing his nerve' : 'lingering', flee: 'fleeing'}[male.state],
-      male.state === 'mount' ? 'keep still until he is done' : maleIsPrey() ? 'leap on him and devour him' : sp.mated ? 'you have already mated' : 'stand on his leaf and keep still', male.calm/2.5] : [tg.name.toUpperCase(), ...preyInfo(tg), tg.alert];
-    $('#tg-name').textContent = nm; $('#tg-state').textContent = st; $('#tg-hint').textContent = hint;
-    $('#tg-alert').style.width = `${Math.round(Math.min(1, al || 0)*100)}%`;
-    T.style.left = `${Math.min(W - 135, Math.max(135, at[0]))}px`; T.style.top = `${Math.max(120, at[1] - 40)}px`; }
   const pd = $('#legend .pd'); if(pd.hidden === !!pad.connected) pd.hidden = !pad.connected;
   if(flashT > 0){ flashT -= dt; const e = 1.6 - flashT, f = $('#flash'); f.style.opacity = Math.max(0, Math.min(1, e/.18, flashT/.5)); f.style.transform = `translate(-50%, ${-50 - e*6}%)`; }
   if(toastT > 0){ toastT -= dt; if(toastT <= 0) $('#toast').classList.remove('on'); }

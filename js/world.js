@@ -430,21 +430,21 @@ function leafUnder(p){
   CLIMBS.push(S); return S;
 }
 // the orb, as a walkable sheet of radii: either face, out to the frame
-function webSurface(){
-  const {C, n, u, R} = ARG, v = new V3(0, 1, 0);
-  const S = {kind:'climb', ground:false, id:'C' + CLIMBS.length, label:'web', top:null, thin:true, web:true, side:1, cx:C.x, cz:C.z, y0:C.y - R*1.2, y1:C.y + R*1.2, ext: R*1.5};
-  const Cw = () => C.clone().add(ARG_WEB.position);
+function webSurface(O){             // the walkable sheet of an orb O (see ORBS)
+  const {C, n, u, R} = O, v = new V3(0, 1, 0);
+  const S = {kind:'climb', ground:false, id:'C' + CLIMBS.length, label:'web', top:null, thin:true, web:true, side:1, orb:O, cx:C.x, cz:C.z, y0:C.y - R*1.2, y1:C.y + R*1.2, ext: R*1.5};
+  const Cw = () => C.clone().add(O.g.position);
   const loc = q => { const d = q.clone().sub(Cw()), a = d.dot(n); d.addScaledVector(n, -a); return [a, d, Math.atan2(d.dot(v), d.dot(u))]; };
   S.setSide = q => { const a = loc(q)[0]; if(Math.abs(a) > .02) S.side = Math.sign(a); };
   // the face she comes at it from: where she was a frame ago, or (already at the plane) against the way she is moving
   S.sideFrom = (prev, vel) => { const a = loc(prev)[0]; return Math.abs(a) > .004 ? Math.sign(a) : (vel && Math.abs(vel.dot(n)) > 1e-4 ? -Math.sign(vel.dot(n)) : S.side); };
-  S.project = q => { const [, d, ang] = loc(q), L = d.length(), lim = ARG.edge(ang)*.96; if(L > lim) d.multiplyScalar(lim/L); return q.copy(Cw()).add(d).addScaledVector(n, S.side*.006); };
+  S.project = q => { const [, d, ang] = loc(q), L = d.length(), lim = O.edge(ang)*.96; if(L > lim) d.multiplyScalar(lim/L); return q.copy(Cw()).add(d).addScaledVector(n, S.side*.006); };
   S.normal = () => n.clone().multiplyScalar(S.side);
-  S.inside = (q, m = 0) => { const [a, d, ang] = loc(q); return Math.abs(a) < m + .006 && d.length() < ARG.edge(ang); };
+  S.inside = (q, m = 0) => { const [a, d, ang] = loc(q); return Math.abs(a) < m + .006 && d.length() < O.edge(ang); };
   S.near = q => { const [a, d] = loc(q); return Math.abs(a) < .6 && d.length() < R*1.4; };
   S.hit = () => false; S.pushOut = () => {}; S.atBottom = () => false; S.soilExit = q => q; S.canEnter = () => true;
   S.topAt = () => false; S.atRim = () => false;
-  S.atEdge = (q, t) => { const [, d, ang] = loc(q), L = d.length(); return L >= ARG.edge(ang)*.95 && L > 1e-6 && t.dot(d)/L > .2; };   // at the frame, walking outward
+  S.atEdge = (q, t) => { const [, d, ang] = loc(q), L = d.length(); return L >= O.edge(ang)*.95 && L > 1e-6 && t.dot(d)/L > .2; };   // at the frame, walking outward
   CLIMBS.push(S); return S;
 }
 // any round woody thing lying, arching or hanging (branches, roots, buttresses, lianas): a tube around a polyline,
@@ -1248,6 +1248,9 @@ STUMPS.forEach(addStump);
 // a leaf above the armed spitting spider's leaf, to drop from
 addLeaf(5.45, (PLAT[2].y + 1.45) - hAt(5.45, 1.05), 1.05, 'round', .5, .6, .4);
 // Argiope's orb: vertical, with a frame-anchored leaf beside it and a leaf above it
+// every orb-weaver's web: {C, n, u, R, edge, g (its swaying group), S (walkable sheet), spider}. Argiope's leaf-slung
+// orb comes first; hunt.js adds the one in the young tree's fork
+const ORBS = [];
 const ARG = (() => {
   const x = -7.4, z = 1.2, gy = hAt(x, z), R = 4.2;                 // an orb ~25 cm across, as real Argiope webs are
   const C = new V3(x, gy + R + .5, z), n = new V3(1, 0, 0), u = new V3(0, 0, 1);

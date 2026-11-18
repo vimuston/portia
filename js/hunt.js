@@ -12,9 +12,43 @@ const SCY = [PLAT[2], PLAT[6]].map((pl, i) => {
 const BADU = addPrey({kind:'badumna', name:'Badumna longinqua · grey house spider', m: makeBadumna(), plat: BAD.plat, pos: BAD.mouth.clone(), yaw: 0,
   state:'retreat', pref: 'fly', interest: 0, rush: 0, sulk: 0, known: false, peekT: 0});
 BAD.plat.silk = BADU;
-const ARGI = addPrey({kind:'argiope', name:'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: ARG.side, pos: ARG.C.clone(), state:'hub', wary: 0, fwd: new V3(0, -1, 0)});
+const ARGI = addPrey({kind:'argiope', name:'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: ARG.side, pos: ARG.C.clone(), state:'hub', wary: 0, fwd: new V3(0, -1, 0), orb: ARG});
 ARG.side.silk = ARGI; ARG.above.silk = ARGI;
-const WEB = webSurface(); WEB.silk = ARGI;
+const WEB = webSurface(ARG); WEB.silk = ARGI;
+Object.assign(ARG, {S: WEB, spider: ARGI}); ORBS.push(ARG);
+// ---- a second Argiope, up in a young tree: a quarter orb slung in the angle under one of its limbs, its frame laid
+// on the bark of the trunk and the limb's underside. Hung where the limb leaves the trunk, about 26 up, and shaped from
+// the limb as it actually grew. It draws on its own random stream, so the seeded world after it is unchanged.
+const ARG2 = (() => {
+  let seed = 90917; const rn = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0)/4294967296; };
+  const rr2 = (a, b) => a + rn()*(b - a);
+  const tr = TREE_LIST.find(([x, z]) => Math.hypot(x + 4.8, z - 13.2) < .01); if(!tr) return null;
+  const ctr = new V3(tr[0], 0, tr[1]), trunk = CLIMBS.find(S => S.tree && !S._pts && S.cx === tr[0] && S.cz === tr[1]);
+  const limb = CLIMBS.filter(S => S.tree && S._pts && Math.hypot(S._pts[0].x - ctr.x, S._pts[0].z - ctr.z) < tr[2]*1.1)
+    .sort((a, b) => Math.abs(a._pts[0].y - 26) - Math.abs(b._pts[0].y - 26))[0];
+  if(!trunk || !limb) return null;
+  const LP = limb._pts, LR = limb._R, up = new V3(0, 1, 0);
+  const u = new V3(LP[4].x - ctr.x, 0, LP[4].z - ctr.z).normalize(), n = new V3().crossVectors(u, up).normalize();
+  const lx = LP.map(q => q.clone().sub(ctr).dot(u)), ly = LP.map((q, k) => q.y - (Array.isArray(LR) ? LR[k] : LR));
+  const under = x => { for(let k = 0; k + 1 < lx.length; k++) if(x <= lx[k + 1]){ const f = Math.max(0, (x - lx[k])/(lx[k + 1] - lx[k])); return ly[k] + (ly[k + 1] - ly[k])*f; } return ly[ly.length - 1]; };
+  const trunkR = y => { const q = ctr.clone().addScaledVector(u, tr[2]*2); q.y = y; trunk.project(q); return Math.hypot(q.x - ctr.x, q.z - ctr.z); };
+  // the corner: on the bark, just under the limb. Frame: down the trunk, a sagging arc out to the limb, back along its underside
+  const Rw = 5.5, xK = trunkR(LP[0].y)*.99, yK = under(xK) - .04, xe = xK + Rw*.95, aL = Math.atan2(under(xe) - yK, xe - xK);
+  const pts = [[xK, yK], [xK, yK - Rw]];
+  for(let k = 1; k < 9; k++){ const a = -Math.PI/2 + (aL + Math.PI/2)*k/9, r = Rw*(.97 + rr2(-.02, .02)); pts.push([xK + Math.cos(a)*r, yK + Math.sin(a)*r]); }
+  const xE = xK + Math.cos(aL)*Rw; pts.push([xE, under(xE) - .03]);
+  for(let k = 3; k >= 1; k--){ const x = xK + (xE - xK)*k/4; pts.push([x, under(x) - .03]); }
+  const m = (-Math.PI/2 + aL)/2, cx = xK + Math.cos(m)*Rw*.42, cy = yK + Math.sin(m)*Rw*.42;
+  const C = ctr.clone().addScaledVector(u, cx); C.y = cy;
+  const F2 = pts.map(([x, y]) => [x - cx, y - cy]), R = Math.max(...F2.map(([x, y]) => Math.hypot(x, y)));
+  const O = {C, n, u, R, corner: true, trunk, limb};
+  O.g = hot(new THREE.Group(), .3); scene.add(O.g);
+  buildOrbWeb(O, O.g, F2, rr2, rn); tagSilk(O.g);
+  return O;
+})();
+const WEB2 = ARG2 && webSurface(ARG2);
+const ARGI2 = ARG2 && addPrey({kind:'argiope', name:'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: WEB2, pos: ARG2.C.clone(), state:'hub', wary: 0, fwd: new V3(0, -1, 0), orb: ARG2});
+if(ARG2){ WEB2.silk = ARGI2; Object.assign(ARG2, {S: WEB2, spider: ARGI2}); ORBS.push(ARG2); }
 
 // mimicry signals Portia can pluck into silk
 const PLUCKS = [
@@ -35,26 +69,36 @@ const preyPluck = p => sp.plucking && sp.plat && sp.plat.silk === p ? PLUCKS[plu
 
 // slab: also count a point just off the sheet (moving along it). Not when she started in the sheet's own plane (the leaf at
 // its frame): then only a true pass through it counts, or every leap along the web would snag at its near edge
-const inOrbPlane = q => { const d = q.clone().sub(ARG.C).sub(ARG_WEB.position); return Math.abs(d.dot(ARG.n)) < .12 && d.addScaledVector(ARG.n, -d.dot(ARG.n)).length() < ARG.R*1.4; };
+// (inOrbPlane gives the orb whose plane q lies in, or null)
+const inOrbPlane = q => ORBS.find(O => { const d = q.clone().sub(O.C).sub(O.g.position); return Math.abs(d.dot(O.n)) < .12 && d.addScaledVector(O.n, -d.dot(O.n)).length() < O.R*1.4; }) || null;
 // a leap from inside the orb's plane runs along the sheet: it takes hold only where she aimed on it (goal), never on the way
+// Every orb is tried; a hit comes back as a point carrying .orb. inPlane: the orb she launched from the plane of
 function orbHit(a, b, inPlane, goal){
-  if(!inPlane) return orbContact(a, b, true);
+  for(const O of ORBS){ const h = orbHit1(a, b, inPlane === O, goal, O); if(h){ h.orb = O; return h; } }
+  return null;
+}
+function orbHit1(a, b, inPlane, goal, O){
+  if(!inPlane) return orbContact1(a, b, true, O);
   if(!goal || b.distanceTo(goal) > .35) return null;
-  const C = ARG.C.clone().add(ARG_WEB.position), r = b.clone().sub(C), h = r.dot(ARG.n); if(Math.abs(h) > .14) return null;
-  r.addScaledVector(ARG.n, -h); return r.length() < ARG.edge(Math.atan2(r.y, r.dot(ARG.u))) ? C.add(r) : null;
+  const C = O.C.clone().add(O.g.position), r = b.clone().sub(C), h = r.dot(O.n); if(Math.abs(h) > .14) return null;
+  r.addScaledVector(O.n, -h); return r.length() < O.edge(Math.atan2(r.y, r.dot(O.u))) ? C.add(r) : null;
 }
 function orbContact(a, b, slab = true){
-  const {n, u} = ARG, C = ARG.C.clone().add(ARG_WEB.position), da = a.clone().sub(C).dot(n), db = b.clone().sub(C).dot(n);
+  for(const O of ORBS){ const h = orbContact1(a, b, slab, O); if(h){ h.orb = O; return h; } }
+  return null;
+}
+function orbContact1(a, b, slab, O){
+  const {n, u} = O, C = O.C.clone().add(O.g.position), da = a.clone().sub(C).dot(n), db = b.clone().sub(C).dot(n);
   let hit = null;
   if((da > 0) !== (db > 0)) hit = a.clone().lerp(b, da/(da - db));
   else if(slab && Math.abs(db) < .05) hit = b.clone();
   if(!hit) return null;
   const r = hit.clone().sub(C); r.addScaledVector(n, -r.dot(n));
-  return r.length() < ARG.edge(Math.atan2(r.y, r.dot(u))) ? hit : null;     // out to the real frame, not a circle inside it
+  return r.length() < O.edge(Math.atan2(r.y, r.dot(u))) ? hit : null;     // out to the real frame, not a circle inside it
 }
-function webPoint(q, maxR){
-  const {C, u, n} = ARG, r = q.clone().sub(C); let a = r.dot(u), b = r.y; const L = Math.hypot(a, b);
-  if(L > maxR){ a *= maxR/L; b *= maxR/L; }
+function webPoint(q, maxR, O = ARG){               // the nearest point on O's sheet, kept inside its frame
+  const {C, u, n} = O, r = q.clone().sub(C); let a = r.dot(u), b = r.y; const L = Math.hypot(a, b), lim = Math.min(maxR, O.edge(Math.atan2(b, a))*.92);
+  if(L > lim){ a *= lim/L; b *= lim/L; }
   return C.clone().addScaledVector(u, a).add(new V3(0, b, 0)).addScaledVector(n, .01);
 }
 function stepToward(p, target, speed, dt, plat){
@@ -219,8 +263,8 @@ function eatCorpse(p, dt){
   const at = DOOM.at;
   let d;
   if(p.kind === 'argiope'){                         // along its own silk, to the point nearest her, a jaw's length short
-    const aim = webPoint(at.clone().add(p.pos.clone().sub(at).setLength(EAT_D)), ARG.R);
-    p.motion = argMove(p, aim, .5, dt) > .02 ? .4 : 0; d = p.pos.distanceTo(at);
+    const aim = webPoint(at.clone().add(p.pos.clone().sub(at).setLength(EAT_D)), p.orb.R, p.orb);
+    p.motion = argMove(p, aim, .5, dt, true) > .02 ? .4 : 0; d = p.pos.distanceTo(at);   // no gait limit: a leg at full stretch must not stall it a step short of her
   } else { d = Math.hypot(at.x - p.pos.x, at.z - p.pos.z);
     if(d > EAT_D){                                  // straight to her: the legs catch up (no gait limit, so it can't stall)
       const st = Math.min(d - EAT_D, .3*dt); p.pos.x += (at.x - p.pos.x)/d*st; p.pos.z += (at.z - p.pos.z)/d*st;
@@ -273,8 +317,8 @@ function pounce(p){
   killPrey(p); endBalloon();
   // the face she bites from: the one she is on, or leapt from; a leap along the web can drift through its plane
   // before it reaches her, and that mustn't flip her onto the far face
-  const fromWeb = sp.plat === WEB || (sp.mode === 'air' && sp.leftFrom === WEB);
-  const up = p.kind === 'argiope' ? ARG.n.clone().multiplyScalar(fromWeb ? WEB.side : Math.sign(sp.pos.clone().sub(p.m.getWorldPosition(new V3())).dot(ARG.n)) || 1) : null;
+  const O = p.orb, fromWeb = O && (sp.plat === O.S || (sp.mode === 'air' && sp.leftFrom === O.S));
+  const up = p.kind === 'argiope' ? O.n.clone().multiplyScalar(fromWeb ? O.S.side : Math.sign(sp.pos.clone().sub(p.m.getWorldPosition(new V3())).dot(O.n)) || 1) : null;
   const F = startFeed(p, up, p.kind === 'argiope' ? null : p.plat, HOLD_D, .55);
   if(p.kind === 'badumna') F.base.y = Math.max(F.base.y, F.p0.y);
   return true;
@@ -352,7 +396,7 @@ function endFeed(drained){
   p.fallH = Math.max(0, at.y - p.pos.y); p.fallV = 0; p.yaw = Math.atan2(F.fw.x, F.fw.z) + rr(-.8, .8); p.flip = 0;
   // back onto the face she fed from. F.base is already in world space (it rides the sway): taking the sway off again
   // set her a few cm off the plane, and enterClimb's setSide then flipped her to whichever way the orb was swinging
-  if(p.kind === 'argiope'){ const face = Math.sign(F.up.dot(ARG.n)) || 1; WEB.side = face; enterClimb(WEB, F.base.clone(), F.fw.clone()); WEB.side = face; }
+  if(p.kind === 'argiope'){ const S = p.orb.S, face = Math.sign(F.up.dot(p.orb.n)) || 1; S.side = face; enterClimb(S, F.base.clone(), F.fw.clone()); S.side = face; }
   else { sp.mode = 'ground'; sp.plat = p.plat; sp.pos.copy(F.base); sp.yaw = Math.atan2(F.fw.x, F.fw.z); }
   toast(drained ? 'Drained. You let the shrivelled husk drop.' : 'You let it drop, half-drained.');
 }
@@ -362,7 +406,7 @@ function enterClimb(S, at, hint){
   sp.leapHit = null;
   const was = sp.mode; if(was === 'air') landBounce(sp.vel);
   if(S.setSide) S.setSide(at);
-  if(S.web) S.lastOff = ARG_WEB.position.clone();
+  if(S.web) S.lastOff = S.orb.g.position.clone();
   endBalloon();
   S.project(at); sp.pos.copy(at); sp.mode = 'climb'; sp.plat = S; sp.vel.set(0, 0, 0); sp.braked = false; sp.committed = false; sp.plop = false;
   const n = S.normal(at), h = hint ? hint.clone() : new V3(0, 1, 0), into = -h.dot(n);
@@ -374,6 +418,7 @@ function enterClimb(S, at, hint){
 // Portia walks the orb freely; at its frame she steps across onto whatever is within a short reach beyond it:
 // the soil, a leaf or other top, or bark, stone and stems. Nothing in reach: the frame holds her
 function webExit(q, t){
+  const WEB = sp.plat;                              // the orb she is stepping off
   for(const r of [.08, .16, .24]){
     const a = q.clone().addScaledVector(t, r);
     if(a.y <= floorAt(a.x, a.z) + .06){ sp.mode = 'ground'; sp.plat = GROUND; sp.pos.set(a.x, floorAt(a.x, a.z), a.z); sp.yaw = Math.atan2(t.x, t.z); sp.climbGrace = .5; sp.handFrom = WEB; sp.handT = .6; return true; }
@@ -481,7 +526,7 @@ function respawnPrey(p){
   Object.assign(p, {dead: false, deadT: 0, alert: 0, temp: p.temp0, close: 0, idleT: 0});
   if(p.kind === 'scytodes'){ p.pos.copy(p.home); p.egg = rnd() < .5; p.state = 'idle'; }
   if(p.kind === 'badumna'){ p.pos.copy(BAD.mouth); Object.assign(p, {state:'retreat', interest: 0, known: false, sulk: 0}); }
-  if(p.kind === 'argiope'){ p.pos.copy(ARG.C); p.state = 'hub'; p.wary = 0; p.fwd.set(0, -1, 0); }
+  if(p.kind === 'argiope'){ p.pos.copy(p.orb.C); p.state = 'hub'; p.wary = 0; p.fwd.set(0, -1, 0); }
 }
 
 function updScytodes(p, dt){
@@ -551,7 +596,7 @@ function updBadumna(p, dt){
 }
 function updArgiope(p, dt, t){
   if(deadTick(p, dt)) return;
-  const pk = preyPluck(p), {C, n, R} = ARG;
+  const pk = preyPluck(p), O = p.orb, {C, n, R} = O;
   const rel = sp.pos.clone().sub(C), offPlane = Math.abs(rel.dot(n)), radial = rel.addScaledVector(n, -rel.dot(n)).length();
   const nearWeb = offPlane < 1 && radial < R + .6;
   p.alert = Math.max(0, p.alert + preyNoise(p)*dt*2.4 - dt*(pk === 'male' ? .7 : .15));
@@ -572,7 +617,7 @@ function updArgiope(p, dt, t){
     p.motion = 1; p.vib = 1.3;
     if(DOOM.t >= 0) p.state = 'return';
     else if(!onWeb){ p.state = 'return'; p.wary = 15; p.alert = .6; toast('You got off the web in time. It stays wary.'); }
-    else if(argMove(p, webPoint(sp.pos, R), 3.5, dt, true) < .3){ toast('The orb-weaver drives its fangs into you.'); die(); p.state = 'return'; p.alert = 0; }
+    else if(argMove(p, webPoint(sp.pos, R, O), 3.5, dt, true) < .3){ toast('The orb-weaver drives its fangs into you.'); die(); p.state = 'return'; p.alert = 0; }
   }
   if(p.state === 'hub'){
     argMove(p, C.clone().addScaledVector(n, .01), .3, dt); p.fwd.lerp(new V3(0, -1, 0), 1 - Math.exp(-3*dt));
@@ -581,7 +626,7 @@ function updArgiope(p, dt, t){
   if(p.state === 'walk' || p.state === 'rush'){
     if(pk === 'fly') p.state = 'rush';
     const rush = p.state === 'rush';
-    argMove(p, webPoint(sp.pos, R*.85), rush ? 1.0 : (pk === 'male' ? .12 : .2), dt);
+    argMove(p, webPoint(sp.pos, R*.85, O), rush ? 1.0 : (pk === 'male' ? .12 : .2), dt);
     p.motion = rush ? .9 : .4; p.vib = rush ? 1.1 : .5;
     if(!pk){ p.idleT += dt; if(p.idleT > 3){ p.state = 'return'; p.idleT = 0; } } else p.idleT = 0;
     if(p.pos.distanceTo(sp.pos) < .45){
@@ -593,7 +638,7 @@ function updArgiope(p, dt, t){
   if(p.state === 'wrap'){
     if(sp.stuck <= 0 || sp.stuckKind !== 'web') p.state = 'return';
     else if((p.wrapDelay -= dt) > 0){ p.vib = .6; }
-    else if(argMove(p, webPoint(sp.stuckPos, R), .7, dt) < .18){ hurt(.7, 'Wrapped in the sticky spiral, and bitten.'); sp.stuck = .01; p.state = 'return'; }
+    else if(argMove(p, webPoint(sp.stuckPos, R, O), .7, dt) < .18){ hurt(.7, 'Wrapped in the sticky spiral, and bitten.'); sp.stuck = .01; p.state = 'return'; }
     p.motion = .8; p.vib = 1;
   }
 }
@@ -611,14 +656,14 @@ function updatePrey(dt, t){
       const bite = sp.feed && sp.feed.t < BITE_T;
       gaitRelease(p.m); poseArach(p.m, bite ? {walk: 1, phase: t*48, bob: Math.sin(t*70)*.003} : {limp: p.limp || 0});
     } else if(p.kind === 'argiope' && !p.dropped){
-      const z = p.fwd.clone().normalize(), y = ARG.n.clone(), x = new V3().crossVectors(y, z);
-      M4.makeBasis(x, y, z); p.m.quaternion.setFromRotationMatrix(M4); p.m.position.copy(p.pos).add(ARG_WEB.position);
+      const O = p.orb, z = p.fwd.clone().normalize(), y = O.n.clone(), x = new V3().crossVectors(y, z);
+      M4.makeBasis(x, y, z); p.m.quaternion.setFromRotationMatrix(M4); p.m.position.copy(p.pos).add(O.g.position);
       if(!p.dead && p.state !== 'hub' && p.state !== 'pump'){
         // feet grip the silk: footholds lie on the (swaying) web plane, "up" is the web normal
-        const c = ARG.C.clone().add(ARG_WEB.position);
+        const c = O.C.clone().add(O.g.position);
         poseArach(p.m, {});
-        gaitUpdate(p.m, dt, {vel: p.velW, up: ARG.n, stepDur: .2, free: () => false,
-          place: v => v.addScaledVector(ARG.n, -v.clone().sub(c).dot(ARG.n) + .002)});
+        gaitUpdate(p.m, dt, {vel: p.velW, up: O.n, stepDur: .2, free: () => false,
+          place: v => v.addScaledVector(O.n, -v.clone().sub(c).dot(O.n) + .002)});
       } else { gaitRelease(p.m); poseArach(p.m, {cross: !p.dead, pump: p.state === 'pump' ? t*30 : 0, curl: p.dead}); }
     } else {
       p.m.position.x = p.pos.x; p.m.position.z = p.pos.z; p.m.rotation.y = p.yaw;
@@ -641,31 +686,12 @@ function updatePrey(dt, t){
   }
   for(let i = gums.length - 1; i >= 0; i--){ const g = gums[i]; g.t -= dt; if(g.t <= 0){ scene.remove(g.ln); drawables.splice(drawables.indexOf(g.ln), 1); gums.splice(i, 1); } }
   // webs tremble in the breeze; the orb bucks when pumped
-  ARG_WEB.position.copy(ARG.n).multiplyScalar(Math.sin(t*7)*(.006 + wind.gust*.03) + (ARGI.state === 'pump' ? Math.sin(t*32)*.05 : 0));
+  for(const O of ORBS) O.g.position.copy(O.n).multiplyScalar(Math.sin(t*7)*(.006 + wind.gust*.03)*(O.corner ? .4 : 1) + (O.spider.state === 'pump' ? Math.sin(t*32)*.05 : 0));   // bark holds a corner web stiffer
   BAD_WEB.position.y = Math.sin(t*6)*wind.gust*.015;
   if(sp.mode === 'climb' && sp.plat && sp.plat.web && !sp.roll){          // she and her footholds ride the swaying, bucking orb
-    const off = ARG_WEB.position.clone(), d = off.clone().sub(sp.plat.lastOff || off); sp.plat.lastOff = off;
+    const off = sp.plat.orb.g.position.clone(), d = off.clone().sub(sp.plat.lastOff || off); sp.plat.lastOff = off;
     if(d.lengthSq() > 0){ sp.pos.add(d); sp.m.position.add(d); for(const L of sp.m.userData.parts.legs){ L.foot.add(d); if(L.step){ L.step.from.add(d); L.step.to.add(d); } } }
   }
-}
-function preyInfo(p){
-  if(p.dead){ const F = sp.feed && sp.feed.p === p ? sp.feed : null;
-    if(!F) return ['DEAD · a shrivelled husk', 'a new resident will move in later'];
-    if(F.t < BITE_T) return ['VENOM · fangs striking', 'it convulses'];
-    if(F.t < BITE_T + GRAB_T) return ['seizing it in legs and palps', 'lifting it off its feet'];
-    return ['draining', '']; }
-  if(p.kind === 'scytodes'){
-    const facing = angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .7;
-    return [p.egg ? 'egg sac in its jaws — it cannot spit' : 'jaws empty — ARMED, spits forward',
-      p.egg ? 'it cannot spit: leap onto it' : (facing ? 'facing you — detour behind it, or drop from above' : 'facing away — leap onto its back')];
-  }
-  if(p.kind === 'badumna'){
-    const st = {retreat: p.sulk > 0 ? 'sulking deep in its tube' : 'hidden in its retreat', peek: 'stirring at the tube mouth',
-      out: p.rush > .6 ? 'RUSHING — switch to calming taps' : 'creeping toward the signal', back: 'returning to its retreat'}[p.state];
-    return [st, p.known ? `it answers to: ${PLUCKS.find(q => q.id === p.pref).name}` : 'pluck the sheet, try different signals · step during gusts'];
-  }
-  const st = {hub: 'motionless at the hub', pump: 'PUMPING the web — freeze or it strikes', lunge: 'LUNGING — it felt you move', walk: 'walking toward the signal', rush: 'RUSHING to wrap', return: 'returning to the hub', wrap: 'coming to wrap you'}[p.state];
-  return [st + (p.wary > 0 ? ' · wary' : ''), 'walk its web softly (Shift), drop from the leaf above (X), or pluck from the frame leaf'];
 }
 
 

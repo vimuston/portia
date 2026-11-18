@@ -1,7 +1,7 @@
 'use strict';
 // debug hooks, clock and main loop
 
-window.__dbg = {tick: dt => tick(dt), jumpTo: (T, plat) => { const sol = bestLeap(T, plat); sp.aim = {target: T.clone(), vel: sol.v, ok: sol.ok, yaw: sol.yaw, plat}; sp.aimFixed = true; jump(); }, camera, pickTarget, solveLeap, updateAim, aimPt, aimRing, aimOuter, predictLeap, leapVel, leapSpread, WEB, wrapUnder, climbOver, cutLine, startAir, enterClimb, land, gaitUpdate, bodyOnFeet, reachRatio, playerPlace, CLIMBS, sp, cam, flies, male, husks, SU, R, pulses, catchFly, PREY, ARG, BAD, wind, strike, dropLine, PLAT, hAt, surfAt, GROUND, START, renderer, scene, makeSpider, ENC};   // console inspection while tuning
+window.__dbg = {tick: dt => tick(dt), jumpTo: (T, plat) => { const sol = bestLeap(T, plat); sp.aim = {target: T.clone(), vel: sol.v, ok: sol.ok, yaw: sol.yaw, plat}; sp.aimFixed = true; jump(); }, camera, pickTarget, solveLeap, updateAim, aimPt, aimRing, aimOuter, predictLeap, leapVel, leapSpread, WEB, wrapUnder, climbOver, cutLine, startAir, enterClimb, land, gaitUpdate, bodyOnFeet, reachRatio, playerPlace, CLIMBS, sp, cam, flies, male, husks, SU, R, pulses, catchFly, PREY, ARG, ORBS, BAD, wind, strike, dropLine, PLAT, hAt, surfAt, GROUND, START, renderer, scene, makeSpider, ENC};   // console inspection while tuning
 const clock = new THREE.Clock();
 let time = 0;
 toast('You are Portia labiata — a jumping spider that hunts other spiders.');

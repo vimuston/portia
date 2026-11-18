@@ -54,9 +54,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 .meter{height:4px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:2px;}
 .meter i{display:block;height:100%;background:var(--fg);}
 .style{display:grid;gap:5px;}
-.pl,.tg{display:grid;gap:4px;}
-.tg .v{color:var(--fg);} .tg .l{color:var(--dim);line-height:1.4;}
-#tg-alert{background:#ff6a2a;}
+.pl{display:grid;gap:4px;}
 .opts{display:flex;flex-wrap:wrap;gap:3px;}
 .opts button{font:inherit;font-size:11.5px;color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:3px;padding:3px 7px;cursor:pointer;}
 .opts button[aria-pressed="true"]{color:var(--fg);border-color:var(--fg);}
@@ -83,7 +81,6 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #slowtip[hidden]{display:none;} #slowtip .mv-slow{display:inline;} #slowtip::before{left:50%;right:auto;}
 .hidehud #slowtip{display:none;}
 .lg.pd{padding-top:2px;}
-#target{position:absolute;width:250px;display:grid;gap:4px;transform:translate(-50%, -100%);background:rgba(3,2,10,.8);}
 #flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:22px;font-weight:800;letter-spacing:.12em;color:var(--fg);text-shadow:0 0 12px rgba(255,180,80,.6);opacity:0;pointer-events:none;text-align:center;}
 #flash small{display:block;font-family:var(--font);font-size:14px;font-weight:500;letter-spacing:.06em;color:var(--dim);}
 /* intro: title → controls → hunting (G reopens it) — same souls-style card language as the boss encounters */
@@ -137,7 +134,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #loader.done{opacity:0;pointer-events:none;}
 #loader .ld-bar{width:min(240px,100%);height:2px;background:rgba(201,162,90,.15);overflow:hidden;}
 #loader .ld-bar i{display:block;height:100%;width:100%;transform:scaleX(0);transform-origin:0 50%;will-change:transform;background:var(--gold);}
-.hidehud .tl,.hidehud .tr,.hidehud .bot,.hidehud #target,.hidehud #look,.hidehud #bossbar{display:none;}
+.hidehud .tl,.hidehud .tr,.hidehud .bot,.hidehud #look,.hidehud #bossbar{display:none;}
 /* encounters: a spider you close in on gets a souls-style title card, then a boss bar with one plain instruction */
 #doom{position:absolute;inset:0;z-index:30;pointer-events:none;}
 #doom .dm-bg{position:absolute;inset:0;background:#000;opacity:0;}
@@ -224,12 +221,6 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
         <div><b><kbd class="w">Start</kbd></b><span>hide HUD</span></div>
       </div>
     </div>
-  </div>
-  <div class="card tg" id="target" hidden>
-    <div class="label" id="tg-name"></div>
-    <div class="v" id="tg-state"></div>
-    <div class="l tiny" id="tg-hint"></div>
-    <div class="meter"><i id="tg-alert"></i></div>
   </div>
   <div id="look" class="card" hidden></div>
   <div id="flash"></div>
