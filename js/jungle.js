@@ -490,7 +490,7 @@ function updateJungle(dt){
   for(const d of DRIPS){
     d.t += dt;
     if(d.t < d.period){ const g = Math.min(1, d.t/d.period); d.drop.position.copy(d.tip); d.drop.scale.setScalar(.4 + .8*g); d.drop.scale.y *= 1 + .5*g; d.y = d.tip.y; d.v = 0; }
-    else { d.v += 120*dt; d.y -= d.v*dt;                                               // (true g is ~330 units/s²; a little slowed so the fall reads) d.drop.position.set(d.tip.x, d.y, d.tip.z);
+    else { d.v += 120*dt; d.y -= d.v*dt; d.drop.position.set(d.tip.x, Math.max(d.y, d.ground), d.tip.z);   // (true g is ~330 units/s²; a little slowed so the fall reads)
       if(d.y <= d.ground){ d.t = 0; d.period = rr(2.5, 6); } }
   }
 }
