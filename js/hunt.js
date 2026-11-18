@@ -331,10 +331,11 @@ function doPluck(dt){
   if(amp > 0){ pulses.push({pos: sp.pos.clone(), amp, decay: 7}); sp.tap = .12; sp.pluckSide = -(sp.pluckSide || 1); }
   return amp;   // > 0 when a stroke landed this frame (the sound hooks on this)
 }
+const PREY_RESPAWN = 120;   // seconds from a spider's death (feeding included) until a fresh one takes its place
 function deadTick(p, dt){
   if(!p.dead) return false;
   p.deadT += dt; p.temp = .3 + (p.temp0 - .3)*Math.exp(-p.deadT/12); p.motion = 0; p.vib = 0;
-  if(p.deadT > 45) respawnPrey(p);
+  if(p.deadT > PREY_RESPAWN) respawnPrey(p);
   return true;
 }
 // the dead are unmistakable: colour drains to a dull grey-brown, the abdomen shrivels as she feeds, and once she
