@@ -799,7 +799,56 @@ function updateFlies(dt, t){
 // mounts her; moving, raising her legs or leaping scares him off. After mating her eggs are fertile.
 // after mating he lingers beside her. Hunger strikes her and her gaze swings to him: leap on him and drain him, or he
 // loses his nerve after MALE_NERVE seconds, leaps off into the undergrowth and is gone
-const MALE_NERVE = 7, maleIsPrey = () => male.state === 'linger' && !male.dead && !male.gone;
+// the dance: bursts of quick side-steps between held poses, front legs pumping up and down; he wants MALE_DANCE seconds
+// of her stillness before he dares approach, and he always comes in from behind her
+const MALE_NERVE = 7, MALE_DANCE = 14, maleIsPrey = () => male.state === 'linger' && !male.dead && !male.gone;
+// his escape, in Portia's saccadic style: a few jerky swivels on the spot, a snap-dart off to one side, a freeze,
+// a pivot to face out, a crouch, then one fast low leap off the leaf head first
+function fleeMale(dt){
+  const F = male.fl, P = male.m.userData.parts; F.t += dt;
+  const ease = u => 1 - (1 - Math.min(1, u))**3;
+  const swivel = (to, dur) => { F.from = male.m.rotation.y; F.to = to; F.sw = 0; F.swDur = dur; };
+  if(F.swDur){ F.sw += dt; male.m.rotation.y = F.from + angDelta(F.from, F.to)*ease(F.sw/F.swDur); if(F.sw >= F.swDur) F.swDur = 0; }
+  const next = (ph, extra) => { F.ph = ph; F.t = 0; Object.assign(F, extra || {}); };
+  let vel = new V3(), pose = {crouch: .3};
+  if(F.ph === 'twitch'){                                       // jerky swivels, a twitching abdomen, tiny jolts in place
+    if(F.t > .13*F.n){ F.n++; swivel(F.yaw0 + rr(-.7, .7), .06);
+      const j = rr(-.025, .025), sx = Math.cos(F.yaw0), sz = -Math.sin(F.yaw0);
+      const [cx, cz] = clampTo(male.plat, male.pos.x + sx*j, male.pos.z + sz*j); vel.set(cx - male.pos.x, 0, cz - male.pos.z).divideScalar(Math.max(dt, 1e-4)); male.pos.x = cx; male.pos.z = cz; }
+    pose = {crouch: .5, raise: .35, wave: male.t*30, twitch: Math.sin(F.t*55)*.3};
+    if(F.t > .75){                                             // dart off to one side of her, partly away
+      const s = rnd() < .5 ? -1 : 1, a = F.away, dir = new V3(a.z*s*.85 + a.x*.5, 0, -a.x*s*.85 + a.z*.5).normalize();
+      let D = 0; while(D < .45 && inPlat(male.plat, male.pos.x + dir.x*(D + .03), male.pos.z + dir.z*(D + .03), .05)) D += .03;
+      next('pivot', {dir, D, after: 'dart'}); swivel(Math.atan2(dir.x, dir.z), .07); }
+  }
+  else if(F.ph === 'pivot'){ pose = {crouch: .45}; if(F.t > .08) next(F.after, {done: 0}); }
+  else if(F.ph === 'dart'){                                    // surge, run, brake along the leaf, legs whipping
+    const dur = .09 + F.D*.45, u = Math.min(1, F.t/dur), e = paceShape(u), v = F.D/(dur*.775)*e;
+    vel.copy(F.dir).multiplyScalar(v); male.pos.addScaledVector(vel, dt);
+    pose = {crouch: .35, bob: -.004};
+    if(u >= 1) next('freeze');
+  }
+  else if(F.ph === 'freeze'){ pose = {crouch: .4};
+    if(F.t > .18){                                             // face out over the nearest edge, away from her
+      const a = F.away, dir = new V3(a.x + F.dir.x*.6, 0, a.z + F.dir.z*.6).normalize();
+      next('pivot', {dir, after: 'crouch'}); swivel(Math.atan2(dir.x, dir.z), .09); } }
+  else if(F.ph === 'crouch'){ pose = {crouch: 1, raise: .15};
+    if(F.t > .12){ next('air', {v: F.dir.clone().multiplyScalar(3.4).add(new V3(0, 1.5, 0))}); male.m.rotation.y = Math.atan2(F.dir.x, F.dir.z);
+      pulses.push({pos: male.pos.clone(), amp: .6, decay: 5}); } }
+  if(F.ph === 'air'){                                          // head first, nose following the arc
+    F.v.y -= 9*dt; male.pos.addScaledVector(F.v, dt); male.m.position.copy(male.pos);
+    male.m.rotation.x = -Math.atan2(F.v.y, Math.hypot(F.v.x, F.v.z))*.7;
+    gaitRelease(male.m); poseSpider(male.m, {air: 1}); updateHair(male.m, dt); male.motion = 1; male.vib = 0;
+    if(F.t > 1.1){ male.gone = true; male.m.visible = false; }
+    return;
+  }
+  male.pos.y = male.plat.y; male.m.position.x = male.pos.x; male.m.position.z = male.pos.z;
+  gaitBody(male.m, dt, male.pos.y);
+  animatePalps(P, 'taste', male.t, dt, 1); updateHair(male.m, dt);
+  poseSpider(male.m, pose);
+  gaitUpdate(male.m, dt, {vel, snap: true, turn: F.swDur ? angDelta(F.from, F.to)/F.swDur : 0, place: v => placeOn(male.plat, v), free: L => L.k === 0 && !!pose.raise});
+  male.motion = F.ph === 'dart' ? 1 : .5; male.vib = F.ph === 'twitch' ? .6 : .3;
+}
 function updateMale(dt){
   male.t += dt; male.state = male.state || 'display'; male.calm = male.calm || 0;
   if(male.gone) return;
@@ -811,12 +860,7 @@ function updateMale(dt){
     deadLook(male, dt); if(!male.held && male.fallH > 0) male.m.position.y += male.fallH;
     male.deadT += dt; male.motion = 0; male.vib = 0; male.temp += (.5 - male.temp)*(1 - Math.exp(-.1*dt)); return;
   }
-  if(male.state === 'flee'){                                     // one long leap off the leaf, then gone
-    male.ft += dt; male.fv.y -= 9*dt; male.pos.addScaledVector(male.fv, dt); male.m.position.copy(male.pos);
-    gaitRelease(male.m); poseSpider(male.m, {air: 1}); male.motion = 1; male.vib = 0;
-    if(male.ft > 1.1){ male.gone = true; male.m.visible = false; }
-    return;
-  }
+  if(male.state === 'flee'){ fleeMale(dt); return; }
   if(male.state === 'linger'){
     male.lt += dt;
     if(male.lt > 2.6 && !male.pang){ male.pang = true;
@@ -826,26 +870,31 @@ function updateMale(dt){
     if(male.pang && (male.stare += dt) > MALE_NERVE*.6 && !male.timid){ male.timid = true; toast('He grows timid under your stare…'); }
     if(male.stare > MALE_NERVE){
       const d = new V3(male.pos.x - sp.pos.x, 0, male.pos.z - sp.pos.z); if(d.lengthSq() < 1e-6) d.set(1, 0, 0);
-      d.normalize(); male.state = 'flee'; male.ft = 0; male.fv = d.multiplyScalar(2.2).add(new V3(0, 2.4, 0));
+      d.normalize(); male.state = 'flee'; male.fl = {ph: 'twitch', t: 0, away: d, yaw0: male.m.rotation.y, from: male.m.rotation.y, to: male.m.rotation.y, n: 0};
       pulses.push({pos: male.pos.clone(), amp: .6, decay: 5}); toast('He loses his nerve and leaps away into the undergrowth.');
       encCard('', 'PREY ESCAPED', 'HE IS GONE', ''); return;
     }
   }
   const still = sp.mode === 'ground' && sp.plat === male.plat && !sp.mated && sp.speed < .02 && !sp.charging && !sp.posture && !sp.plucking;
   const dF = Math.hypot(sp.pos.x - male.pos.x, sp.pos.z - male.pos.z);
+  const fx = Math.sin(sp.yaw), fz = Math.cos(sp.yaw);                       // her facing; he mounts from behind
+  const rear = new V3(sp.pos.x - fx*.15, male.plat.y, sp.pos.z - fz*.15), dR = Math.hypot(rear.x - male.pos.x, rear.z - male.pos.z);
   if(male.state === 'display'){ male.calm = still && dF < 1.6 ? male.calm + dt : Math.max(0, male.calm - dt*1.5);
-    if(male.calm > 2.5){ male.state = 'approach'; toast('He stops dancing and edges toward you…'); } }
+    if(male.calm > MALE_DANCE){ male.state = 'approach'; toast('He stops dancing and edges toward you…'); } }
   else if(male.state === 'approach'){
     if(!still){ male.state = 'display'; male.calm = 0; toast('He startles and backs off. Keep still while he courts you.'); }
-    else if(dF < .17){ male.state = 'mount'; male.mt = 0; toast('He climbs onto you. Keep still…'); }
+    else if(dR < .04){ male.state = 'mount'; male.mt = 0; toast('He climbs onto you. Keep still…'); }
   }
   else if(male.state === 'mount'){
     male.mt += dt;
     if(sp.mode !== 'ground' || sp.speed > .05 || sp.charging){ male.state = 'leave'; male.cool = 8; toast('He tumbles off. Mating interrupted.'); }
     else if(male.mt > 5){ sp.mated = true; male.state = 'linger'; male.lt = 0; male.stare = 0; bossWin('MATED', 'YOUR EGGS ARE FERTILE'); }
     if(male.state === 'mount'){
-      const P = male.m.userData.parts, up = UP.clone().applyQuaternion(sp.m.quaternion);
-      gaitRelease(male.m); male.m.position.copy(sp.m.position).addScaledVector(up, .07); male.m.quaternion.copy(sp.m.quaternion); male.m.rotateY(Math.PI*.85); male.m.rotateZ(.25);
+      // on her back towards the rear, facing the way she faces, leaning forward over her, rocking gently
+      const P = male.m.userData.parts, up = UP.clone().applyQuaternion(sp.m.quaternion), fwd = new V3(0, 0, 1).applyQuaternion(sp.m.quaternion);
+      const rock = Math.sin(male.mt*2.2)*.012;
+      gaitRelease(male.m); male.m.position.copy(sp.m.position).addScaledVector(up, .085).addScaledVector(fwd, -.1 + rock);
+      male.m.quaternion.copy(sp.m.quaternion); male.m.rotateX(.16 + rock*2);
       poseSpider(male.m, {hang: true, wave: male.t*5}); animatePalps(P, 'taste', male.t, dt, 1); updateHair(male.m, dt);
       male.pos.copy(sp.pos); male.motion = .3; male.vib = .3; return;
     }
@@ -853,12 +902,19 @@ function updateMale(dt){
     const [cx, cz] = clampTo(male.plat, male.pos.x, male.pos.z); male.pos.x = cx; male.pos.z = cz; male.m.rotation.set(0, male.m.rotation.y, 0);
   }
   else if(male.state === 'leave'){ male.cool -= dt; male.calm = 0; if(male.cool <= 0) male.state = 'display'; }
-  const cyc = male.t % 6, dancing = male.state === 'display' && cyc < 4;
+  const cyc = male.t % 18, dancing = male.state === 'display' && cyc < 16;   // sixteen seconds of dance, a short breather
   const toF = Math.atan2(sp.pos.x - male.pos.x, sp.pos.z - male.pos.z);
   const side = new V3(Math.cos(toF), 0, -Math.sin(toF));
-  // the dance wants to side-step to a beat; his legs decide how far he actually gets each frame
-  let want = new V3(male.plat.x, male.plat.y, male.plat.z).addScaledVector(side, dancing ? Math.sin(male.t*2.4)*.35 : 0);
-  if(male.state === 'approach'){ const d = new V3(male.pos.x - sp.pos.x, 0, male.pos.z - sp.pos.z).normalize(); want = sp.pos.clone().addScaledVector(d, .14); want.y = male.plat.y;
+  // the dance: a quick burst sideways to the next spot, then a held pose with the front legs pumping; his legs decide
+  // how far he actually gets each frame
+  const BURST = 1.6, MOVE = .5, SPOTS = [.28, .08, -.28, -.08], bi = Math.floor(male.t/BURST), bt = male.t - bi*BURST;
+  const bk = Math.min(1, bt/MOVE), bs = bk*bk*(3 - 2*bk), o0 = SPOTS[(bi + 3) % 4], o1 = SPOTS[bi % 4];
+  const darting = dancing && bt < MOVE;
+  let want = new V3(male.plat.x, male.plat.y, male.plat.z).addScaledVector(side, dancing ? o0 + (o1 - o0)*bs : 0);
+  if(male.state === 'approach'){
+    // circle round to her rear: while he's beside or ahead of her, aim wide of her flank first
+    const rx = male.pos.x - sp.pos.x, rz = male.pos.z - sp.pos.z, ahead = rx*fx + rz*fz, lat = rx*fz - rz*fx;
+    want = ahead > -.08 ? new V3(sp.pos.x - fx*.12 + fz*Math.sign(lat || 1)*.2, male.plat.y, sp.pos.z - fz*.12 - fx*Math.sign(lat || 1)*.2) : rear.clone();
     want.sub(male.pos).clampLength(0, dt*.12).add(male.pos); }                                       // slow, careful steps
   if(male.state === 'linger'){ const d = new V3(male.pos.x - sp.pos.x, 0, male.pos.z - sp.pos.z).normalize(); want = male.pos.clone().addScaledVector(d, male.timid ? dt*.06 : 0);
     const [cx, cz] = clampTo(male.plat, want.x, want.z); want.x = cx; want.z = cz; }
@@ -873,7 +929,10 @@ function updateMale(dt){
   male.m.rotation.y = gaitTurn(male.m, male.m.rotation.y, lerpAngle(male.m.rotation.y, toF, 1 - Math.exp(-4*dt)));
   gaitBody(male.m, dt, male.pos.y);
   animatePalps(male.m.userData.parts, dancing ? 'taste' : 'rest', male.t, dt, dancing ? 1 : 0); updateHair(male.m, dt);
-  poseSpider(male.m, {raise: dancing ? 1 : .2, wave: male.t*5, bob: dancing ? Math.abs(Math.sin(male.t*7))*.02 : 0, twitch: dancing ? Math.sin(male.t*19)*.08 : 0});
+  // held pose: both front legs pump up and down, slightly out of step; mid-dart: legs flung high and spread
+  const pumpT = male.t*7, raise = !dancing ? .2 : darting ? 1.05 : .5 + .45*Math.sin(pumpT);
+  poseSpider(male.m, {raise, pump: dancing && !darting ? .18*Math.sin(pumpT*.5) : 0, wave: darting ? Math.PI/2 : male.t*1.5,
+    bob: dancing ? (darting ? .015 : Math.max(0, Math.sin(pumpT))*.02) : 0, twitch: dancing ? Math.sin(male.t*19)*.08 : 0});
   gaitUpdate(male.m, dt, {vel, place: v => placeOn(male.plat, v), free: L => L.k === 0});
   male.motion = dancing ? .6 : .04;
   male.vib = dancing ? ((Math.sin(male.t*19) > .2 ? 1 : .2)*(Math.sin(male.t*1.6) > -.3 ? 1 : .3)) : 0;
