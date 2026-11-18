@@ -48,6 +48,18 @@ const _v = new V3();
 const camQ = new THREE.Quaternion(), camUp = new V3(0, 1, 0);
 const camFwd = () => new V3(Math.sin(cam.yaw), 0, Math.cos(cam.yaw)).applyQuaternion(camQ);
 const camRight = () => new V3(-Math.cos(cam.yaw), 0, Math.sin(cam.yaw)).applyQuaternion(camQ);
+// the rotation taking the camera's up onto a surface normal, used to carry camera-relative input onto her surface while
+// the view's roll catches up. It pitches over the camera's right axis first (the way she rolls over a rim, and the way
+// the view follows), then takes the smallest turn for what's left: straight 'smallest rotation' is ill-defined when the
+// two are nearly opposite (just after she curls under a leaf), and there it sent forward back toward the rim
+function upToSurf(u, n){
+  const r = camRight(); r.addScaledVector(u, -r.dot(u));
+  const m = n.clone().addScaledVector(r.normalize(), -n.dot(r));
+  if(m.lengthSq() < .09) return new THREE.Quaternion().setFromUnitVectors(u, n);
+  m.normalize();
+  const q1 = new THREE.Quaternion().setFromAxisAngle(r, Math.atan2(r.dot(new V3().crossVectors(u, m)), u.dot(m)));
+  return new THREE.Quaternion().setFromUnitVectors(m, n).multiply(q1);
+}
 function camFrame(dt){
   // POV mode (cam.pov, on by default): the view's up follows whatever she clings to (bark, stone, the log, under a
   // leaf), so when she hangs upside down the view does too. Off: the view stays level everywhere except the big trees.
@@ -63,10 +75,32 @@ function camFrame(dt){
       if(ax.lengthSq() < 1e-8) ax.copy(camRight());
       tu = UP.clone().applyAxisAngle(ax.normalize(), ang); }
   }
+  // leaf folds, stone facets and bark ridges make the raw normal twitch from step to step: follow a smoothed one, and
+  // roll toward it gently, so the view turns with her evenly rather than in jolts
+  if(!cam.nSm) cam.nSm = tu.clone();
+  if(cam.nSm.dot(tu) < -.5) cam.nSm.copy(tu); else cam.nSm.lerp(tu, 1 - Math.exp(-6*dt)).normalize();
+  tu = cam.nSm.clone();
   if(camUp.dot(tu) < -.97) tu.addScaledVector(camFwd(), .35).normalize();                  // turning right over: roll forward, not sideways
-  const nu = camUp.clone().lerp(tu, 1 - Math.exp(-5*dt)).normalize();
+  const nu = camUp.clone().lerp(tu, 1 - Math.exp(-3.5*dt)).normalize();
   camQ.premultiply(new THREE.Quaternion().setFromUnitVectors(camUp, nu)).normalize(); camUp.copy(UP).applyQuaternion(camQ);
   if(tu.y > .999 && camUp.y > .9999){ const f = new V3(0, 0, 1).applyQuaternion(camQ); cam.yaw += Math.atan2(f.x, f.z); camQ.identity(); camUp.set(0, 1, 0); }
+}
+// POV camera: while she moves forward, the view drifts round behind her heading, gently, and not for a couple of
+// seconds after you have turned it yourself. Only while you push mostly forward: following a sideways walk would turn
+// 'right' with it and send her round in a circle, and walking back toward the camera shouldn't spin it round.
+function followBehind(dt){
+  const last = cam.lastPos; cam.lastPos = sp.pos.clone();
+  if(cam.pov === false || !last || dt <= 0 || cam.swing != null || cam.swingDir || sp.roll || sp.mode === 'air' || sp.mode === 'hang') return;
+  if(performance.now() - (cam.userT || -1e9) < 2500) return;
+  const iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - (pad.ly || 0), ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + (pad.lx || 0);
+  if(iz < .3 || Math.abs(ix) > iz) return;
+  const v = sp.pos.clone().sub(last).divideScalar(dt), spd = v.length();
+  if(spd < .08 || spd > 4) return;
+  const d = v.applyQuaternion(camQ.clone().invert());
+  if(Math.hypot(d.x, d.z) < .5*spd) return;
+  const hy = Math.atan2(d.x, d.z);
+  if(angDiff(cam.yaw, hy) > 1.9) return;
+  cam.yaw = lerpAngle(cam.yaw, hy, 1 - Math.exp(-1.4*Math.min(1, spd/.5)*dt));
 }
 let _smallOcc = null, _smallOccN = -1;
 function smallOccluders(){
@@ -76,6 +110,7 @@ function smallOccluders(){
 }
 function updateCamera(dt){
   camFrame(dt);
+  followBehind(dt);
   if(cam.swing != null){                                                       // swing to face a world heading
     const d = new V3(Math.sin(cam.swing), 0, Math.cos(cam.swing)).applyQuaternion(camQ.clone().invert()), sw = Math.atan2(d.x, d.z);
     cam.yaw = lerpAngle(cam.yaw, sw, 1 - Math.exp(-5*dt)); if(angDiff(cam.yaw, sw) < .08) cam.swing = null; }

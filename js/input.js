@@ -104,7 +104,7 @@ intro.el.addEventListener('click', e => {
 function padActions(dt){
   if(!pad.connected) return;
   if(introOpen()){ if(pressed('a')) introNext(); if(pressed('x')) introShow(intro.i - 1); if(pressed('b') || pressed('back')) toggleGuide(false); return; }
-  if(pad.rx){ cam.swing = null; cam.swingDir = null; }
+  if(pad.rx){ cam.swing = null; cam.swingDir = null; cam.userT = performance.now(); }
   if(sp.charging && aimPt.pad){ aimPt.x = Math.min(innerWidth, Math.max(0, aimPt.x + pad.rx*700*dt)); aimPt.y = Math.min(innerHeight, Math.max(0, aimPt.y + pad.ry*700*dt)); }
   else { cam.yaw -= pad.rx*2.6*dt; cam.pitch = Math.min(CAM_PITCH_MAX, Math.max(CAM_PITCH_MIN, cam.pitch + pad.ry*1.7*dt)); }
   if(pressed('a') && (sp.mode === 'ground' || sp.mode === 'hang' || sp.mode === 'climb') && sp.stuck <= 0){
@@ -285,7 +285,7 @@ let drag = null;
 canvas.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY}; canvas.setPointerCapture(e.pointerId); });
 canvas.addEventListener('pointermove', e => {
   if(!drag) return;
-  cam.swing = null; cam.swingDir = null; cam.yaw -= (e.clientX - drag.x)*.006; cam.pitch = Math.min(CAM_PITCH_MAX, Math.max(CAM_PITCH_MIN, cam.pitch + (e.clientY - drag.y)*.004));
+  cam.swing = null; cam.swingDir = null; cam.userT = performance.now(); cam.yaw -= (e.clientX - drag.x)*.006; cam.pitch = Math.min(CAM_PITCH_MAX, Math.max(CAM_PITCH_MIN, cam.pitch + (e.clientY - drag.y)*.004));
   drag = {x:e.clientX, y:e.clientY};
 });
 canvas.addEventListener('pointerup', () => drag = null);
