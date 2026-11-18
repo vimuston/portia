@@ -164,8 +164,10 @@ const PRED_FORGET = 8;
 const PRED_STANDOFF = 1.0;   // how far short of a frozen Portia it halts while stalking   // seconds out of sight before it gives up the hunt (the boss bar drains over this)
 // what it sees: only Portia moving, and not sneaking
 function portiaVisible(){ return DOOM.t < 0 && PRED.grace <= 0 && !sp.sneaking && (SEEN.speed > .12 || sp.mode === 'air'); }
+// a trunk-bound mantis only hunts what is on its own bark: Portia down in the litter is beneath its notice
+const predCanReach = pr => !pr.trunk || (sp.mode === 'climb' && sp.plat === pr.trunk);
 function predSense(pr, dt){
-  const vis = portiaVisible() && pr.eyeWorld().distanceTo(sp.pos) < pr.range;
+  const vis = portiaVisible() && predCanReach(pr) && pr.eyeWorld().distanceTo(sp.pos) < pr.range;
   if(vis){
     pr.sees = true; pr.seenT = 0; pr.last.copy(sp.pos);
     if(!pr.hunting){ pr.hunting = true; pr.goal = null; pr.pause = 0; pr.best = 1e9; pr.stuckT = 0; }
