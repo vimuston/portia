@@ -94,18 +94,17 @@ function stickInWeb(pt){
   toast('Caught in the sticky spiral! Tap WASD to struggle free before it reaches you.');
 }
 function knockOff(){
+  if(DOOM.t >= 0) return;                        // she is already dead where she fell
   if(sp.mode === 'ground' && !sp.plat.ground){ startAir(); const a = rnd()*6.28; sp.vel.set(Math.cos(a)*1.4, 1.4, Math.sin(a)*1.4); }
   else if(sp.mode === 'climb'){ const n = sp.plat.normal(sp.pos); startAir(); sp.vel.copy(n).multiplyScalar(1.6); sp.vel.y += .4; sp.climbGrace = .5; }
 }
 function hurt(amount, msg){
+  if(DOOM.t >= 0) return;
   sp.vigor -= amount; toast(msg); pulses.push({pos: sp.pos.clone(), amp: 1.2, decay: 2});
   if(sp.vigor <= 0) die();
 }
-function die(){
-  toast('You died. Another Portia takes up the hunt.');
-  Object.assign(sp, {mode:'ground', plat: START, vigor: 1, stuck: 0, charging: false, braked: false, anchorPlat: null, line: false});
-  sp.pos.set(START.x, START.y, START.z); sp.vel.set(0, 0, 0);
-}
+// a fatal bite: the same fade as the mantis kill (predators.js), with Portia dying where she was bitten
+function die(){ doomStart(null); }
 function killPrey(p){
   p.dead = true; p.deadT = 0; p.state = 'dead'; p.drain = 0; p.flip = 0; sp.caught++;
   pulses.push({pos: p.pos.clone(), amp: 1.4, decay: .7});
