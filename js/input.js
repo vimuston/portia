@@ -30,21 +30,28 @@ const cycle = (obj, cur, d = 1) => { const ks = Object.keys(obj); return ks[(ks.
 drawStyle();
 
 /* ---------- gamepad (standard mapping). Left stick: analog walk — the tilt sets the pace, so a light touch sneaks.
-   Right stick: look/aim. A: hold to gauge, release to leap. X: hold to raise the front legs. B: tie the dragline here. Y: cut it. RB: hold to pluck.
+   Right stick: look. While A is held the left stick aims instead. A: hold to gauge, release to leap. RT: sneak. LT: dash, or held while aiming: slow motion. X: hold to raise the front legs. B: tie the dragline here. Y: cut it. RB: hold to pluck.
    LB: next pluck signal. D-pad up/down: zoom. View/Back: glyphs/3D. Menu/Start: hide HUD. ---------- */
 const pad = {lx: 0, ly: 0, rx: 0, ry: 0, a: false, b: false, x: false, y: false, lb: false, rb: false, up: false, down: false, back: false, start: false, sneak: false, connected: false};
 const padPrev = {};
+const padStick = {dx: 0, dy: 0, t: -1e9};   // the last firm left-stick push (see pollPad)
+let inputDev = 'kb', padSprintSolo = false;   // last device used ('kb' | 'pad'): the legend shows only its controls
 function pollPad(){
   Object.assign(padPrev, pad);
   let g = window.__padSim || null;                        // (tests can inject a fake pad)
   if(!g && navigator.getGamepads){ for(const q of navigator.getGamepads()) if(q && q.connected){ g = q; break; } }
-  if(!g){ Object.assign(pad, {lx: 0, ly: 0, rx: 0, ry: 0, a: false, b: false, x: false, y: false, lb: false, rb: false, up: false, down: false, back: false, start: false, sneak: false, sprint: false, connected: false}); return; }
+  if(!g){ Object.assign(pad, {lx: 0, ly: 0, rx: 0, ry: 0, a: false, b: false, x: false, y: false, lb: false, rb: false, up: false, down: false, back: false, start: false, sneak: false, sprint: false, connected: false}); if(inputDev === 'pad') inputDev = 'kb'; return; }
   const ax = g.axes || [], bt = g.buttons || [], btn = i => !!(bt[i] && (bt[i].pressed || bt[i].value > .5));
   const dz = v => Math.abs(v) < .12 ? 0 : Math.sign(v)*(Math.abs(v) - .12)/.88;
-  let lx = ax[0] || 0, ly = ax[1] || 0; const mg = Math.hypot(lx, ly);           // radial dead zone keeps the slowest speeds usable
-  if(mg < .08){ lx = ly = 0; } else { const k = Math.min(1, (mg - .08)/.9)/mg; lx *= k; ly *= k; }
+  let lx = ax[0] || 0, ly = ax[1] || 0; const mg = Math.hypot(lx, ly), now = performance.now();
+  // let go of a pushed stick and it springs back past centre for a frame or two: a small push the other way, which
+  // turned her round. Shortly after a firm push, a weak tilt pointing well away from it is that overshoot: ignored.
+  if(mg > .5){ padStick.dx = lx/mg; padStick.dy = ly/mg; padStick.t = now; }
+  else if(mg > 0 && now - padStick.t < 180 && (lx*padStick.dx + ly*padStick.dy)/mg < .3){ lx = ly = 0; }
+  if(mg < .15){ lx = ly = 0; } else { const k = Math.min(1, (mg - .15)/.83)/mg; lx *= k; ly *= k; }   // radial dead zone, rescaled so the slowest speeds stay usable
   Object.assign(pad, {lx, ly, rx: dz(ax[2] || 0), ry: dz(ax[3] || 0), a: btn(0), b: btn(1), x: btn(2), y: btn(3), lb: btn(4), rb: btn(5),
-    back: btn(8), start: btn(9), up: btn(12), down: btn(13), left: btn(14), right: btn(15), sneak: (bt[6] ? bt[6].value > .3 : false) || btn(10), sprint: bt[7] ? bt[7].value > .3 : false, connected: true});
+    back: btn(8), start: btn(9), up: btn(12), down: btn(13), left: btn(14), right: btn(15), sneak: (bt[7] ? bt[7].value > .3 : false) || btn(10), sprint: bt[6] ? bt[6].value > .3 : false, connected: true});
+  if(bt.some(b => b && (b.pressed || b.value > .3)) || Math.hypot(lx, ly) > .3 || Math.hypot(pad.rx, pad.ry) > .3) inputDev = 'pad';
   if(!padPrev.connected) toast('Controller connected — the left stick sets your pace.');
 }
 const pressed = k => pad[k] && !padPrev[k], released = k => !pad[k] && padPrev[k];
@@ -105,19 +112,22 @@ function padActions(dt){
   if(!pad.connected) return;
   if(introOpen()){ if(pressed('a')) introNext(); if(pressed('x')) introShow(intro.i - 1); if(pressed('b') || pressed('back')) toggleGuide(false); return; }
   if(pad.rx){ cam.swing = null; cam.swingDir = null; cam.userT = performance.now(); }
-  if(sp.charging && aimPt.pad){ aimPt.x = Math.min(innerWidth, Math.max(0, aimPt.x + pad.rx*700*dt)); aimPt.y = Math.min(innerHeight, Math.max(0, aimPt.y + pad.ry*700*dt)); }
-  else { cam.yaw -= pad.rx*2.6*dt; cam.pitch = Math.min(CAM_PITCH_MAX, Math.max(CAM_PITCH_MIN, cam.pitch + pad.ry*1.7*dt)); }
+  // gauging a leap: she stands still, so the left stick steers the reticule; the right stick keeps turning the camera
+  if(sp.charging && aimPt.pad){ aimPt.x = Math.min(innerWidth, Math.max(0, aimPt.x + pad.lx*700*dt)); aimPt.y = Math.min(innerHeight, Math.max(0, aimPt.y + pad.ly*700*dt)); }
+  cam.yaw -= pad.rx*2.6*dt; cam.pitch = Math.min(CAM_PITCH_MAX, Math.max(CAM_PITCH_MIN, cam.pitch + pad.ry*1.7*dt));
   if(pressed('a') && (sp.mode === 'ground' || sp.mode === 'hang' || sp.mode === 'climb') && sp.stuck <= 0){
     sp.charging = true; sp.aimShake = 0;
     const ahead = sp.pos.clone().add(camFwd().multiplyScalar(1.2)).project(camera);
-    aimPt.x = (ahead.x*.5 + .5)*innerWidth; aimPt.y = (.5 - ahead.y*.5)*innerHeight; aimPt.pad = true; updateAim(true); }
-  if(released('a') && sp.charging) jump();
+    aimPt.x = (ahead.x*.5 + .5)*innerWidth; aimPt.y = (.5 - ahead.y*.5)*innerHeight; aimPt.pad = true; updateAim(true); SLOWMO.armed = pad.sprint; padSprintSolo = false; }
+  if(released('a') && sp.charging){ jump(); if(SLOWMO.armed){ SLOWMO.armed = false; SLOWMO.on = sp.mode === 'air'; if(SLOWMO.on) SLOWMO.scale = SLOWMO.rate; } }
   if(pressed('a') && sp.mode === 'air' && !sp.plop) startBalloon();
   if(released('a') && sp.balloon) endBalloon();
   if(pressed('b')) dropLine();
   if(pressed('lb')) cyclePluck(1);
   if(pressed('sneak')) toggleMove('sneak');
-  if(pressed('sprint')) toggleMove('dash');
+  // LT mirrors Shift: alone it toggles dash (on release); held while gauging a leap (A) it arms slow motion for the jump instead
+  if(pressed('sprint')){ if(sp.charging) SLOWMO.armed = true; else padSprintSolo = true; }
+  if(released('sprint')){ if(padSprintSolo) toggleMove('dash'); padSprintSolo = false; SLOWMO.armed = false; SLOWMO.on = false; }
   if(pressed('up')) cam.dist = Math.max(.12, cam.dist*.85);
   if(pressed('down')) cam.dist = Math.min(7, cam.dist*1.15);
   if(pressed('back')) toggleGuide();
@@ -249,7 +259,7 @@ function toggleLook(){ const el = $('#look'); el.hidden = !el.hidden; }
 let toastT = 0;
 function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add('on'); toastT = 2.4; }
 
-// sneak (C / LT) and dash (Shift / RT) are toggles; turning one on turns the other off
+// sneak (C / RT) and dash (Shift / LT) are toggles; turning one on turns the other off
 let moveMode = null, shiftSolo = false;
 function toggleMove(m){
   moveMode = moveMode === m ? null : m;
@@ -281,6 +291,7 @@ function slowmoScale(realDt){
   return SLOWMO.scale;
 }
 addEventListener('keydown', e => {
+  inputDev = 'kb';
   if(introOpen()){   // the intro owns the keyboard while it's up
     if(e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     if(e.repeat) return;

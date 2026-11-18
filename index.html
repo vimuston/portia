@@ -80,6 +80,8 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #slowtip{position:fixed;left:0;top:0;display:flex;align-items:center;gap:7px;padding:5px 9px;font-family:var(--cz);font-size:11.5px;letter-spacing:.06em;color:var(--ink);pointer-events:none;transform:translate(-50%,0);z-index:3;}
 #slowtip[hidden]{display:none;} #slowtip .mv-slow{display:inline;} #slowtip::before{left:50%;right:auto;}
 .hidehud #slowtip{display:none;}
+/* only the scheme of the last device used shows: keyboard until a pad button or stick moves, back on any key (input.js inputDev) */
+#hud.pad-in .kbonly{display:none;} #hud:not(.pad-in) .padonly{display:none;}
 .lg.pd{padding-top:2px;}
 #flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:22px;font-weight:800;letter-spacing:.12em;color:var(--fg);text-shadow:0 0 12px rgba(255,180,80,.6);opacity:0;pointer-events:none;text-align:center;}
 #flash small{display:block;font-family:var(--font);font-size:14px;font-weight:500;letter-spacing:.06em;color:var(--dim);}
@@ -186,7 +188,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 </style>
 <canvas id="view" aria-label="A jumping spider's world drawn as braille glyphs coloured by temperature"></canvas>
 <div class="hud" id="hud">
-  <div class="legend" id="slowtip" hidden><kbd class="w">Shift</kbd><span class="mv-slow">slow motion</span></div>   <!-- under Portia while she gauges a leap -->
+  <div class="legend" id="slowtip" hidden><kbd class="w kbonly">Shift</kbd><kbd class="w padonly">LT</kbd><span class="mv-slow">slow motion</span></div>   <!-- under Portia while she gauges a leap -->
   <div class="tl card" style="display:none">   <!-- senses panel removed: all four senses are always on -->
     <div><h1>PORTIA</h1><div class="sub">PROTOTYPE 2 · THERMAL</div></div>
     <div id="senses"></div>
@@ -195,7 +197,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
   <div class="tr">
     <div class="legend" id="legend">
       <div class="lg-h"><span class="lg-t">controls</span><i class="lg-silk"></i></div>
-      <div class="lg kb">
+      <div class="lg kb kbonly">
         <div><b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b><span>walk</span></div>
         <div><b><kbd>C</kbd></b><span class="mv-sneak">sneak</span></div>
         <div><b><kbd class="w">Shift</kbd></b><span class="mv-dash">dash</span><span class="mv-slow">slow motion</span></div>
@@ -205,19 +207,19 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
         <div><b><kbd>R</kbd></b><span>change pluck signal</span></div>
         <div><b><kbd>X</kbd></b><span>tie dragline <em>again to hang · again to cut</em></span></div>
       </div>
-      <div class="lg-f"><span><kbd>G</kbd>intro</span><span><kbd>H</kbd>hide</span><span><kbd>M</kbd>sound</span></div>
-      <div class="lg pd" hidden>
-        <div class="lg-h"><span class="lg-t">controller</span><i class="lg-silk"></i></div>
+      <div class="lg-f kbonly"><span><kbd>G</kbd>intro</span><span><kbd>H</kbd>hide</span><span><kbd>M</kbd>sound</span></div>
+      <div class="lg pd padonly">
         <div><b><kbd class="w">L-stick</kbd></b><span>walk <em>tilt sets pace</em></span></div>
-        <div><b><kbd class="w">R-stick</kbd></b><span>look · aim</span></div>
-        <div><b><kbd class="w">LT</kbd></b><span class="mv-sneak">sneak</span></div>
-        <div><b><kbd class="w">RT</kbd></b><span class="mv-dash">dash</span></div>
-        <div><b><kbd>A</kbd></b><span>jump <em>hold mid-air to balloon</em></span></div>
+        <div><b><kbd class="w">R-stick</kbd></b><span>look</span></div>
+        <div><b><kbd class="w">RT</kbd></b><span class="mv-sneak">sneak</span></div>
+        <div><b><kbd class="w">LT</kbd></b><span class="mv-dash">dash</span><span class="mv-slow">slow motion</span></div>
+        <div><b><kbd>A</kbd></b><span>jump <em>L-stick aims while held · hold mid-air to balloon</em></span></div>
         <div><b><kbd>X</kbd></b><span>gesture</span></div>
         <div><b><kbd class="w">RB</kbd></b><span>pluck web</span></div>
         <div><b><kbd class="w">LB</kbd></b><span>change signal</span></div>
         <div><b><kbd>B</kbd></b><span>tie dragline <em>again to hang · again to cut</em></span></div>
         <div><b><kbd class="w">D-pad</kbd></b><span>zoom</span></div>
+        <div><b><kbd class="w">Back</kbd></b><span>intro</span></div>
         <div><b><kbd class="w">Start</kbd></b><span>hide HUD</span></div>
       </div>
     </div>

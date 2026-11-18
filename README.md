@@ -18,13 +18,16 @@ Then open <http://localhost:8000>. You need an internet connection the first tim
 
 ## Controls
 
+The in-game legend shows whichever scheme you used last.
+
 | Keyboard / mouse | Controller | Action |
 |---|---|---|
 | WASD | Left stick | Walk: up bark, over stone, under leaves |
-| Mouse | Right stick | Look and aim |
-| C | LT | Toggle sneak |
-| Shift | RT | Toggle dash: snap, dart, freeze |
-| Hold Space, release | Hold A, release | Aim a leap, then jump to the ring |
+| Mouse | Right stick | Look (the mouse also aims) |
+| C | RT or click left stick | Toggle sneak |
+| Shift | LT | Toggle dash: snap, dart, freeze |
+| Hold Space, release | Hold A, release | Aim a leap, then jump to the ring (left stick moves the ring while A is held) |
+| Hold Shift while aiming | Hold LT while aiming | Slow motion for the leap, until you let go or she lands |
 | Space in the air | A in the air | Balloon on silk |
 | X | B | Tie a dragline; press again to hang, again to cut |
 | Hold Q | RB | Pluck a web |
@@ -32,7 +35,7 @@ Then open <http://localhost:8000>. You need an internet connection the first tim
 | Hold F | X | Raise front legs |
 | H | Start | Hide the HUD |
 | M | | Sound on/off |
-| G | | Show the intro again |
+| G | Back | Show the intro again |
 | | D-pad | Zoom |
 
 ## How to hunt

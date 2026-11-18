@@ -353,9 +353,9 @@ function updateSpider(dt){
   const ix = Math.max(-1, Math.min(1, (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + pad.lx));
   const iz = Math.max(-1, Math.min(1, (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - pad.ly));
   const mag = Math.min(1, Math.hypot(ix, iz));                 // analog pace: stick tilt (keys give full pace)
-  sp.sneaking = moveMode === 'sneak';                                               // C / LT toggles stalking
+  sp.sneaking = moveMode === 'sneak';                                               // C / RT toggles stalking
   const stalk = sp.sneaking;
-  sp.sprinting = moveMode === 'dash';                                               // Shift / RT toggles the snap-and-dart dash
+  sp.sprinting = moveMode === 'dash';                                               // Shift / LT toggles the snap-and-dart dash
   if(sp.holdIn && (mag < .15 || cam.swing == null)) sp.holdIn = false;
   const held = sp.holdIn;      // after climbing over: wait for a fresh push or the camera
   sp.noise = 0; sp.plucking = false; sp.webGrace = Math.max(0, (sp.webGrace || 0) - dt); sp.climbGrace = Math.max(0, (sp.climbGrace || 0) - dt); sp.handT = Math.max(0, (sp.handT || 0) - dt); sp.lunge = Math.max(0, sp.lunge - dt); sp.tap = Math.max(0, sp.tap - dt);
