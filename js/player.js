@@ -205,7 +205,8 @@ function climbOver(){
 function startRoll(pivot, out, done){
   const P = sp.m.userData.parts;
   sp.roll = {d0: Math.max(0, pivot.clone().sub(sp.pos).dot(out)), t: 0, dur: .55, q0: sp.m.quaternion.clone(), up0: (P.up || UP).clone().normalize(), pivot, out, done};
-  const inw = out.clone().negate(); cam.swing = Math.atan2(inw.x, inw.z); sp.holdIn = true; sp.charging = false;
+  const inw = out.clone().negate(); sp.charging = false;
+  if(cam.pov === false){ cam.swing = Math.atan2(inw.x, inw.z); sp.holdIn = true; }   // POV: the view rolls over the rim with her instead, so forward stays forward
 }
 function wrapUnder(S, x, z){
   const [q, o] = S.rimPoint(x, z), inw = o.clone().negate();
@@ -380,6 +381,7 @@ function updateSpider(dt){
   sp.speed = 0;
   if(sp.mode === 'ground'){
     const dir = fwd.clone().multiplyScalar(iz).addScaledVector(right, ix);
+    if(cam.pov !== false && dir.lengthSq() > 1e-6){ dir.applyQuaternion(upToSurf(camUp, UP)); dir.y = 0; }   // POV: the view may still be rolling back level
     if(sp.holdIn) dir.set(0, 0, 0);
     let spd = 0, lead = 0;
     let yawTo = sp.yaw;
@@ -435,6 +437,10 @@ function updateSpider(dt){
   } else if(sp.mode === 'climb'){
     // on bark or stone: camera-relative input mapped onto the surface; pushing into it climbs
     const S = sp.plat, n = S.normal(sp.pos), inp = held ? new V3() : fwd.clone().multiplyScalar(iz).addScaledVector(right, ix), t = new V3();
+    // POV camera: its frame lags her surface for a moment as she rounds an edge, so camera-forward can point into the
+    // new face (which the 'push into it climbs' rule below would turn straight back the way she came). Carry the input
+    // through the same rotation that takes the camera's up onto her surface: forward stays forward over the edge
+    if(cam.pov !== false && inp.lengthSq() > 1e-6) inp.applyQuaternion(upToSurf(camUp, n));
     let spd = 0, herr = 0, lead = 0;
     const going = inp.lengthSq() > 1e-6 && !sp.charging, snapOK = going && sp.sprinting && !sp.noSnap;
     if(going){

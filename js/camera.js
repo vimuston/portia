@@ -48,22 +48,70 @@ const _v = new V3();
 const camQ = new THREE.Quaternion(), camUp = new V3(0, 1, 0);
 const camFwd = () => new V3(Math.sin(cam.yaw), 0, Math.cos(cam.yaw)).applyQuaternion(camQ);
 const camRight = () => new V3(-Math.cos(cam.yaw), 0, Math.sin(cam.yaw)).applyQuaternion(camQ);
+// the rotation taking the camera's up onto a surface normal, used to carry camera-relative input onto her surface while
+// the view's roll catches up. It pitches over the camera's right axis first (the way she rolls over a rim, and the way
+// the view follows), then takes the smallest turn for what's left: straight 'smallest rotation' is ill-defined when the
+// two are nearly opposite (just after she curls under a leaf), and there it sent forward back toward the rim
+function upToSurf(u, n){
+  const r = camRight(); r.addScaledVector(u, -r.dot(u));
+  const m = n.clone().addScaledVector(r.normalize(), -n.dot(r));
+  if(m.lengthSq() < .09) return new THREE.Quaternion().setFromUnitVectors(u, n);
+  m.normalize();
+  const q1 = new THREE.Quaternion().setFromAxisAngle(r, Math.atan2(r.dot(new V3().crossVectors(u, m)), u.dot(m)));
+  return new THREE.Quaternion().setFromUnitVectors(m, n).multiply(q1);
+}
 function camFrame(dt){
-  // the view stays level with the horizon everywhere (stone, stumps, the log, under leaves) except on the big trees,
-  // where it turns with the bark, and even there only once she has climbed clear of the floor
-  const onTree = sp.mode === 'climb' && sp.plat && sp.plat.tree;
-  let tu = onTree ? sp.plat.normal(sp.pos).clone() : UP.clone();
+  // POV mode (cam.pov, on by default): the view's up follows whatever she clings to (bark, stone, the log, under a
+  // leaf), so when she hangs upside down the view does too. Off: the view stays level everywhere except the big trees.
+  // Either way, near the floor the roll is eased out so the ground doesn't tilt as she steps onto a surface.
+  const pov = cam.pov !== false;
+  // rounding a leaf's rim she rolls 180° about it in about half a second: the view turns with her by exactly the same
+  // rotation, frame by frame, so it stays behind her the whole way over instead of trailing and catching up afterwards
+  if(pov && sp.roll){
+    const r = sp.roll, e = Math.min(1, r.t), a = Math.PI*e*e*(3 - 2*e);
+    if(cam.rollRef !== r){ cam.rollRef = r; cam.rollA = 0; }
+    const axis = new V3().crossVectors(r.up0, r.out); if(axis.lengthSq() < 1e-6) axis.set(1, 0, 0); axis.normalize();
+    camQ.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, a - cam.rollA)).normalize(); cam.rollA = a;
+    camUp.copy(UP).applyQuaternion(camQ); cam.nSm = camUp.clone();
+    return;
+  }
+  const onSurf = sp.mode === 'climb' && sp.plat && (pov ? !sp.plat.web : sp.plat.tree);
+  let tu = onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
   tu.normalize();
-  if(onTree){
-    const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), f = Math.max(0, Math.min(1, (clr - .25)/.55)), k = f*f*(3 - 2*f);
+  if(onSurf){
+    const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), lo = pov && !sp.plat.tree ? .04 : .25, span = pov && !sp.plat.tree ? .25 : .55;
+    const f = Math.max(0, Math.min(1, (clr - lo)/span)), k = f*f*(3 - 2*f);
     if(k < 1){ const ang = Math.acos(Math.max(-1, Math.min(1, tu.y)))*k, ax = new V3().crossVectors(UP, tu);
       if(ax.lengthSq() < 1e-8) ax.copy(camRight());
       tu = UP.clone().applyAxisAngle(ax.normalize(), ang); }
   }
+  // leaf folds, stone facets and bark ridges make the raw normal twitch from step to step: follow a smoothed one, and
+  // roll toward it gently, so the view turns with her evenly rather than in jolts
+  if(!cam.nSm) cam.nSm = tu.clone();
+  if(cam.nSm.dot(tu) < .5) cam.nSm.copy(tu); else cam.nSm.lerp(tu, 1 - Math.exp(-8*dt)).normalize();   // a real change of surface isn't smoothed away
+  tu = cam.nSm.clone();
   if(camUp.dot(tu) < -.97) tu.addScaledVector(camFwd(), .35).normalize();                  // turning right over: roll forward, not sideways
-  const nu = camUp.clone().lerp(tu, 1 - Math.exp(-5*dt)).normalize();
+  const gap = Math.min(1, (1 - camUp.dot(tu))/.6);                                              // small wobbles roll gently, a big turn (onto a new face) quickly
+  const nu = camUp.clone().lerp(tu, 1 - Math.exp(-(3.5 + 7*gap)*dt)).normalize();
   camQ.premultiply(new THREE.Quaternion().setFromUnitVectors(camUp, nu)).normalize(); camUp.copy(UP).applyQuaternion(camQ);
   if(tu.y > .999 && camUp.y > .9999){ const f = new V3(0, 0, 1).applyQuaternion(camQ); cam.yaw += Math.atan2(f.x, f.z); camQ.identity(); camUp.set(0, 1, 0); }
+}
+// POV camera: while she moves forward, the view drifts round behind her heading, gently, and not for a couple of
+// seconds after you have turned it yourself. Only while you push mostly forward: following a sideways walk would turn
+// 'right' with it and send her round in a circle, and walking back toward the camera shouldn't spin it round.
+function followBehind(dt){
+  const last = cam.lastPos; cam.lastPos = sp.pos.clone();
+  if(cam.pov === false || !last || dt <= 0 || cam.swing != null || cam.swingDir || sp.roll || sp.mode === 'air' || sp.mode === 'hang') return;
+  if(performance.now() - (cam.userT || -1e9) < 2500) return;
+  const iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - (pad.ly || 0), ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + (pad.lx || 0);
+  if(iz < .3 || Math.abs(ix) > iz) return;
+  const v = sp.pos.clone().sub(last).divideScalar(dt), spd = v.length();
+  if(spd < .08 || spd > 4) return;
+  const d = v.applyQuaternion(camQ.clone().invert());
+  if(Math.hypot(d.x, d.z) < .5*spd) return;
+  const hy = Math.atan2(d.x, d.z);
+  if(angDiff(cam.yaw, hy) > 1.9) return;
+  cam.yaw = lerpAngle(cam.yaw, hy, 1 - Math.exp(-1.4*Math.min(1, spd/.5)*dt));
 }
 let _smallOcc = null, _smallOccN = -1;
 function smallOccluders(){
@@ -73,6 +121,7 @@ function smallOccluders(){
 }
 function updateCamera(dt){
   camFrame(dt);
+  followBehind(dt);
   if(cam.swing != null){                                                       // swing to face a world heading
     const d = new V3(Math.sin(cam.swing), 0, Math.cos(cam.swing)).applyQuaternion(camQ.clone().invert()), sw = Math.atan2(d.x, d.z);
     cam.yaw = lerpAngle(cam.yaw, sw, 1 - Math.exp(-5*dt)); if(angDiff(cam.yaw, sw) < .08) cam.swing = null; }
@@ -95,7 +144,7 @@ function updateCamera(dt){
   // the look angle is always yours: full range (negative = from below, looking up), and it follows quickly
   // under a leaf the view stays level and looks up at her from below: your whole pitch range maps onto the angles
   // below the blade (steeply under her … nearly edge-on), eased in and out as she goes under or comes back over
-  cam.under = (cam.under || 0) + ((under ? 1 : 0) - (cam.under || 0))*(1 - Math.exp(-4*dt));
+  cam.under = (cam.under || 0) + ((under && cam.pov === false ? 1 : 0) - (cam.under || 0))*(1 - Math.exp(-4*dt));
   const pu = -1.25 + (cam.pitch - CAM_PITCH_MIN)/(CAM_PITCH_MAX - CAM_PITCH_MIN)*1.17, pw = cam.pitch + (pu - cam.pitch)*cam.under;
   cam.pitchEff += (pw - cam.pitchEff)*(1 - Math.exp(-12*dt));
   // the point the camera orbits must itself be clear of solids (at a root/trunk join it can fall inside the
@@ -193,6 +242,8 @@ function updateCamera(dt){
   camera.updateMatrixWorld();
   SU.uInvVP.value.multiplyMatrices(camera.matrixWorld, camera.projectionMatrixInverse);
   SU.uCamPos.value.copy(camera.position);
+  SU.uCfCam.value.copy(camera.position);
+  { const B = sp.m.userData.parts.body.getWorldPosition(new V3()); SU.uCfT.value.set(B.x, B.y, B.z, cam.eye > .5 || sp.mode === 'feed' ? 0 : 1); }
   SU.uCamYaw.value = Math.atan2(cf.z, cf.x);
   SU.uVib.value.forEach((u, i) => {
     const o = SU.uVibScr.value[i];
