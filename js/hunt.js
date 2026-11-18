@@ -628,7 +628,9 @@ function updatePrey(dt, t){
         gaitUpdate(p.m, dt, {vel: p.velW, place: v => placeOn(p.plat, v), free: () => false});
       } else {
         gaitRelease(p.m); p.m.position.y = p.pos.y; p.m.rotation.x = p.m.rotation.z = 0;
-        poseArach(p.m, {curl: p.dead, tuck: !p.dead && p.kind === 'badumna' && p.state === 'retreat', walk: p.motion > .25 ? 1 : 0, phase: p.phase});
+        // in the tube the legs cycle whenever the body actually travels (not off the motion/alert level), so it walks out to the mouth
+        const sp2 = Math.hypot(p.velW.x, p.velW.z), walk = p.dead ? 0 : Math.min(1, sp2/.04);
+        poseArach(p.m, {curl: p.dead, tuck: !p.dead && p.kind === 'badumna' && p.state === 'retreat' && walk < .5, walk, phase: p.phase});
       }
     }
     if(DOOM.killer === p) eatPose(p, t);
