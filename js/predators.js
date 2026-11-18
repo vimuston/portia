@@ -31,7 +31,7 @@ function predClimb(S){
 }
 // a tree-dweller's view of the same bark: only the part held well clear of the soil counts, so the trunk base and
 // the root flare are no way down
-const TREE_CLEAR = .7;
+const TREE_CLEAR = 1.6;   // never lower than this on its trunk: it keeps to the bark well above the litter
 const treeBark = S => !S.web && S.label === 'bark' && !S.top && !S.log && S.project && S.normal;
 function predTree(S){
   let w = TREE_WRAP.get(S);
@@ -126,7 +126,7 @@ function predTreeSpot(S){
   for(let i = 0; i < 12; i++){
     let q;
     if(S.tube){ const pt = S._pts[Math.random()*S._pts.length | 0]; q = S.project(pt.clone().add(new V3(prr(-.3, .3), .5, prr(-.3, .3)))); }
-    else { const a = prr(0, 6.28), y = Math.min(S.y1 - .5, floorAt(S.cx, S.cz) + prr(1.2, 5)); q = S.project(new V3(S.cx + Math.cos(a)*40, y, S.cz + Math.sin(a)*40)); }
+    else { const a = prr(0, 6.28), y = Math.min(S.y1 - .5, floorAt(S.cx, S.cz) + prr(2.2, 5.5)); q = S.project(new V3(S.cx + Math.cos(a)*40, y, S.cz + Math.sin(a)*40)); }
     if(q && predTree(S).ok(q) && q.y < floorAt(q.x, q.z) + 6) return q;      // low enough to hunt from, not up in the canopy
   }
   return null;
@@ -375,7 +375,7 @@ function predHome(pr){
   if(pr.tree){                                                   // up on the nearest trunk
     const T = CLIMBS.filter(S => treeBark(S) && !S.tube).sort((a, b) => Math.hypot(a.cx - pr.home.x, a.cz - pr.home.z) - Math.hypot(b.cx - pr.home.x, b.cz - pr.home.z))[0];
     if(T){ const g = floorAt(T.cx, T.cz), d = new V3(pr.home.x - T.cx, 0, pr.home.z - T.cz).normalize();
-      pr.pos.copy(T.project(new V3(T.cx + d.x*40, g + 1.8, T.cz + d.z*40))); pr.surf = predTree(T); pr.trunk = T; pr.up.copy(T.normal(pr.pos)); pr.home.copy(pr.pos); }
+      pr.pos.copy(T.project(new V3(T.cx + d.x*40, g + 2.8, T.cz + d.z*40))); pr.surf = predTree(T); pr.trunk = T; pr.up.copy(T.normal(pr.pos)); pr.home.copy(pr.pos); }
   } pr.hop = null; pr.state = 'roam'; pr.kt = 0;
   pr.hunting = false; pr.sees = false; pr.goal = null; pr.pause = prr(15, 40); pr.best = 1e9; pr.stuckT = 0;
   const a = Math.random()*6.28; pr.fwd.set(Math.sin(a), 0, Math.cos(a));
