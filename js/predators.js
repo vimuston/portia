@@ -395,7 +395,9 @@ function doomStart(pr){
   if(sp.balloon) endBalloon();
   sp.line = false; sp.stuck = 0; sp.charging = false; sp.roll = null;
   DOOM.t = 0; DOOM.by = pr; DOOM.reset = false; DOOM.from = sp.pos.clone(); DOOM.at = sp.m.position.clone(); DOOM.q = sp.m.quaternion.clone();
-  DOOM.flat = UP.clone().applyQuaternion(DOOM.q).y > .8;   // lying on something level enough to roll belly-up on
+  DOOM.flat = UP.clone().applyQuaternion(DOOM.q).y > .8;
+  DOOM.killer = null; DOOM.lag = 0; DOOM.eatT = 0;
+  const A = sp.m.userData.parts.abd; DOOM.abdS = A ? A.scale.clone() : null;   // lying on something level enough to roll belly-up on
   if(pr){ pr.hunting = false; pr.sees = false; }
 }
 
@@ -467,6 +469,9 @@ function doomReset(){
   sp.pos.set(START.x, START.y, START.z); sp.vel.set(0, 0, 0); sp.yaw = 0;
   sp.m.visible = true; sp.m.scale.setScalar(1); sp.m.rotation.set(0, 0, 0); sp.m.position.copy(sp.pos); gaitRelease(sp.m);
   for(const pr of PREDS) predHome(pr);
+  if(DOOM.abdS && sp.m.userData.parts.abd) sp.m.userData.parts.abd.scale.copy(DOOM.abdS);
+  if(DOOM.killer) DOOM.killer.m.userData.parts.body.rotation.x = 0;
+  DOOM.killer = null;
   PRED.grace = 4; SEEN.last.copy(sp.pos); SEEN.speed = 0;
 }
 // bitten to death by a spider (no predator holds her): she convulses where she stands, her legs draw in, and on
@@ -478,12 +483,13 @@ function corpseTick(t){
   poseSpider(sp.m, {twitch: Math.sin(t*46)*.45*twitch, raise: .5*twitch*(1 - curl), crouch: 1 - curl, curl});
   sp.m.quaternion.copy(DOOM.q).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 0, 1), Math.PI*e));
   sp.m.position.copy(DOOM.at).addScaledVector(up, (2*P.body.position.y + .01)*e);
+  if(P.abd && DOOM.abdS){ const k = 1 - .4*sstep(0, 3, DOOM.eatT || 0); P.abd.scale.set(DOOM.abdS.x*k, DOOM.abdS.y*(.4 + .6*k), DOOM.abdS.z*(.7 + .3*k)); }   // sucked dry
 }
 function doomTick(dt){
   const el = $('#doom'); if(DOOM.t < 0){ if(!el.hidden) el.hidden = true; return; }
-  DOOM.t += dt; const t = DOOM.t;
+  DOOM.t += dt; const t = DOOM.t - (DOOM.lag || 0);   // a spider kill holds off the fade so you see it feed
   if(el.hidden) el.hidden = false;
-  if(!DOOM.by && !DOOM.reset) corpseTick(t);
+  if(!DOOM.by && !DOOM.reset) corpseTick(DOOM.t);
   const bg = t < 3.6 ? sstep(.9, 3.6, t) : 1 - sstep(6.8, 9, t);
   el.querySelector('.dm-bg').style.opacity = bg.toFixed(3);
   el.querySelector('.dm-a').style.opacity = (sstep(1.4, 2.4, t)*(1 - sstep(4.3, 4.9, t))).toFixed(3);
