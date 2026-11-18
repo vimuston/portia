@@ -661,10 +661,10 @@ function updateSpider(dt){
     else { I.dipTgt = 0; I.dipT = rr(2, 5); }
     I.dip += (I.dipTgt - I.dip)*(1 - Math.exp(-(on ? 3 : 12)*dt));
     // and a short shiver runs through the abdomen: a quick flutter, side to side and up and down, dying away
-    if(on){ I.shkT -= dt; if(I.shkT <= 0){ I.shk = rr(.35, .7); I.shkD = I.shk; I.shkT = rr(3, 8); } } else I.shk = 0;
+    if(on){ I.shkT -= dt; if(I.shkT <= 0){ I.shk = rr(.45, .85); I.shkD = I.shk; I.shkT = rr(3, 8); } } else I.shk = 0;
     if(I.shk > 0){ I.shk = Math.max(0, I.shk - dt); const f = I.shk/I.shkD, a = Math.sin(Math.PI*f)*(.6 + .4*f), t = I.t;
-      P.abd.rotation.x += a*.045*Math.sin(t*41); P.abd.rotation.y = a*.06*Math.sin(t*33 + 1.3); }
-    else P.abd.rotation.y = 0;
+      P.abd.rotation.x += a*.12*Math.sin(t*41); P.abd.rotation.y = a*.16*Math.sin(t*33 + 1.3); P.abd.rotation.z = a*.08*Math.sin(t*37 + .6); }
+    else P.abd.rotation.y = P.abd.rotation.z = 0;
     if(I.pr){
       const L = I.pr.L; I.pr.t += dt; const k = I.pr.t/I.pr.dur;
       if(!on || L.free || L.step || !L.planted || k >= 1){ I.pr = null; I.wait = rr(.8, 2.6); }
