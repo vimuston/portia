@@ -459,7 +459,12 @@ function updateSpider(dt){
       if(sp.climbHead.lengthSq() < 1e-4) sp.climbHead.set(0, 1, 0).addScaledVector(n, -n.y); if(sp.climbHead.lengthSq() < 1e-4) sp.climbHead.set(1, 0, 0); }
     sp.climbHead.normalize();
     if(spd > 0){                                                   // travel along the body's facing on the surface
-      const face = new V3(0, 0, 1).applyQuaternion(sp.m.quaternion); face.addScaledVector(n, -face.dot(n));
+      // the facing is carried over the fold from the body's own up to this surface's normal, not flattened onto it: just
+      // past a join (trunk onto a limb) the body still stands on the old surface, and "down the trunk" flattened onto a
+      // limb's top points into the crease, so she crawled round the limb's flank and never walked out along it
+      const face = new V3(0, 0, 1).applyQuaternion(sp.m.quaternion), bu = sp.m.userData.parts.up;
+      if(bu && bu.dot(n) > -.95) face.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(bu.clone().normalize(), n));
+      face.addScaledVector(n, -face.dot(n));
       if(face.lengthSq() > .04){ face.normalize(); const al = face.dot(t); spd *= al > 0 ? al*al : 0; lead *= al > 0 ? al*al : 0; t.copy(face); }
     }
     sp.moveVel.copy(t).multiplyScalar(snappy ? lead : spd);
@@ -473,10 +478,22 @@ function updateSpider(dt){
         if(sp.handT > 0 && S2 === sp.handFrom) continue;                       // no flicking straight back at the join
         if(t.dot(S2.normal(np)) > -.05) continue;                              // only when she is walking into it
         const q = np.clone(); S2.project(q); sp.handFrom = S; sp.handT = .6; sp.plat = S2; sp.pos.copy(q);
-        const n2 = S2.normal(q); sp.climbHead.copy(t).addScaledVector(n2, -t.dot(n2)); if(sp.climbHead.lengthSq() < 1e-4) sp.climbHead.set(0, 1, 0); sp.climbHead.normalize();
+        // her heading folds over the join with the surface (down a trunk onto a limb's top becomes out along the limb);
+        // flattened onto the limb instead, "down" off a near-level top is mostly noise and sent her round its flank
+        const n2 = S2.normal(q); sp.climbHead.copy(t); if(n.dot(n2) > -.95) sp.climbHead.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(n, n2));
+        sp.climbHead.addScaledVector(n2, -sp.climbHead.dot(n2)); if(sp.climbHead.lengthSq() < 1e-4) sp.climbHead.set(0, 1, 0); sp.climbHead.normalize();
+        // off a trunk onto a limb she sets off straight along it: arriving on its flank, the folded heading runs across
+        // the limb at a slant, and held keys then spiralled her round underneath it
+        if(S2.tube && !S.tube && S2._pts){ const P = S2._pts; let bi = 0, bd = 1e9;
+          for(let i = 0; i + 1 < P.length; i++){ const d = P[i].distanceToSquared(q) + P[i + 1].distanceToSquared(q); if(d < bd){ bd = d; bi = i; } }
+          const ax = P[bi + 1].clone().sub(P[bi]); ax.addScaledVector(n2, -ax.dot(n2));
+          if(ax.lengthSq() > 1e-8){ ax.normalize(); const c = ax.dot(sp.climbHead); if(Math.abs(c) > .3) sp.climbHead.copy(ax).multiplyScalar(Math.sign(c)); } }
         // off a trunk onto a limb (or back): the view levels or tilts, which would turn what W means and walk her straight
-        // back where she came from. Swing the camera to look along her new heading so held keys keep carrying her on
-        if(!!S.tree !== !!S2.tree){ const hz = Math.hypot(sp.climbHead.x, sp.climbHead.z); if(hz > .3){ cam.swing = Math.atan2(sp.climbHead.x, sp.climbHead.z); cam.swingDir = null; } sp.handT = 1; }
+        // back where she came from. Swing the camera to look along her new heading so held keys keep carrying her on.
+        // The young trees' crown limbs are 'tree' too (the view turns with them), so trunk <-> limb is told apart by 'tube'
+        // there the view's up turns over with her, so the swing has to keep re-aiming along her heading as it does (swingDir)
+        if(S.tree && S2.tree && !!S.tube !== !!S2.tube){ cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null; sp.handT = 1; }
+        else if(!!S.tree !== !!S2.tree){ const hz = Math.hypot(sp.climbHead.x, sp.climbHead.z); if(hz > .3){ cam.swing = Math.atan2(sp.climbHead.x, sp.climbHead.z); cam.swingDir = null; } sp.handT = 1; }
         sp.speed = spd; return;
       }
     }
