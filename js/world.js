@@ -309,16 +309,24 @@ function litterBake(im){
     im.getMatrixAt(n, M); const e = M.elements; if(Math.abs(e[12]) > R + 3 || Math.abs(e[14]) > R + 3) continue;
     for(let i = 0; i < nv; i++){ v.fromBufferAttribute(P, i).applyMatrix4(M); const gx = (v.x + R)/C, gz = (v.z + R)/C; w[i*3] = gx; w[i*3 + 1] = v.y; w[i*3 + 2] = gz;
       const ix = Math.round(gx), iz = Math.round(gz); if(ix >= 0 && iz >= 0 && ix < N && iz < N && v.y > top[iz*N + ix]) top[iz*N + ix] = v.y; }
+    // conservatively: every grid point within a cell's diagonal of the triangle takes the triangle's plane there, so
+    // all four corners of each cell it touches stand at or above it. The floor is read bilinearly, and bilinear
+    // blending reproduces a plane exactly, so between grid points it never dips below the piece. Sampling only the
+    // points inside left a leaf's edge, falling between two points, blended halfway down to whatever lay beneath: her
+    // feet stood under the blade there and her legs came up through it
     for(let t = 0; t < nt; t += 3){
       const a = (I ? I[t] : t)*3, b = (I ? I[t + 1] : t + 1)*3, c = (I ? I[t + 2] : t + 2)*3;
       const ax = w[a], az = w[a + 2], bx = w[b], bz = w[b + 2], cx = w[c], cz = w[c + 2], d = (bz - cz)*(ax - cx) + (cx - bx)*(az - cz);
       if(Math.abs(d) < 1e-9) continue;
-      const x0 = Math.max(0, Math.ceil(Math.min(ax, bx, cx))), x1 = Math.min(N - 1, Math.floor(Math.max(ax, bx, cx)));
-      const z0 = Math.max(0, Math.ceil(Math.min(az, bz, cz))), z1 = Math.min(N - 1, Math.floor(Math.max(az, bz, cz)));
+      const ya = w[a + 1], yb = w[b + 1], yc = w[c + 1], yMax = Math.max(ya, yb, yc), G = Math.SQRT2;
+      // the margin in each barycentric coordinate: one diagonal over the altitude onto that vertex's opposite edge
+      const m1 = G*Math.hypot(bx - cx, bz - cz)/Math.abs(d), m2 = G*Math.hypot(cx - ax, cz - az)/Math.abs(d), m3 = G*Math.hypot(ax - bx, az - bz)/Math.abs(d);
+      const x0 = Math.max(0, Math.ceil(Math.min(ax, bx, cx) - G)), x1 = Math.min(N - 1, Math.floor(Math.max(ax, bx, cx) + G));
+      const z0 = Math.max(0, Math.ceil(Math.min(az, bz, cz) - G)), z1 = Math.min(N - 1, Math.floor(Math.max(az, bz, cz) + G));
       for(let iz = z0; iz <= z1; iz++) for(let ix = x0; ix <= x1; ix++){
         const l1 = ((bz - cz)*(ix - cx) + (cx - bx)*(iz - cz))/d, l2 = ((cz - az)*(ix - cx) + (ax - cx)*(iz - cz))/d, l3 = 1 - l1 - l2;
-        if(l1 < -1e-4 || l2 < -1e-4 || l3 < -1e-4) continue;
-        const y = l1*w[a + 1] + l2*w[b + 1] + l3*w[c + 1], k = iz*N + ix; if(y > top[k]) top[k] = y;
+        if(l1 < -m1 || l2 < -m2 || l3 < -m3) continue;
+        const y = Math.min(yMax, l1*ya + l2*yb + l3*yc), k = iz*N + ix; if(y > top[k]) top[k] = y;   // (a piece standing on edge: no further up than its top)
       }
     }
   }
