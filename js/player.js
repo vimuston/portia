@@ -823,6 +823,47 @@ function updateSpider(dt){
   sp.hunger = Math.max(0, sp.hunger - dt*.006);
 }
 
+// the fly's six legs. Walking is an alternating tripod (front and hind of one side with the middle of the other),
+// the stride timed to its pace; grooming is what house flies do whenever they stop: front legs raised and rubbed
+// against each other, front legs wiped over the head, or hind legs rubbed together and stroked back over the wings.
+// In flight the legs hang; in her fangs they kick, then curl in as it dies. Per leg: s swings it back (+) or
+// forward (-), l lifts it, f folds the knee
+function flyLegTick(f, dt, t){
+  const U = f.m.userData, L = U.legs; if(!L) return;
+  const st = f.held ? 'held' : f.state, e = 1 - Math.exp(-9*dt);
+  f.walkW = (f.walkW || 0) + ((st === 'walk' ? 1 : 0) - (f.walkW || 0))*(1 - Math.exp(-12*dt));
+  if(st === 'walk') f.gait = (f.gait || 0) + dt*.3/.04*Math.PI*2;
+  const g = f.groom, w = t*15 + f.dir;                     // grooming strokes, a few a second
+  let pitch = 0;
+  for(let i = 0; i < 6; i++){
+    const leg = L[i], sx = leg.sx, k = leg.k, side = sx > 0 ? Math.PI : 0;
+    let s = 0, l = 0, fo = 0, y = 0;                     // y: the tibia swung in toward the midline at the knee
+    if(st === 'groom'){
+      const a = Math.sin(w + side), b = Math.cos(w + side);
+      if(g === 'front' && k === 0){ s = -.2; l = -.3 + .06*b; fo = -1 + .2*b; y = -1.8 + .18*a; }   // femora beside the face, tarsi crossed in front of it, sawing
+      else if(g === 'head' && k === 0){ const c = Math.sin(w*.7 + side), d = Math.cos(w*.7 + side); s = -.1 + .1*d; l = -.1 + .2*c; fo = -1.5 + .25*d; y = -1.9 + .2*c; }   // wiped over the eyes in loops
+      else if(g === 'hind' && k === 2){                   // hind tarsi rubbed together behind the abdomen, then stroked forward over the wings
+        const m = .5 + .5*Math.sin(w*.35);
+        s = .8 + (.3 - .8)*m; l = -.4 + .6*m; fo = -1.1 - .4*m; y = .4 + .6*m + .15*a;
+      }
+      else if(k === 1) s = g === 'hind' ? .2 : -.3;       // the middle pair braces under the body
+      pitch = g === 'hind' ? .14 : -.1;
+    } else if(st === 'fly'){ l = -.4; fo = -.15; s = k === 2 ? .25 : 0; }
+    else if(st === 'held'){
+      const bite = sp.feed && sp.feed.t < BITE_T, limp = f.limp || 0;
+      l = -.2*limp + (bite ? .25*Math.sin(t*31 + i*1.7) : 0); fo = .9*limp + (bite ? .3*Math.sin(t*23 + i*2.3) : 0);
+    }
+    leg.s += (s - leg.s)*e; leg.l += (l - leg.l)*e; leg.f += (fo - leg.f)*e; leg.y += (y - leg.y)*e;
+    let ws = 0, wl = 0, wf = 0;
+    if(f.walkW > .01){                                   // swing forward lifted, stance backward on the ground
+      const ph = f.gait + (((sx < 0) === (k !== 1)) ? 0 : Math.PI), up = Math.max(0, Math.sin(ph));
+      ws = Math.cos(ph)*.3*f.walkW; wl = up*.32*f.walkW; wf = up*.3*f.walkW;
+    }
+    leg.hip.rotation.y = sx*(leg.s + ws); leg.hip.rotation.z = sx*(leg.l + wl); leg.kn.rotation.z = -sx*(leg.f + wf); leg.kn.rotation.y = sx*leg.y;
+  }
+  if(!f.held){ f.pitch = (f.pitch || 0) + (pitch - (f.pitch || 0))*e; f.m.rotation.x = f.pitch; }
+}
+
 function updateFlies(dt, t){
   for(const f of flies){
     f.vib = 0; f.hear = 0; f.motion = 0;
@@ -837,7 +878,7 @@ function updateFlies(dt, t){
       const bite = sp.feed && sp.feed.t < BITE_T;
       w.forEach((p, i) => p.rotation.z = (i ? 1 : -1)*(bite ? .3 + Math.sin(t*95)*.6 : .05 + .5*(f.limp || 0)));
       f.motion = 0; f.vib = bite ? .6 : 0; f.temp += ((bite ? .8 : .7 - .3*(f.drain || 0)) - f.temp)*(1 - Math.exp(-2*dt));
-      flyLook(f, f.drain || 0); f.pos.copy(f.m.position); continue;
+      flyLook(f, f.drain || 0); flyLegTick(f, dt, t); f.pos.copy(f.m.position); continue;
     }
     let tTarget;
     if(f.state === 'fly'){
@@ -856,7 +897,7 @@ function updateFlies(dt, t){
         if(inPlat(f.plat, nx, nz, .12)){ f.pos.x = nx; f.pos.z = nz; } else f.dir += 2.2;
         f.m.rotation.y = f.dir;
         f.motion = .55; f.vib = Math.sin(t*26 + f.dir) > -.2 ? .9 : .35; tTarget = .72;
-        if(f.t > 2.5 + rnd()*3){ f.state = 'groom'; f.t = 0; }
+        if(f.t > 2.5 + rnd()*3){ f.state = 'groom'; f.t = 0; f.groom = ['front', 'head', 'hind', 'front'][Math.floor(rnd()*4)]; }
       } else {
         f.motion = .15; f.vib = .25; f.hear = Math.sin(t*1.7 + f.dir*3) > .85 ? .45 : 0; tTarget = .64;
         if(f.t > 1.5 + rnd()*3){ if(rnd() < .25) flyAway(f); else { f.state = 'walk'; f.t = 0; } }
@@ -864,7 +905,7 @@ function updateFlies(dt, t){
       if(f.state !== 'fly' && sp.mode === 'ground' && sp.speed > .7 && f.pos.distanceTo(sp.pos) < 1.8) flyAway(f);
     }
     f.temp += (tTarget - f.temp)*(1 - Math.exp(-1.5*dt));
-    f.m.position.copy(f.pos);
+    f.m.position.copy(f.pos); flyLegTick(f, dt, t);
   }
   for(const h of husks){ h.age += dt; h.temp = h.floor + (.7 - h.floor)*Math.exp(-h.age/14);
     if(h.fallH > 0){ h.fallV += 9*dt; h.fallH = Math.max(0, h.fallH - h.fallV*dt); h.m.position.y = h.y0 + h.fallH; if(h.fallH === 0) pulses.push({pos: h.m.position.clone(), amp: .25, decay: 6}); } }

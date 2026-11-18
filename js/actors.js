@@ -129,26 +129,35 @@ function makeFly(){
   part(new THREE.CylinderGeometry(.004, .006, .022, 6), lm, [0, -.03, .014], null, head).rotation.x = .35;
   part(SPH, new THREE.MeshStandardMaterial({color:0x6a5a44, roughness:.5}), [0, -.041, .019], [.007, .003, .006], head);
 
-  // legs: coxa, femur, tibia, two tarsal pieces, pale pads; six of them, each bristled
+  // legs: coxa, femur, tibia, two tarsal pieces, pale pads; six of them, each bristled. Each is jointed: a hip
+  // group at the coxa (yaw swings it fore and aft, z lifts it) and a knee group carrying the tibia and foot (z folds
+  // it, y swings it in toward the midline); flyLegTick poses them for walking, grooming, flight
   const Y = new V3(0, 1, 0);
-  const limb = (a, b, r0, r1, mat) => {
+  const limb = (a, b, r0, r1, mat, parent = g) => {
     const d = b.clone().sub(a), L = d.length(), m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, L, 5), mat);
-    m.position.copy(a).addScaledVector(d, .5); m.quaternion.setFromUnitVectors(Y, d.normalize()); g.add(m); return m;
+    m.position.copy(a).addScaledVector(d, .5); m.quaternion.setFromUnitVectors(Y, d.normalize()); parent.add(m); return m;
   };
-  const legBr = [];
+  const legs = [];
   for(const sx of [-1, 1]) for(let k = 0; k < 3; k++){
     const fz = [.03, .004, -.024][k], dz = [.024, .002, -.03][k];
     const base = new V3(sx*.02, .04, .046 - k*.026), knee = base.clone().add(new V3(sx*.042, .016, fz)),
       ankle = knee.clone().add(new V3(sx*.024, -.046, dz*.8)), mid = new V3(ankle.x + sx*.01, .012, ankle.z + dz*.5), foot = new V3(mid.x + sx*.006, .002, mid.z + dz*.4);
     const coxa = base.clone().lerp(knee, .22);
-    limb(base, coxa, .007, .006, lm); limb(coxa, knee, .0055, .0042, lm); limb(knee, ankle, .0038, .0028, lm); limb(ankle, mid, .0024, .002, lm); limb(mid, foot, .0019, .0016, lm);
-    for(const sz of [-1, 1]) part(SPH, pm, [foot.x + sz*.0015*sx, .0015, foot.z + sz*.0015], [.0022, .0012, .0022]);
-    for(const [a, b, n] of [[coxa, knee, 4], [knee, ankle, 5], [ankle, mid, 3]]) for(let i = 0; i < n; i++){
-      const p = a.clone().lerp(b, (i + .5)/n), out = new V3(sx*.006, .004, -.002 - trnd()*.003);
-      legBr.push(p, p.clone().add(out));
+    const hip = new THREE.Group(); hip.position.copy(base); hip.rotation.order = 'YXZ'; g.add(hip);
+    const kn = new THREE.Group(); kn.position.copy(knee).sub(base); hip.add(kn);
+    const H = v => v.clone().sub(base), K = v => v.clone().sub(knee);
+    limb(H(base), H(coxa), .007, .006, lm, hip); limb(H(coxa), H(knee), .0055, .0042, lm, hip);
+    limb(K(knee), K(ankle), .0038, .0028, lm, kn); limb(K(ankle), K(mid), .0024, .002, lm, kn); limb(K(mid), K(foot), .0019, .0016, lm, kn);
+    for(const sz of [-1, 1]) part(SPH, pm, K(new V3(foot.x + sz*.0015*sx, .0015, foot.z + sz*.0015)).toArray(), [.0022, .0012, .0022], kn);
+    const hBr = [], kBr = [];
+    for(const [a, b, n, arr, to] of [[coxa, knee, 4, hBr, H], [knee, ankle, 5, kBr, K], [ankle, mid, 3, kBr, K]]) for(let i = 0; i < n; i++){
+      const p = to(a.clone().lerp(b, (i + .5)/n)), out = new V3(sx*.006, .004, -.002 - trnd()*.003);
+      arr.push(p, p.clone().add(out));
     }
+    hip.add(new THREE.LineSegments(segsFrom(hBr), brM)); kn.add(new THREE.LineSegments(segsFrom(kBr), brM));
+    legs.push({hip, kn, sx, k, s: 0, l: 0, f: 0, y: 0});
   }
-  g.add(new THREE.LineSegments(segsFrom(legBr), brM));
+  g.userData.legs = legs;
 
   // halteres, behind the wing roots
   for(const sx of [-1, 1]){
