@@ -129,10 +129,39 @@ function wrapStart(){
   const ln = hot(new THREE.Line(segsFrom(pts), silkM(.9, 0xfbf8ee)), .3); ln.geometry.setDrawRange(0, 0); ln.frustumCulled = false;
   const thread = hot(new THREE.Line(segsFrom([new V3(), new V3()]), silkM(.75)), .3); thread.frustumCulled = false; thread.visible = false;
   B.add(ln); scene.add(thread); drawables.push(ln, thread);
-  DOOM.wrap = {ln, thread, pts, t: 0};
+  DOOM.wrap = {ln, thread, pts, t: 0, spin: 0};
+}
+// her body during the wrap: turned crosswise on the silk, lifted a little in its legs, and rolled about her long axis
+// like a spit while the bands go on; she keeps the last angle once it stops. Called after corpseTick has posed her.
+const sstepH = (a, b, x) => { x = Math.max(0, Math.min(1, (x - a)/(b - a))); return x*x*(3 - 2*x); };
+function wrapCorpsePose(){
+  const W = DOOM.wrap; if(!W) return;
+  const P = sp.m.userData.parts, k = sstepH(0, .45, W.t), q0 = sp.m.quaternion.clone();
+  const c = P.body.position.clone(), pivot = sp.m.position.clone().add(c.clone().applyQuaternion(q0));
+  const q = q0.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), k*Math.PI/2))
+    .multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 0, 1), W.spin));
+  sp.m.quaternion.copy(q);
+  sp.m.position.copy(pivot).addScaledVector(new V3(0, 1, 0).applyQuaternion(q0), k*c.y*.6).sub(c.applyQuaternion(q));
+}
+// the orb-weaver's abdomen while it wraps: bent up at the waist and swung part way toward her, its tip circling as it
+// pays out silk. Pivots at the pedicel; the rest pose is kept to restore
+function wrapAbdomen(p, t, on){
+  const A = p.m.userData.parts, abd = A.abd;
+  if(!abd.userData.rest){ abd.geometry.computeBoundingBox(); abd.userData.rest = {p: abd.position.clone(), q: abd.quaternion.clone(), al: abd.geometry.boundingBox.max.z}; }
+  const R = abd.userData.rest;
+  if(!(on > 0)){ abd.position.copy(R.p); abd.quaternion.copy(R.q); return; }
+  const pv = R.p.clone(); pv.z += R.al*.9;                              // the waist, just behind the carapace
+  const a0 = R.p.clone().sub(pv).normalize();
+  const tgt = A.body.worldToLocal(sp.m.userData.parts.body.getWorldPosition(new V3())).sub(pv).normalize();
+  const side = new V3().crossVectors(a0, new V3(0, 1, 0)).normalize();
+  const d = a0.clone().addScaledVector(tgt, .35).addScaledVector(new V3(0, 1, 0), .45)
+    .addScaledVector(side, .22*Math.cos(t*9)).addScaledVector(new V3(0, 1, 0), .18*Math.sin(t*9)).normalize();
+  const qd = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(a0, d), on);
+  abd.quaternion.copy(qd).multiply(R.q); abd.position.copy(pv).add(R.p.clone().sub(pv).applyQuaternion(qd));
 }
 function wrapTick(p, dt){
   const W = DOOM.wrap; W.t += dt;
+  W.spin += dt*9*sstepH(.35, .8, W.t)*(1 - sstepH(WRAP_T - .35, WRAP_T, W.t));   // she is rolled faster and faster, then held
   const n = Math.min(WRAP_N, Math.floor(W.t/WRAP_T*WRAP_N)); W.ln.geometry.setDrawRange(0, n);
   // the live strand: from its spinnerets (the tip of its abdomen) to the newest turn
   const A = p.m.userData.parts, ab = A.abd.getWorldPosition(new V3()), ca = A.cara.getWorldPosition(new V3());
@@ -143,7 +172,7 @@ function wrapClear(){
   const W = DOOM.wrap; if(!W) return;
   W.ln.removeFromParent(); scene.remove(W.thread);
   for(const o of [W.ln, W.thread]){ const i = drawables.indexOf(o); if(i >= 0) drawables.splice(i, 1); o.geometry.dispose(); }
-  if(DOOM.killer) DOOM.killer.m.userData.parts.body.rotation.z = 0;
+  if(DOOM.killer){ DOOM.killer.m.userData.parts.body.rotation.z = 0; if(DOOM.killer.kind === 'argiope') wrapAbdomen(DOOM.killer, 0, 0); }
   DOOM.wrap = null;
 }
 // the killer walks up to the corpse, fangs to it, and feeds, head dipping as it chews
@@ -161,12 +190,13 @@ function eatCorpse(p, dt){
     else { p.motion = 0; p.yaw = lerpAngle(p.yaw, Math.atan2(at.x - p.pos.x, at.z - p.pos.z), 1 - Math.exp(-6*dt)); } }
   if(DOOM.eatT > 0 || d <= EAT_D + .04){             // out of reach (she fell off its silk), it just waits
     if(DOOM.wrap && DOOM.wrap.t < WRAP_T) wrapTick(p, dt);    // the orb-weaver wraps her first
-    else { if(DOOM.wrap) DOOM.wrap.thread.visible = false; DOOM.eatT += dt; } }
+    else { if(DOOM.wrap){ DOOM.wrap.thread.visible = false; DOOM.wrap.t += dt; } DOOM.eatT += dt; } }
   p.vib = 0;
 }
 function eatPose(p, t){
   const P = p.m.userData.parts, W = DOOM.wrap;
-  if(W && W.t > 0 && W.t < WRAP_T){ P.body.rotation.z = .3*Math.sin(t*11); P.body.rotation.x = .1; return; }   // rocking as it throws the silk
+  if(W && p.kind === 'argiope') wrapAbdomen(p, t, W.t > 0 ? sstepH(0, .3, W.t)*(1 - sstepH(WRAP_T, WRAP_T + .4, W.t)) : 0);
+  if(W && W.t > 0 && W.t < WRAP_T){ P.body.rotation.z = .12*Math.sin(t*11); P.body.rotation.x = .1; return; }   // rocking a little as it throws the silk
   if(W) P.body.rotation.z = 0;
   if(!(DOOM.eatT > 0)) return;
   const k = Math.min(1, DOOM.eatT*2);

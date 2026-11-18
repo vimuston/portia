@@ -486,6 +486,7 @@ function corpseTick(t){
   poseSpider(sp.m, {twitch: Math.sin(t*46)*.45*twitch, raise: .5*twitch*(1 - curl), crouch: 1 - curl, curl});
   sp.m.quaternion.copy(DOOM.q).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 0, 1), Math.PI*e));
   sp.m.position.copy(DOOM.at).addScaledVector(up, (2*P.body.position.y + .01)*e);
+  if(DOOM.wrap) wrapCorpsePose();                   // an orb-weaver's kill: turned and rolled as it is wrapped
   if(P.abd && DOOM.abdS){ const k = 1 - .4*sstep(0, 3, DOOM.eatT || 0); P.abd.scale.set(DOOM.abdS.x*k, DOOM.abdS.y*(.4 + .6*k), DOOM.abdS.z*(.7 + .3*k)); }   // sucked dry
 }
 function doomTick(dt){
