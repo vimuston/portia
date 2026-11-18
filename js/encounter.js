@@ -32,7 +32,8 @@ function bossDo(p){
     peek: ['It stirs. Keep plucking.', false],
     out: p.rush > .6 ? ['It is rushing you. Switch to calming taps!', true] : ['It is coming. Wait, then leap.', false],
     back: ['It is going back. Pluck again.', false]})[p.state] || ['', false];
-  return ({hub: ['Pluck the web (hold Q) to lure it toward you.', false], pump: ['It is shaking the web. FREEZE.', true],
+  return ({hub: ['Pluck the web (hold Q) to lure it toward you.', false], pump: ['It is feeling for movement. FREEZE, or it strikes.', true],
+    lunge: ['It felt you move! Get off the web!', true],
     walk: ['It is coming toward the signal. Leap when it is close.', false], rush: ['It is coming to wrap you. Get off the web!', true],
     wrap: ['It is coming to wrap you. Get off the web!', true], return: ['It is going back to the hub. Follow softly.', false]})[p.state] || ['', false];
 }
