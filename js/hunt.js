@@ -108,11 +108,11 @@ function hurt(amount, msg){
 let KILLER_NOW = null;
 function die(by = KILLER_NOW){ doomStart(null); wrapClear();
   if(by && !by.dead){ DOOM.killer = by; DOOM.lag = 1.6; DOOM.eatT = 0;
-    if(by.kind === 'argiope'){ DOOM.lag += WRAP_T; wrapStart(); } } }
+    if(by.kind === 'argiope'){ DOOM.lag = WRAP_T; wrapStart(); } } }   // the fade comes as the wrapping ends: she goes out a white bundle
 // ---- the orb-weaver swathes what it kills before it feeds: rocking over the body, it draws silk from its
 // spinnerets and throws it round her band on band, end to end, until she is a pale bundle. Then the bite and the drain.
 // The cocoon is one long line in her body's frame, so it rides her death curl; it is revealed a little at a time.
-const WRAP_T = 2.4, WRAP_N = 480;
+const WRAP_T = 4.5, WRAP_N = 1400;
 function wrapStart(){
   const S = sp.m.userData.parts, B = S.body; sp.m.updateMatrixWorld(true);
   const a = B.worldToLocal(S.head.getWorldPosition(new V3())), b = B.worldToLocal(S.abd.getWorldPosition(new V3()));
@@ -121,15 +121,18 @@ function wrapStart(){
   const e2 = new V3().crossVectors(ax, e1), p0 = a.clone().addScaledVector(ax, -.4*L), span = 1.9*L, R = .5*L, pts = [];
   let th = 0;
   for(let i = 0; i < WRAP_N; i++){
-    const u = i/(WRAP_N - 1), s = .5 - .5*Math.cos(u*Math.PI*9);   // sweeps end to end and back, layer over layer
+    const u = i/(WRAP_N - 1), s = .5 - .5*Math.cos(u*Math.PI*21);   // sweeps end to end and back, layer over layer
     th += .5 + rnd()*.3;
     const r = R*Math.sqrt(Math.max(.06, 1 - (2*s - 1)**2))*(1 + .2*u + .1*(rnd() - .5));
     pts.push(p0.clone().addScaledVector(ax, s*span).addScaledVector(e1, Math.cos(th)*r).addScaledVector(e2, Math.sin(th)*r));
   }
   const ln = hot(new THREE.Line(segsFrom(pts), silkM(.9, 0xfbf8ee)), .3); ln.geometry.setDrawRange(0, 0); ln.frustumCulled = false;
   const thread = hot(new THREE.Line(segsFrom([new V3(), new V3()]), silkM(.75)), .3); thread.frustumCulled = false; thread.visible = false;
-  B.add(ln); scene.add(thread); drawables.push(ln, thread);
-  DOOM.wrap = {ln, thread, pts, t: 0, spin: 0};
+  // the silk film: as the bands pile up they close into a pale skin over her, thickening until she is hidden
+  const shroud = hot(new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), new THREE.MeshStandardMaterial({color:0xf4efe2, roughness:.9, transparent:true, opacity:0, depthWrite:false})), .3);
+  shroud.position.copy(p0).addScaledVector(ax, span/2); shroud.quaternion.setFromUnitVectors(new V3(0, 0, 1), ax); shroud.scale.set(R*1.3, R*1.3, span*.56);
+  B.add(ln, shroud); scene.add(thread); drawables.push(ln, thread, shroud);
+  DOOM.wrap = {ln, thread, shroud, pts, t: 0, spin: 0};
 }
 // her body during the wrap: turned crosswise on the silk, lifted a little in its legs, and rolled about her long axis
 // like a spit while the bands go on; she keeps the last angle once it stops. Called after corpseTick has posed her.
@@ -161,8 +164,9 @@ function wrapAbdomen(p, t, on){
 }
 function wrapTick(p, dt){
   const W = DOOM.wrap; W.t += dt;
-  W.spin += dt*9*sstepH(.35, .8, W.t)*(1 - sstepH(WRAP_T - .35, WRAP_T, W.t));   // she is rolled faster and faster, then held
+  W.spin += dt*9*sstepH(.35, .8, W.t);   // she is rolled faster and faster, to the end of the wrap
   const n = Math.min(WRAP_N, Math.floor(W.t/WRAP_T*WRAP_N)); W.ln.geometry.setDrawRange(0, n);
+  W.shroud.material.opacity = .9*sstepH(.25, 1, W.t/WRAP_T);
   // the live strand: from its spinnerets (the tip of its abdomen) to the newest turn
   const A = p.m.userData.parts, ab = A.abd.getWorldPosition(new V3()), ca = A.cara.getWorldPosition(new V3());
   const spin = ab.clone().addScaledVector(ab.clone().sub(ca), .8), tip = sp.m.userData.parts.body.localToWorld(W.pts[Math.max(0, n - 1)].clone());
@@ -171,7 +175,8 @@ function wrapTick(p, dt){
 function wrapClear(){
   const W = DOOM.wrap; if(!W) return;
   W.ln.removeFromParent(); scene.remove(W.thread);
-  for(const o of [W.ln, W.thread]){ const i = drawables.indexOf(o); if(i >= 0) drawables.splice(i, 1); o.geometry.dispose(); }
+  W.shroud.removeFromParent();
+  for(const o of [W.ln, W.thread, W.shroud]){ const i = drawables.indexOf(o); if(i >= 0) drawables.splice(i, 1); o.geometry.dispose(); }
   if(DOOM.killer){ DOOM.killer.m.userData.parts.body.rotation.z = 0; if(DOOM.killer.kind === 'argiope') wrapAbdomen(DOOM.killer, 0, 0); }
   DOOM.wrap = null;
 }
@@ -190,7 +195,8 @@ function eatCorpse(p, dt){
     else { p.motion = 0; p.yaw = lerpAngle(p.yaw, Math.atan2(at.x - p.pos.x, at.z - p.pos.z), 1 - Math.exp(-6*dt)); } }
   if(DOOM.eatT > 0 || d <= EAT_D + .04){             // out of reach (she fell off its silk), it just waits
     if(DOOM.wrap && DOOM.wrap.t < WRAP_T) wrapTick(p, dt);    // the orb-weaver wraps her first
-    else { if(DOOM.wrap){ DOOM.wrap.thread.visible = false; DOOM.wrap.t += dt; } DOOM.eatT += dt; } }
+    else { if(DOOM.wrap){ DOOM.wrap.thread.visible = false; DOOM.wrap.t += dt; DOOM.wrap.spin += dt*9; }   // still turning her as the light goes
+      DOOM.eatT += dt; } }
   p.vib = 0;
 }
 function eatPose(p, t){
