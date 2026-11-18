@@ -67,11 +67,11 @@ function stepToward(p, target, speed, dt, plat){
   p.yaw = gaitTurn(p.m, p.yaw, lerpAngle(p.yaw, Math.atan2(dx, dz), 1 - Math.exp(-8*dt))); p.phase += st*40;
   return L;
 }
-function argMove(p, target, speed, dt){
+function argMove(p, target, speed, dt, dash){   // dash: a strike, not a walk; the legs trail rather than set the pace
   const d = target.clone().sub(p.pos), L = d.length();
   if(L < .01) return L;
   let st = Math.min(L, speed*dt);
-  if(p.m.userData.parts.inited){ st *= .3 + .7*gaitSupport(p.m); st *= gaitLimit(p.m, d.clone().multiplyScalar(st/L)); }
+  if(p.m.userData.parts.inited && !dash){ st *= .3 + .7*gaitSupport(p.m); st *= gaitLimit(p.m, d.clone().multiplyScalar(st/L)); }
   p.pos.addScaledVector(d, st/L);
   p.fwd.lerp(d.normalize(), 1 - Math.exp(-6*dt)); p.phase += st*35;
   return L;
@@ -453,7 +453,7 @@ function updArgiope(p, dt, t){
     p.motion = 1; p.vib = 1.3;
     if(DOOM.t >= 0) p.state = 'return';
     else if(!onWeb){ p.state = 'return'; p.wary = 15; p.alert = .6; toast('You got off the web in time. It stays wary.'); }
-    else if(argMove(p, webPoint(sp.pos, R), 1.8, dt) < .3){ toast('The orb-weaver drives its fangs into you.'); die(); p.state = 'return'; p.alert = 0; }
+    else if(argMove(p, webPoint(sp.pos, R), 3.5, dt, true) < .3){ toast('The orb-weaver drives its fangs into you.'); die(); p.state = 'return'; p.alert = 0; }
   }
   if(p.state === 'hub'){
     argMove(p, C.clone().addScaledVector(n, .01), .3, dt); p.fwd.lerp(new V3(0, -1, 0), 1 - Math.exp(-3*dt));
