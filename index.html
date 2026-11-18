@@ -122,8 +122,15 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 .in-dots button[aria-current="true"]{background:var(--gold);border-color:var(--gold);box-shadow:0 0 8px rgba(216,70,58,.8);}
 .in-hint{font-family:var(--cz);color:#6a5636;font-size:10.5px;letter-spacing:.2em;}
 @media (max-width:560px){ .in-prey div{grid-template-columns:1fr;gap:0;} }
-#toast{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 12px;opacity:0;transition:opacity .4s;white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis;}
-#toast.on{opacity:1;}
+/* toast: a souls-style message band — parchment text on a dark strip that fades at the ends, gold hairlines above and below */
+#toast{position:absolute;left:50%;bottom:52px;transform:translate(-50%,8px);box-sizing:border-box;width:max-content;max-width:min(760px,calc(100% - 32px));
+  padding:11px 56px;text-align:center;font-size:17px;line-height:1.45;letter-spacing:.015em;color:var(--ink);text-shadow:0 1px 3px #000,0 0 10px #000;
+  background:linear-gradient(90deg,transparent,rgba(3,2,10,.84) 16%,rgba(3,2,10,.84) 84%,transparent);
+  opacity:0;transition:opacity .4s,transform .4s cubic-bezier(.2,.7,.2,1);pointer-events:none;}
+#toast::before,#toast::after{content:"";position:absolute;left:10%;right:10%;height:1px;background:linear-gradient(90deg,transparent,rgba(201,162,90,.7),transparent);}
+#toast::before{top:0;} #toast::after{bottom:0;}
+#toast.on{opacity:1;transform:translate(-50%,0);}
+@media (max-width:560px){ #toast{bottom:40px;font-size:15px;padding:9px 28px;} }
 #err{position:fixed;inset:auto 16px 16px 16px;color:#ff7a60;}
 /* loading screen: shown from first paint until the game has drawn its first frame, then fades into the intro */
 #loader{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:0 16px;background:var(--bg);transition:opacity .4s;}
@@ -146,19 +153,19 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #encounter .ec-do{margin:16px auto 0;max-width:560px;font-family:var(--font);font-size:clamp(14px,1.9vw,17px);color:#f4e6c8;letter-spacing:.02em;}
 #encounter .ec-do b{font-family:"Cinzel",serif;font-size:.78em;letter-spacing:.3em;color:#9c8a70;margin-right:10px;font-weight:700;}
 #encounter.ec-win .ec-name{color:#f2d27a;text-shadow:0 0 24px rgba(255,190,60,.55),0 2px 0 #000;}
-#bossbar{position:absolute;left:50%;bottom:62px;width:min(640px,calc(100% - 32px));transform:translateX(-50%);pointer-events:none;opacity:0;transition:opacity .6s;}
+#bossbar{position:absolute;left:50%;bottom:138px;width:min(640px,calc(100% - 32px));transform:translateX(-50%);pointer-events:none;opacity:0;transition:opacity .6s;}
 #bossbar.on{opacity:1;}
 #bossbar .bb-top{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:4px;}
-#bossbar .bb-name{font-family:"Cinzel",serif;font-weight:700;font-size:15px;letter-spacing:.12em;color:#eadcc0;text-shadow:0 1px 3px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#bossbar .bb-name{font-family:"Cinzel",serif;font-weight:700;font-size:17px;letter-spacing:.12em;color:#eadcc0;text-shadow:0 1px 3px #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 #bossbar .bb-lab{font-family:"Cinzel",serif;font-size:10px;letter-spacing:.28em;color:#9c8a70;white-space:nowrap;}
 #bossbar .bb-bar{height:9px;border:1px solid #6a5636;background:rgba(10,4,4,.85);box-shadow:0 0 0 1px #000,inset 0 0 6px #000;position:relative;overflow:hidden;}
 #bossbar .bb-bar i{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(180deg,#d8463a,#8c1414 60%,#5a0a0a);transition:width .25s;}
 #bossbar .bb-bar u{position:absolute;inset:0 auto 0 0;width:0;background:#e8c070;opacity:.55;transition:width 1.2s .4s;}
 #bossbar.nobar .bb-bar{display:none;}
 #bossbar.ally .bb-bar i{background:linear-gradient(180deg,#f2d27a,#b08a30 60%,#6a4e14);}
-#bossbar .bb-do{margin-top:7px;text-align:center;font-size:14px;color:#f4e6c8;text-shadow:0 1px 3px #000,0 0 8px #000;}
+#bossbar .bb-do{margin-top:8px;text-align:center;font-size:16px;letter-spacing:.01em;color:#f4e6c8;text-shadow:0 1px 3px #000,0 0 8px #000;}
 #bossbar .bb-do.hot{color:#ff8a6a;font-weight:600;}
-@media (max-width:560px){ #bossbar{bottom:70px;} #bossbar .bb-name{font-size:13px;} }
+@media (max-width:560px){ #bossbar{bottom:140px;} #bossbar .bb-name{font-size:14px;} #bossbar .bb-do{font-size:14.5px;} }
 /* look lab: the left-hand panel of filters, palettes and highlight effects (V shows / hides it) */
 #look{position:absolute;top:12px;left:16px;bottom:12px;width:300px;overflow-y:auto;display:grid;align-content:start;gap:9px;background:rgba(3,2,10,.8);backdrop-filter:blur(3px);scrollbar-width:thin;}
 #look .lk-h{display:flex;justify-content:space-between;align-items:baseline;} #look .lk-h b{font-size:13px;letter-spacing:.14em;} #look .lk-h span{color:#8a70d0;font-size:10px;}
