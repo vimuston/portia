@@ -160,21 +160,35 @@ function predWanderGoal(pr){
   }
   return pr.home.clone();
 }
-const PRED_FORGET = 8;
-const PRED_STANDOFF = 1.0;   // how far short of a frozen Portia it halts while stalking   // seconds out of sight before it gives up the hunt (the boss bar drains over this)
+const PRED_FORGET = 3;       // seconds out of sight before it gives up the hunt (the boss bar drains over this)
+const PRED_KEEP = 1.4;       // a sit-and-wait hunter: it never walks closer than this to her, she has to come within its reach
+const PRED_BORED = [6, 10];  // after giving up it ignores her for a while, so she can move again
 // what it sees: only Portia moving, and not sneaking
 function portiaVisible(){ return DOOM.t < 0 && PRED.grace <= 0 && !sp.sneaking && (SEEN.speed > .12 || sp.mode === 'air'); }
 // a trunk-bound mantis only hunts what is on its own bark: Portia down in the litter is beneath its notice
 const predCanReach = pr => !pr.trunk || (sp.mode === 'climb' && sp.plat === pr.trunk);
 function predSense(pr, dt){
-  const vis = portiaVisible() && predCanReach(pr) && pr.eyeWorld().distanceTo(sp.pos) < pr.range;
+  if(pr.bored > 0) pr.bored -= dt;
+  const vis = pr.bored <= 0 && portiaVisible() && predCanReach(pr) && pr.eyeWorld().distanceTo(sp.pos) < pr.range;
   if(vis){
     pr.sees = true; pr.seenT = 0; pr.last.copy(sp.pos);
-    if(!pr.hunting){ pr.hunting = true; pr.goal = null; pr.pause = 0; pr.best = 1e9; pr.stuckT = 0; }
+    // a few cautious steps her way at most, then it only turns to watch
+    if(!pr.hunting){ pr.hunting = true; pr.goal = null; pr.pause = 0; pr.best = 1e9; pr.stuckT = 0; pr.stalk = prr(.25, .6); }
   } else {
     pr.sees = false;
-    if(pr.hunting && (pr.seenT += dt) > PRED_FORGET){ pr.hunting = false; pr.goal = null; pr.pause = prr(8, 15); pr.gaveUp = true; }
+    if(pr.hunting && (pr.seenT += dt) > PRED_FORGET){
+      pr.hunting = false; pr.gaveUp = true; pr.bored = prr(...PRED_BORED);
+      pr.goal = predAwayGoal(pr); pr.pause = pr.goal ? 0 : prr(8, 15); pr.best = 1e9; pr.stuckT = 0;
+    }
   }
+}
+// losing interest, it wanders off to a spot on its trunk away from where it last saw her
+function predAwayGoal(pr){
+  if(!pr.trunk) return null;
+  let best = null, bd = -1;
+  for(let i = 0; i < 10; i++){ const q = predTreeSpot(pr.trunk); if(!q) continue;
+    const d = q.distanceTo(pr.last) - .5*q.distanceTo(pr.pos); if(d > bd){ bd = d; best = q; } }
+  return best;
 }
 // progress toward the goal; no headway for a while means stuck
 function predProgress(pr, goal, dt){
@@ -363,7 +377,7 @@ function makePred(kind){
   const pr = {kind, m, home, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10,
     reach: .32, range: 6, climby: .4, tree: true, trunk: null, hunting: false, sees: false, seenT: 0, last: new V3(),
     goal: null, pause: prr(15, 40), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, gaveUp: false,
-    motion: 0, temp: .42, self: false, hl: 0};
+    motion: 0, temp: .42, self: false, hl: 0, stalk: 0, bored: 0};
   m.userData.owner = pr; m.rotation.order = 'YXZ';
   const P = m.userData.parts;
   pr.eyeWorld = () => P.head.getWorldPosition(new V3());
@@ -379,7 +393,7 @@ function predHome(pr){
     if(T){ const g = floorAt(T.cx, T.cz), d = new V3(pr.home.x - T.cx, 0, pr.home.z - T.cz).normalize();
       pr.pos.copy(T.project(new V3(T.cx + d.x*40, g + 2.8, T.cz + d.z*40))); pr.surf = predTree(T); pr.trunk = T; pr.up.copy(T.normal(pr.pos)); pr.home.copy(pr.pos); }
   } pr.hop = null; pr.state = 'roam'; pr.kt = 0;
-  pr.hunting = false; pr.sees = false; pr.goal = null; pr.pause = prr(15, 40); pr.best = 1e9; pr.stuckT = 0;
+  pr.hunting = false; pr.sees = false; pr.goal = null; pr.pause = prr(15, 40); pr.best = 1e9; pr.stuckT = 0; pr.stalk = 0; pr.bored = 0;
   const a = Math.random()*6.28; pr.fwd.set(Math.sin(a), 0, Math.cos(a));
   pr.m.scale.setScalar(1);
   predOrient(pr, 1, null);
@@ -430,14 +444,15 @@ function updMantis(pr, dt){
     if(pr.sees && reachPt.distanceTo(spAt) < .85 && spAt.clone().sub(pr.pos).dot(pr.fwd) > 0){
       pr.state = 'strike'; pr.kt = 0; doomStart(pr); return;
     }
-    // stalking a Portia that has frozen where it last saw her: halt a body length short and wait, rather than walk onto her
-    const stop = !pr.sees && pr.last.distanceTo(sp.pos) < .3 ? PRED_STANDOFF : .45;
+    // it mostly holds its ground: turns to face her and edges a few steps closer, never nearer than PRED_KEEP, then
+    // just watches. She is caught only if she comes within reach of its forelegs.
     const d = predProgress(pr, pr.last, dt);
-    if(d > stop && pr.stuckT < 3){ const b = pr.pos.clone(); predWalk(pr, pr.last, .55*dt); want = pr.pos.clone().sub(b); walk = 1; }
-    else if(d > stop && pr.trunk){ pr.stuckT = 0; pr.best = d; }   // as close as the bark gets her: wait there, and follow if she moves
-    else if(d > stop && pr.stuckT >= 3){   // hop aims for the standoff point, not onto her (never off a trunk)
-      const aim = stop > .45 ? pr.last.clone().add(pr.pos.clone().sub(pr.last).setLength(stop)) : pr.last;
-      const T = predHopTarget(pr, aim, 1.2); pr.stuckT = 0; pr.best = d; if(T) predStartHop(pr, T, .35); }
+    if(pr.stalk > 0 && d > PRED_KEEP && pr.stuckT < 3){
+      const b = pr.pos.clone(); predWalk(pr, pr.last, .3*dt); want = pr.pos.clone().sub(b); walk = 1; pr.stalk -= want.length();
+    } else if(pr.stalk > 0 && d > PRED_KEEP && !pr.trunk){   // stuck on open ground: a hop toward the standoff point
+      const T = predHopTarget(pr, pr.last.clone().add(pr.pos.clone().sub(pr.last).setLength(PRED_KEEP)), 1.2);
+      pr.stuckT = 0; pr.best = d; pr.stalk = 0; if(T) predStartHop(pr, T, .35);
+    }
     if(walk === 0) want = pr.last.clone().sub(pr.pos);
   } else if(pr.pause > 0){ pr.pause -= dt; sway = Math.sin(pr.t*2.6)*.025; }       // swaying like a leaf in a breeze
   else {
