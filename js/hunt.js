@@ -693,25 +693,6 @@ function updatePrey(dt, t){
     if(d.lengthSq() > 0){ sp.pos.add(d); sp.m.position.add(d); for(const L of sp.m.userData.parts.legs){ L.foot.add(d); if(L.step){ L.step.from.add(d); L.step.to.add(d); } } }
   }
 }
-function preyInfo(p){
-  if(p.dead){ const F = sp.feed && sp.feed.p === p ? sp.feed : null;
-    if(!F) return ['DEAD · a shrivelled husk', 'a new resident will move in later'];
-    if(F.t < BITE_T) return ['VENOM · fangs striking', 'it convulses'];
-    if(F.t < BITE_T + GRAB_T) return ['seizing it in legs and palps', 'lifting it off its feet'];
-    return ['draining', '']; }
-  if(p.kind === 'scytodes'){
-    const facing = angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .7;
-    return [p.egg ? 'egg sac in its jaws — it cannot spit' : 'jaws empty — ARMED, spits forward',
-      p.egg ? 'it cannot spit: leap onto it' : (facing ? 'facing you — detour behind it, or drop from above' : 'facing away — leap onto its back')];
-  }
-  if(p.kind === 'badumna'){
-    const st = {retreat: p.sulk > 0 ? 'sulking deep in its tube' : 'hidden in its retreat', peek: 'stirring at the tube mouth',
-      out: p.rush > .6 ? 'RUSHING — switch to calming taps' : 'creeping toward the signal', back: 'returning to its retreat'}[p.state];
-    return [st, p.known ? `it answers to: ${PLUCKS.find(q => q.id === p.pref).name}` : 'pluck the sheet, try different signals · step during gusts'];
-  }
-  const st = {hub: 'motionless at the hub', pump: 'PUMPING the web — freeze or it strikes', lunge: 'LUNGING — it felt you move', walk: 'walking toward the signal', rush: 'RUSHING to wrap', return: 'returning to the hub', wrap: 'coming to wrap you'}[p.state];
-  return [st + (p.wary > 0 ? ' · wary' : ''), 'walk its web softly (Shift), drop from the leaf above (X), or pluck from the frame leaf'];
-}
 
 
 const ropeGeo = new THREE.BufferGeometry().setFromPoints([new V3(), new V3()]);
