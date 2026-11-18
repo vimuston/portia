@@ -472,6 +472,7 @@ function doomReset(){
   sp.m.visible = true; sp.m.scale.setScalar(1); sp.m.rotation.set(0, 0, 0); sp.m.position.copy(sp.pos); gaitRelease(sp.m);
   for(const pr of PREDS) predHome(pr);
   if(DOOM.abdS && sp.m.userData.parts.abd) sp.m.userData.parts.abd.scale.copy(DOOM.abdS);
+  wrapClear();
   if(DOOM.killer) DOOM.killer.m.userData.parts.body.rotation.x = 0;
   DOOM.killer = null;
   PRED.grace = 4; SEEN.last.copy(sp.pos); SEEN.speed = 0;

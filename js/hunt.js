@@ -106,7 +106,46 @@ function hurt(amount, msg){
 // a fatal bite: the same fade as the mantis kill (predators.js), with Portia dying where she was bitten. The
 // spider whose update dealt the bite (KILLER_NOW) stays to feed on her
 let KILLER_NOW = null;
-function die(by = KILLER_NOW){ doomStart(null); if(by && !by.dead){ DOOM.killer = by; DOOM.lag = 1.6; DOOM.eatT = 0; } }
+function die(by = KILLER_NOW){ doomStart(null); wrapClear();
+  if(by && !by.dead){ DOOM.killer = by; DOOM.lag = 1.6; DOOM.eatT = 0;
+    if(by.kind === 'argiope'){ DOOM.lag += WRAP_T; wrapStart(); } } }
+// ---- the orb-weaver swathes what it kills before it feeds: rocking over the body, it draws silk from its
+// spinnerets and throws it round her band on band, end to end, until she is a pale bundle. Then the bite and the drain.
+// The cocoon is one long line in her body's frame, so it rides her death curl; it is revealed a little at a time.
+const WRAP_T = 2.4, WRAP_N = 480;
+function wrapStart(){
+  const S = sp.m.userData.parts, B = S.body; sp.m.updateMatrixWorld(true);
+  const a = B.worldToLocal(S.head.getWorldPosition(new V3())), b = B.worldToLocal(S.abd.getWorldPosition(new V3()));
+  const ax = b.clone().sub(a), L = Math.max(.02, ax.length()); ax.normalize();
+  const e1 = new V3(0, 1, 0).addScaledVector(ax, -ax.y); if(e1.lengthSq() < 1e-4) e1.set(1, 0, 0).addScaledVector(ax, -ax.x); e1.normalize();
+  const e2 = new V3().crossVectors(ax, e1), p0 = a.clone().addScaledVector(ax, -.4*L), span = 1.9*L, R = .5*L, pts = [];
+  let th = 0;
+  for(let i = 0; i < WRAP_N; i++){
+    const u = i/(WRAP_N - 1), s = .5 - .5*Math.cos(u*Math.PI*9);   // sweeps end to end and back, layer over layer
+    th += .5 + rnd()*.3;
+    const r = R*Math.sqrt(Math.max(.06, 1 - (2*s - 1)**2))*(1 + .2*u + .1*(rnd() - .5));
+    pts.push(p0.clone().addScaledVector(ax, s*span).addScaledVector(e1, Math.cos(th)*r).addScaledVector(e2, Math.sin(th)*r));
+  }
+  const ln = hot(new THREE.Line(segsFrom(pts), silkM(.9, 0xfbf8ee)), .3); ln.geometry.setDrawRange(0, 0); ln.frustumCulled = false;
+  const thread = hot(new THREE.Line(segsFrom([new V3(), new V3()]), silkM(.75)), .3); thread.frustumCulled = false; thread.visible = false;
+  B.add(ln); scene.add(thread); drawables.push(ln, thread);
+  DOOM.wrap = {ln, thread, pts, t: 0};
+}
+function wrapTick(p, dt){
+  const W = DOOM.wrap; W.t += dt;
+  const n = Math.min(WRAP_N, Math.floor(W.t/WRAP_T*WRAP_N)); W.ln.geometry.setDrawRange(0, n);
+  // the live strand: from its spinnerets (the tip of its abdomen) to the newest turn
+  const A = p.m.userData.parts, ab = A.abd.getWorldPosition(new V3()), ca = A.cara.getWorldPosition(new V3());
+  const spin = ab.clone().addScaledVector(ab.clone().sub(ca), .8), tip = sp.m.userData.parts.body.localToWorld(W.pts[Math.max(0, n - 1)].clone());
+  W.thread.geometry.setFromPoints([spin, tip]); W.thread.visible = W.t < WRAP_T;
+}
+function wrapClear(){
+  const W = DOOM.wrap; if(!W) return;
+  W.ln.removeFromParent(); scene.remove(W.thread);
+  for(const o of [W.ln, W.thread]){ const i = drawables.indexOf(o); if(i >= 0) drawables.splice(i, 1); o.geometry.dispose(); }
+  if(DOOM.killer) DOOM.killer.m.userData.parts.body.rotation.z = 0;
+  DOOM.wrap = null;
+}
 // the killer walks up to the corpse, fangs to it, and feeds, head dipping as it chews
 const EAT_D = .13;
 function eatCorpse(p, dt){
@@ -120,12 +159,17 @@ function eatCorpse(p, dt){
       const st = Math.min(d - EAT_D, .3*dt); p.pos.x += (at.x - p.pos.x)/d*st; p.pos.z += (at.z - p.pos.z)/d*st;
       p.yaw = lerpAngle(p.yaw, Math.atan2(at.x - p.pos.x, at.z - p.pos.z), 1 - Math.exp(-8*dt)); p.phase += st*40; p.motion = .4; }
     else { p.motion = 0; p.yaw = lerpAngle(p.yaw, Math.atan2(at.x - p.pos.x, at.z - p.pos.z), 1 - Math.exp(-6*dt)); } }
-  if(DOOM.eatT > 0 || d <= EAT_D + .04) DOOM.eatT += dt;   // out of reach (she fell off its silk), it just waits
+  if(DOOM.eatT > 0 || d <= EAT_D + .04){             // out of reach (she fell off its silk), it just waits
+    if(DOOM.wrap && DOOM.wrap.t < WRAP_T) wrapTick(p, dt);    // the orb-weaver wraps her first
+    else { if(DOOM.wrap) DOOM.wrap.thread.visible = false; DOOM.eatT += dt; } }
   p.vib = 0;
 }
 function eatPose(p, t){
+  const P = p.m.userData.parts, W = DOOM.wrap;
+  if(W && W.t > 0 && W.t < WRAP_T){ P.body.rotation.z = .3*Math.sin(t*11); P.body.rotation.x = .1; return; }   // rocking as it throws the silk
+  if(W) P.body.rotation.z = 0;
   if(!(DOOM.eatT > 0)) return;
-  const P = p.m.userData.parts, k = Math.min(1, DOOM.eatT*2);
+  const k = Math.min(1, DOOM.eatT*2);
   P.body.rotation.x = k*(.22 + .1*Math.max(0, Math.sin(t*5.5)));
 }
 function killPrey(p){
