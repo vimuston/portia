@@ -751,6 +751,8 @@ function poseSpider(m, o){
     if(o.grab && L.k < 2){                       // first and second legs reach forward and close round the prey in her fangs
       const g = o.grab, G = L.k === 0 ? [-1.3, 1.15, 1.05, .8, .6] : [-1.0, 1.25, .8, .55, .4], gy = L.base*(L.k === 0 ? .3 : .62);
       for(let j = 0; j < 5; j++) a[j] += (G[j] - a[j])*g; y += (gy - y)*g; }
+    if(o.curl){ const c = o.curl, C = [.35, 2.0, 1.5, 1.1, 1.1];   // death curl: every leg folding tight under the body
+      for(let j = 0; j < 5; j++) a[j] += (C[j] - a[j])*c; y += (L.base*.55 - y)*c; }
     if(L.k === 3 && o.crouch){ a[0] -= o.crouch*.25; a[1] += o.crouch*.3; }
     for(let j = 0; j < 5; j++) L.joints[j].rotation.x = a[j];
     L.yawG.rotation.y = y;
