@@ -152,7 +152,8 @@ function hurt(amount, msg){
 let KILLER_NOW = null;
 function die(by = KILLER_NOW){ doomStart(null); wrapClear();
   if(by && !by.dead){ DOOM.killer = by; DOOM.lag = 1.6; DOOM.eatT = 0;
-    if(by.kind === 'argiope'){ DOOM.lag = WRAP_T; wrapStart(); } } }   // the fade comes as the wrapping ends: she goes out a white bundle
+    if(WRAPPERS.has(by.kind)){ DOOM.lag = WRAP_T; wrapStart(); } } }   // the fade comes as the wrapping ends: she goes out a white bundle
+const WRAPPERS = new Set(['argiope', 'badumna']);   // web spiders that swathe what they kill before feeding
 // ---- the orb-weaver swathes what it kills before it feeds: rocking over the body, it draws silk from its
 // spinnerets and throws it round her band on band, end to end, until she is a pale bundle. Then the bite and the drain.
 // The cocoon is one long line in her body's frame, so it rides her death curl; it is revealed a little at a time.
@@ -254,13 +255,14 @@ function wrapClear(){
   W.ln.removeFromParent(); scene.remove(W.thread);
   W.shroud.removeFromParent();
   for(const o of [W.ln, W.thread, W.shroud]){ const i = drawables.indexOf(o); if(i >= 0) drawables.splice(i, 1); o.geometry.dispose(); }
-  if(DOOM.killer){ DOOM.killer.m.userData.parts.body.rotation.z = 0; if(DOOM.killer.kind === 'argiope') wrapAbdomen(DOOM.killer, 0, 0); }
+  if(DOOM.killer){ DOOM.killer.m.userData.parts.body.rotation.z = 0; if(WRAPPERS.has(DOOM.killer.kind)) wrapAbdomen(DOOM.killer, 0, 0); }
   DOOM.wrap = null;
 }
 // the killer walks up to the corpse, fangs to it, and feeds, head dipping as it chews
 const EAT_D = .13;
+const eatD = p => p.kind === 'badumna' ? .2 : EAT_D;   // the house spider is much bigger than her: its fangs reach further out
 function eatCorpse(p, dt){
-  const at = DOOM.at;
+  const at = DOOM.at, EAT_D = eatD(p);
   let d;
   if(p.kind === 'argiope'){                         // along its own silk, to the point nearest her, a jaw's length short
     const aim = webPoint(at.clone().add(p.pos.clone().sub(at).setLength(EAT_D)), p.orb.R, p.orb);
@@ -282,9 +284,9 @@ function eatPose(p, t){
   if(W && W.t > 0 && W.t < WRAP_T){                 // leaning into each pull as it throws the silk
     const S = W.sk; P.body.rotation.z = S ? .05*(S.i % 2 ? 1 : -1)*Math.sin(Math.PI*S.pull) : 0; P.body.rotation.x = -.14; }   // head up, abdomen down
   else { if(W) P.body.rotation.z = 0; if(DOOM.eatT > 0){ const k = Math.min(1, DOOM.eatT*2); P.body.rotation.x = k*(.22 + .1*Math.max(0, Math.sin(t*5.5))); } }
-  if(W && p.kind === 'argiope'){
-    // the orb-weaver stands up tall on its legs, so the abdomen can curl down and forward with its spinnerets to her
-    P.body.position.y += WRAP_RISE*on; p.m.updateMatrixWorld(true);
+  if(W && WRAPPERS.has(p.kind)){
+    // it stands up tall on its legs, so the abdomen can curl down and forward with its spinnerets to her
+    P.body.position.y += WRAP_RISE*(P.s/1.7)*on; p.m.updateMatrixWorld(true);   // scaled to its size (the orb-weaver's s is 1.7)
     if(on > 0) for(const L of P.legs) if(L.foot && !L.free) legIK(L, P.body.worldToLocal(L.foot.clone()));   // feet stay on the silk
     wrapAbdomen(p, t, on); wrapLegs(p);              // still rolling her as it feeds, into the fade
   }
@@ -562,7 +564,21 @@ function updBadumna(p, dt){
   p.alert = Math.max(0, p.alert + preyNoise(p)*dt*1.2 - dt*.15);
   p.motion = 0; p.vib = 0;
   if(p.sulk > 0) p.sulk -= dt;
-  if(p.alert > 1 && p.sulk <= 0 && (p.state === 'retreat' || p.state === 'peek')){ p.sulk = 12; p.alert = .3; p.interest = 0; toast('It felt your footsteps. It will stay hidden for a while.'); }
+  // footsteps on its sheet read as prey blundering in: once it is sure, it bursts out and runs her down. Only getting
+  // off its silk saves her; then, having missed, it keeps to its tube a while
+  if(p.alert > 1 && p.sulk <= 0 && p.state !== 'lunge' && onSilkOf(p) && DOOM.t < 0){ p.state = 'lunge'; p.alert = 1; p.interest = 0; toast('It felt your footsteps — the house spider rushes out at you!'); }
+  if(p.state === 'lunge'){
+    p.pos.y += (BAD.plat.y - p.pos.y)*(1 - Math.exp(-14*dt));        // out of the tube mouth onto the sheet
+    const dx = sp.pos.x - p.pos.x, dz = sp.pos.z - p.pos.z, d = Math.hypot(dx, dz);
+    p.motion = 1; p.vib = 1.2;
+    if(DOOM.t >= 0) p.state = 'back';
+    else if(!onSilkOf(p)){ p.state = 'back'; p.sulk = 12; p.alert = .3; toast('You got off its sheet in time. It goes back and stays hidden a while.'); }
+    else if(d < .2){ toast('The house spider drives its fangs into you.'); die(); p.state = 'back'; p.alert = 0; }
+    else {                                                           // a dash: no gait limit, the legs scramble to keep up
+      const st = Math.min(d, 1.9*dt); p.pos.x += dx/d*st; p.pos.z += dz/d*st; p.phase += st*40;
+      p.yaw = gaitTurn(p.m, p.yaw, lerpAngle(p.yaw, Math.atan2(dx, dz), 1 - Math.exp(-14*dt)));
+    }
+  }
   if(p.state === 'retreat' || p.state === 'peek'){
     if(pk && p.sulk <= 0){
       if(pk === p.pref){ p.interest += dt*.32; p.peekT = 1; }        // only a heavy struggling fly is worth leaving the tube for
