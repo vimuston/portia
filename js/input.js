@@ -206,7 +206,7 @@ function drawLook(){
       <div class="pal">${Object.entries(GRADES).map(([k, g]) => `<button data-k="grade" data-v="${k}" aria-pressed="${LOOK.grade === k}"><i style="background:linear-gradient(90deg,${SAMPLES.map(c => css(gradeJS(c, g))).join(',')})"></i>${k}</button>`).join('')}</div>
       ${S('COLOUR')}</div>
     <div class="sec"><div class="label">PORTIA <span>make her stand out</span></div>
-      <div class="sw">${P_SWATCH.map(c => `<button data-k="pColor" data-v="${c}" style="background:${c}" aria-pressed="${LOOK.pColor === c}" title="${c}"></button>`).join('')}<input type="color" data-c="pColor" value="${LOOK.pColor}" title="any colour"></div>
+      <div class="sw">${P_SWATCH.map(c => `<button data-k="pColor" data-v="${c}" style="background:${c}" aria-pressed="${LOOK.pColor === c}"></button>`).join('')}<input type="color" data-c="pColor" value="${LOOK.pColor}"></div>
       <div class="label">HER LOOK <span>clean = unfiltered 3D</span></div><div class="opts">${Object.keys(HER_STYLES).map(k => btn('herStyle', k, k)).join('')}</div>
       <div class="label">OUTLINE COLOUR</div><div class="opts">${['white', 'black', 'accent'].map(k => btn('outCol', k, k)).join('')}</div>
       ${S('PORTIA')}</div>
