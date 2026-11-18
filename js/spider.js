@@ -756,7 +756,7 @@ function poseSpider(m, o){
     const ph = (o.phase || 0) + ((L.k + (L.side > 0 ? 0 : 1)) % 2)*Math.PI + L.k*.35;
     const lift = Math.max(0, Math.sin(ph))*(o.walk || 0);
     let a = [-.8 - lift*.45, 1.0 + lift*.25, .35, .25, .25], y = L.base + Math.cos(ph)*.2*(o.walk || 0)*L.side;
-    if(o.air){                                      // the leap, as slow-motion footage of a salticid shows it (see AIR_POSE)
+    if(o.air){                                      // the leap, as slow-motion footage of a Portia shows it (see AIR_POSE)
       const P = AIR_POSE[L.k], lk = o.launch || 0, ld = o.flight != null ? ss01((o.flight - P.from)/P.span) : o.land || 0;
       a = P.cruise.slice(); let yf = P.cy;
       if(lk > 0){ for(let j = 0; j < 5; j++) a[j] += (P.launch[j] - a[j])*lk; yf += (P.ly - yf)*lk; }
