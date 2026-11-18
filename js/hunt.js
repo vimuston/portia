@@ -264,7 +264,7 @@ function eatCorpse(p, dt){
   let d;
   if(p.kind === 'argiope'){                         // along its own silk, to the point nearest her, a jaw's length short
     const aim = webPoint(at.clone().add(p.pos.clone().sub(at).setLength(EAT_D)), p.orb.R, p.orb);
-    p.motion = argMove(p, aim, .5, dt) > .02 ? .4 : 0; d = p.pos.distanceTo(at);
+    p.motion = argMove(p, aim, .5, dt, true) > .02 ? .4 : 0; d = p.pos.distanceTo(at);   // no gait limit: a leg at full stretch must not stall it a step short of her
   } else { d = Math.hypot(at.x - p.pos.x, at.z - p.pos.z);
     if(d > EAT_D){                                  // straight to her: the legs catch up (no gait limit, so it can't stall)
       const st = Math.min(d - EAT_D, .3*dt); p.pos.x += (at.x - p.pos.x)/d*st; p.pos.z += (at.z - p.pos.z)/d*st;
