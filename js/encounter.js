@@ -93,7 +93,7 @@ function updateEncounter(dt){
 
 function updateHud(dt){
   updateEncounter(dt);
-  const pd = $('#legend .pd'); if(pd.hidden === !!pad.connected) pd.hidden = !pad.connected;
+  $('#hud').classList.toggle('pad-in', inputDev === 'pad');   // legend shows the last-used device's controls
   if(flashT > 0){ flashT -= dt; const e = 1.6 - flashT, f = $('#flash'); f.style.opacity = Math.max(0, Math.min(1, e/.18, flashT/.5)); f.style.transform = `translate(-50%, ${-50 - e*6}%)`; }
   if(toastT > 0){ toastT -= dt; if(toastT <= 0) $('#toast').classList.remove('on'); }
 }
