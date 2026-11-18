@@ -710,12 +710,12 @@ function palpTargets(sx, st, t, k){
     default:      return [1.0, sx*.2, .85];
   }
 }
-function animatePalps(P, st, t, dt, k = 0, drum = null){
+function animatePalps(P, st, t, dt, k = 0, drum = null, lift = 0){   // lift: fold them up (radians) clear of the surface, as in a landing dip
   if(!P.palps) return;
-  const e = 1 - Math.exp(-18*dt);
+  const e = 1 - Math.exp(-(lift ? 40 : 18)*dt);
   for(const q of P.palps){
     const [x, y, jx] = palpTargets(q.sx, st, t, k);
-    let X = x, JX = jx;
+    let X = x - lift, JX = jx;
     if(drum){ const d = drum(q.sx); X = 1.05 + .7*d; JX = .9 - .55*d; }      // a downward stroke onto the thread
     q.pa.rotation.x += (X - q.pa.rotation.x)*e; q.pa.rotation.y += (y - q.pa.rotation.y)*e; q.j.rotation.x += (JX - q.j.rotation.x)*e;
   }
@@ -738,6 +738,17 @@ function hlTick(dt, target){
   for(const f of flies) if(!(sp.feed && sp.feed.p === f)) f.hl = (f.hl || 0) + ((f === target ? 1 : 0) - (f.hl || 0))*e;
 }
 function scentNear(pos){ let c = 0; for(const v of SU.uChem.value){ if(v.w < .002) continue; c += v.w*Math.exp(-pos.distanceTo(new V3(v.x, v.y, v.z))*.3); } return Math.min(1, c); }
+// leg poses through a leap (joint angles femur..tarsus, + bends down; yaw 0 = straight ahead, PI = straight back).
+// launch: the hind pair (IV) has just kicked out straight behind, III with it, I-II thrust forward and held high;
+// cruise: I-II stay raised ahead, IV trails behind; land: the hind legs swing out sideways first, ready to grab, and
+// only at the very end do the raised front legs come down and reach for the surface.
+// from/span: where in the flight (0 take-off .. 1 touchdown) each pair turns to its landing pose
+const AIR_POSE = [
+  {launch: [-1.05, .4, .15, .1, .1],  ly: .4,  cruise: [-1.0, .45, .15, .1, .1],  cy: .4,  land: [-.45, .7, .3, .2, .15],  dy: .55, from: .8,  span: .17},
+  {launch: [-.7, .5, .2, .1, .1],     ly: .8,  cruise: [-.65, .55, .2, .1, .1],   cy: .9,  land: [-.25, .75, .3, .2, .15],  dy: 1.15, from: .7, span: .22},
+  {launch: [.12, .15, .05, .05, .05], ly: 2.4, cruise: [-.15, .45, .2, .1, .1],   cy: 2.0, land: [-.2, .65, .3, .2, .15],   dy: 1.5, from: .45, span: .35},
+  {launch: [.22, .06, .03, .02, .02], ly: 2.95, cruise: [.06, .22, .1, .05, .05], cy: 2.75, land: [-.25, .55, .25, .15, .15], dy: 1.85, from: .4, span: .35}];
+const ss01 = x => { x = Math.max(0, Math.min(1, x)); return x*x*(3 - 2*x); };
 function poseSpider(m, o){
   const {body, legs, s, h0, abd} = m.userData.parts;
   body.position.y = h0 - (o.crouch || 0)*.035*s + (o.bob || 0);
@@ -745,7 +756,12 @@ function poseSpider(m, o){
     const ph = (o.phase || 0) + ((L.k + (L.side > 0 ? 0 : 1)) % 2)*Math.PI + L.k*.35;
     const lift = Math.max(0, Math.sin(ph))*(o.walk || 0);
     let a = [-.8 - lift*.45, 1.0 + lift*.25, .35, .25, .25], y = L.base + Math.cos(ph)*.2*(o.walk || 0)*L.side;
-    if(o.air){ a = [-.35, .55, .2, .15, .1]; y = L.base*.85; }
+    if(o.air){                                      // the leap, as slow-motion footage of a salticid shows it (see AIR_POSE)
+      const P = AIR_POSE[L.k], lk = o.launch || 0, ld = o.flight != null ? ss01((o.flight - P.from)/P.span) : o.land || 0;
+      a = P.cruise.slice(); let yf = P.cy;
+      if(lk > 0){ for(let j = 0; j < 5; j++) a[j] += (P.launch[j] - a[j])*lk; yf += (P.ly - yf)*lk; }
+      if(ld > 0){ for(let j = 0; j < 5; j++) a[j] += (P.land[j] - a[j])*ld; yf += (P.dy - yf)*ld; }
+      y = L.side*Math.min(3.05, yf*(L.base*L.side/LEGDEF[L.k].yaw)); }   // scaled by this rig's own splay (the male's hind legs sit wider)
     if(o.hang){ a = [-1.15, 1.5, .55, .4, .3]; }
     if(L.k === 0 && o.raise){ const r = Math.max(0, Math.min(1.2, o.raise + (o.pump || 0)*L.side));   // pump: one front leg higher than the other
 a = [-.8 - r*.95, 1.0 - r*.75, .35 - r*.25, .25 - r*.1, .25]; y = L.base*(1 - r*.4) + r*.28*L.side*Math.sin(o.wave || 0); }

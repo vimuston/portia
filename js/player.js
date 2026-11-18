@@ -147,7 +147,7 @@ const randn = () => Math.sqrt(-2*Math.log(Math.random() + 1e-9))*Math.cos(6.2832
 const fromOwn = (S, from) => (!!from && (S === from || S.top === from || from.climb === S || from.under === S || (from.top && from.top === S))) || (sp.launchSet && sp.launchSet.has(S));
 const passOwn = (L, t) => (L === sp.leftFrom || (!!sp.leftFrom && sp.leftFrom.top === L)) && t < .45 && !(sp.aim && (sp.aim.plat === L || (sp.aim.plat && sp.aim.plat.top === L)));   // leaping off her own leaf toward somewhere else
 function startAir(){                                  // the dragline (if tied) stays anchored where it was tied
-  if(sp.plat) sp.leftFrom = sp.plat; sp.airT = 0; sp.planeLaunch = inOrbPlane(sp.pos); sp.orbGoal = null;   // off the leaf at its frame, in its plane: only a true pass through the orb holds her
+  if(sp.plat) sp.leftFrom = sp.plat; sp.airT = 0; sp.leapTilt = null; sp.planeLaunch = inOrbPlane(sp.pos); sp.orbGoal = null;   // off the leaf at its frame, in its plane: only a true pass through the orb holds her
   if(!sp.line){ sp.anchor.copy(sp.pos); sp.anchorPlat = sp.plat; }
   sp.mode = 'air'; sp.plat = null;
   sp.braked = false; sp.committed = false; sp.ropeL = sp.line ? sp.pos.distanceTo(sp.anchor) : 0; sp.plop = false;
@@ -183,6 +183,8 @@ function jump(){
   sp.heat = Math.min(1, sp.heat + .25 + sp.charge*.3);                 // leaping warms her muscles
   sp.climbGrace = Math.max(sp.climbGrace, .2);
   sp.yaw = sp.aim ? sp.aim.yaw : sp.yaw; sp.charging = false; sp.charge = 0;
+  const cl = (x, a) => Math.max(-a, Math.min(a, x));                   // this leap's lean (see the air pose in updateSpider)
+  sp.leapTilt = {roll: cl(randn()*.2, .38), pitch: .08 + Math.random()*.14, yaw: cl(randn()*.08, .16), ph: Math.random()*6.28};
   gusts.push({pos: sp.pos.clone(), amp: .9}); pulses.push({pos: sp.pos.clone(), amp: .5, decay: 6});
 }
 // at the top of the line: haul up over the edge and hop a short way in, turning to face the middle of the
@@ -294,8 +296,11 @@ function startBalloon(){
 }
 function endBalloon(){ if(!sp.balloon) return; sp.balloon = null; sp.committed = false; }
 function windVec(){ const w = SU.uWind.value; return new V3(w.x, 0, w.y).multiplyScalar(w.z); }
+// touchdown: her legs soak up the hit, the body sinking and dipping its nose, then springing back a hair past rest and
+// settling (a damped spring, stronger the harder she came down). Played in updateSpider's surface pose.
+function landBounce(v){ const s = v.length(); if(s > .6) sp.bounce = {t: 0, a: Math.min(1, .45 + s/9)}; }
 function land(p){
-  endBalloon(); sp.leapHit = null;
+  endBalloon(); sp.leapHit = null; if(sp.mode === 'air') landBounce(sp.vel);
   const plop = sp.plop; sp.plop = false;
   if(p.kind === 'climb'){ enterClimb(p, sp.pos.clone(), null); return; }   // back up the line onto bark or stone
   pulses.push({pos: sp.pos.clone(), amp: plop ? .5 : 1.1, decay: 3});
@@ -640,13 +645,24 @@ function updateSpider(dt){
   sp.raiseW += ((raiseT > 0 ? 1 : 0) - sp.raiseW)*(1 - Math.exp(-(raiseT > 0 ? 14 : 9)*dt));      // ~0.12 s up, a little slower down
   const raise = sp.raiseW > .02 ? sp.raiseLvl : 0, rw = sp.raiseW*sp.raiseW*(3 - 2*sp.raiseW);
   if(sp.mode === 'ground' || sp.mode === 'climb'){
-    if(sp.speed === 0) sp.moveVel.multiplyScalar(Math.exp(-12*dt));
+    if(sp.speed === 0) sp.moveVel.multiplyScalar(Math.exp(-12*dt)); sp.airPitch = null; sp.leapTilt = null;
     const climbing = sp.mode === 'climb';
     const pc = sp.pc || {}, snap = sp.sprinting && !sp.charging && !sp.noSnap, tidy = pc.ph === 'freeze' && pc.t < PACE.cad*2, hold = pc.ph === 'freeze' && !tidy;   // a freeze opens with one beat that tucks any straggling feet back under her
     bodyOnFeet(m, dt, sp.pos, climbing ? sp.climbHead : new V3(Math.sin(sp.yaw), 0, Math.cos(sp.yaw)), climbing ? sp.plat.normal(sp.pos) : UP, snap, sp.sneaking);
     // each snap ends with the body dropping a hair onto its freshly planted feet
-    { const J = sp.idle, B = m.userData.parts.body; B.rotation.set(J ? J.bx : 0, J ? J.by : 0, J ? J.bz : 0); }   // the body sways with the abdomen's shiver (last frame's, so the feet are solved against it)
-    poseSpider(m, {raise, crouch: sp.charging ? sp.charge : 0, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0)});   // idle dip: last frame's, so the feet are solved against it
+    let give = 0, nod = 0;                                               // landing bounce: + sinks, - rebounds
+    if(sp.bounce){ const B = sp.bounce; B.t += dt;
+      // one deep, slowish sink and a single smooth return, no oscillation: t·e^(1-t/τ), peaking (=a) at τ
+      const spring = t => t > 0 ? B.a*(t/.15)*Math.exp(1 - t/.15) : 0;
+      give = spring(B.t); nod = spring(B.t - .045);                      // the head lags the body: it keeps going down as the body turns back up
+      if(B.t > .9){ sp.bounce = null; give = nod = 0; } }               // back to ~2% by now (slow motion waits for this)
+    sp.bounceNod = Math.max(give, nod);
+    // the body sways with the abdomen's shiver (last frame's, so the feet are solved against it); on landing, inertia
+    // pitches her nose down as she sinks, and the head nods on through, then swings back
+    { const J = sp.idle, B = m.userData.parts.body; B.rotation.set((J ? J.bx : 0) + .17*give, J ? J.by : 0, J ? J.bz : 0); }
+    m.userData.parts.head.rotation.x = .1*nod;
+    // idle dip: last frame's, so the feet are solved against it; the landing drop is capped so the dipped head stays clear of the surface
+    poseSpider(m, {raise, crouch: sp.charging ? sp.charge : 0, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0) - .026*m.userData.parts.s*give});
     const cad = snap && (pc.ph === 'burst' || tidy) ? {t: pc.t, per: tidy ? PACE.cad : pc.cad, min: tidy ? .5 : 0} : null, onIt = snap && (pc.ph === 'burst' || pc.ph === 'freeze');
     gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => L.k === 0 && raise > 0});
     // raised front legs swing up out of their last standing pose; the lunge throws the body forward a touch
@@ -663,10 +679,26 @@ function updateSpider(dt){
     m.userData.parts.body.position.z = sp.lunge > 0 ? Math.sin(Math.PI*Math.max(0, Math.min(1, (.3 - sp.lunge - .05)/.22)))*.035 : 0;
   } else {
     gaitRelease(m); m.position.set(sp.pos.x, sp.pos.y, sp.pos.z); m.rotation.y = sp.yaw;
-    if(sp.mode === 'hang'){ m.rotation.x += (Math.PI/2 - m.rotation.x)*Math.min(1, dt*6); m.rotation.z *= .85; }   // hanging straight, head down
-    else { m.rotation.x = -Math.atan2(sp.vel.y, Math.hypot(sp.vel.x, sp.vel.z))*.6; m.rotation.y = Math.atan2(sp.vel.x, sp.vel.z); m.rotation.z = 0; }
+    if(sp.bounce){ sp.bounce = null; m.userData.parts.body.rotation.x = 0; m.userData.parts.head.rotation.x = 0; }   // off again before the landing settled
+    if(sp.mode === 'hang'){ m.rotation.x += (Math.PI/2 - m.rotation.x)*Math.min(1, dt*6); m.rotation.z *= .85; sp.airPitch = m.rotation.x; sp.leapTilt = null; }   // hanging straight, head down
+    else {   // nose follows the arc: she rocks up off the push and tips head-down to land front feet first
+      const t = sp.airT || 0, LH = sp.leapHit, k = LH && LH.t > 0 ? Math.min(1, t/LH.t) : null;
+      // never flown dead level: each leap carries its own lean (rolled to a side, nose a touch high, slightly skewed),
+      // swelling in off the push and wobbling as she flies, then mostly righted just before touchdown
+      const TL = sp.leapTilt, e = TL ? ss01(t/.12)*(k != null ? 1 - .7*ss01((k - .8)/.2) : 1) : 0;
+      const hz = Math.hypot(sp.vel.x, sp.vel.z), tgt = -Math.atan2(sp.vel.y, hz)*.75 - (TL ? TL.pitch*e : 0);
+      sp.airPitch = sp.airPitch == null ? tgt*.3 : sp.airPitch + (tgt - sp.airPitch)*(1 - Math.exp(-12*dt));
+      m.rotation.x = sp.airPitch; if(hz > 1e-4) m.rotation.y = Math.atan2(sp.vel.x, sp.vel.z) + (TL ? TL.yaw*e : 0);
+      m.rotation.z = TL ? (TL.roll + .05*Math.sin(t*11 + TL.ph))*e : 0; }
     m.userData.parts.body.position.z = 0; m.userData.parts.body.rotation.set(0, 0, 0);
-    poseSpider(m, {raise: raise*rw, air: sp.mode === 'air', hang: sp.mode === 'hang' && !sp.charging, wave: sp.plucking ? time*25 : 0});
+    let launch = 0, land = 0, flight = null;
+    if(sp.mode === 'air' && !sp.balloon){
+      const t = sp.airT || 0, LH = sp.leapHit;
+      launch = sp.plop ? 0 : 1 - ss01(t/.25);                                  // hind legs snap out straight behind, then ease to a trail
+      if(LH && LH.t > 0) flight = Math.min(1, t/LH.t);                          // each leg pair turns to its landing pose at its own point
+      else land = ss01(-sp.vel.y/3);                                            // a fall: legs fan out as she drops
+    }
+    poseSpider(m, {raise: raise*rw, air: sp.mode === 'air', launch, land, flight, hang: sp.mode === 'hang' && !sp.charging, wave: sp.plucking ? time*25 : 0});
   }
   // standing still a while she looks about: now and then she cocks her head to one side and holds it there, and a
   // front leg lifts and slowly feels the air ahead before settling back on its foothold, one leg at a time
@@ -726,7 +758,7 @@ function updateSpider(dt){
     else { sp.palpT = (sp.palpT || 0) - dt; const sc = scentNear(sp.pos);
       if(sp.palpT <= 0 || (sc > .45 && sp.palpSt !== 'taste')){ const r = rnd(); sp.palpSt = (sc > .45 && r < .85) || r < .45 ? 'taste' : r < .78 ? 'groom' : 'rest'; sp.palpT = rr(1.4, 3.6); }
       st = sp.palpSt; sp.palpK = sc; }
-    animatePalps(P, st, time, dt, sp.palpK || 0, sp.plucking ? pluckStroke : null); }
+    animatePalps(P, st, time, dt, sp.palpK || 0, sp.plucking ? pluckStroke : null, sp.bounce ? 1.1*(sp.bounceNod || 0) : 0); }   // the landing nod folds them up off the leaf
   // body heat: exertion warms her, rest lets her settle back
   sp.heat = Math.max(0, Math.min(1, sp.heat + (sp.speed*.08 + sp.charge*.15)*dt - .05*dt));
   sp.temp = .6 + .22*sp.heat;

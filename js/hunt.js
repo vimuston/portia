@@ -360,7 +360,7 @@ function endFeed(drained){
 function strike(){ const p = preyAt(sp.pos, .42); return !!p && pounce(p); }
 function enterClimb(S, at, hint){
   sp.leapHit = null;
-  const was = sp.mode;
+  const was = sp.mode; if(was === 'air') landBounce(sp.vel);
   if(S.setSide) S.setSide(at);
   if(S.web) S.lastOff = ARG_WEB.position.clone();
   endBalloon();

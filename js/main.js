@@ -14,4 +14,5 @@ function tick(dt){
 }
 window.__dbg.audio = AUDIO; window.__dbg.preds = PREDS; window.__dbg.doom = DOOM; window.__dbg.render = render; window.__dbg.aux = {AUX_MRT, AUX_STAT, get auxRT(){ return auxRT; }, get mrtRT(){ return mrtRT; }, get imgRT(){ return imgRT; }};
 window.__dbg.step =(secs, dt = 1/30) => { for(let t = 0; t < secs; t += dt) tick(dt); };   // drive the sim when frames are paused (testing)
-renderer.setAnimationLoop(() => tick(Math.min(clock.getDelta(), 1/30)));
+renderer.setAnimationLoop(() => { const d = Math.min(clock.getDelta(), 1/30); tick(d*slowmoScale(d)); updateSlowTip(); });   // slowmoScale: the debug slow-motion leap (input.js)
+window.__dbg.slowmo = SLOWMO;
