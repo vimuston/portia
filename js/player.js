@@ -622,7 +622,7 @@ function updateSpider(dt){
     const pc = sp.pc || {}, snap = sp.sprinting && !sp.charging && !sp.noSnap, tidy = pc.ph === 'freeze' && pc.t < PACE.cad*2, hold = pc.ph === 'freeze' && !tidy;   // a freeze opens with one beat that tucks any straggling feet back under her
     bodyOnFeet(m, dt, sp.pos, climbing ? sp.climbHead : new V3(Math.sin(sp.yaw), 0, Math.cos(sp.yaw)), climbing ? sp.plat.normal(sp.pos) : UP, snap, sp.sneaking);
     // each snap ends with the body dropping a hair onto its freshly planted feet
-    poseSpider(m, {raise, crouch: sp.charging ? sp.charge : 0, bob: pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0});
+    poseSpider(m, {raise, crouch: sp.charging ? sp.charge : 0, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0)});   // idle dip: last frame's, so the feet are solved against it
     const cad = snap && (pc.ph === 'burst' || tidy) ? {t: pc.t, per: tidy ? PACE.cad : pc.cad, min: tidy ? .5 : 0} : null, onIt = snap && (pc.ph === 'burst' || pc.ph === 'freeze');
     gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => L.k === 0 && raise > 0});
     // raised front legs swing up out of their last standing pose; the lunge throws the body forward a touch
@@ -647,7 +647,7 @@ function updateSpider(dt){
   // standing still a while she looks about: now and then she cocks her head to one side and holds it there, and a
   // front leg lifts and slowly feels the air ahead before settling back on its foothold, one leg at a time
   { const P = m.userData.parts, legsDown = sp.mode === 'ground' || sp.mode === 'climb', pcs = sp.pc || {};
-    const I = sp.idle || (sp.idle = {t: 0, roll: 0, rTgt: 0, rT: 2, pr: null, wait: 1, side: 1});
+    const I = sp.idle || (sp.idle = {t: 0, roll: 0, rTgt: 0, rT: 2, pr: null, wait: 1, side: 1, dip: 0, dipTgt: 0, dipT: 3, shk: 0, shkT: 2.5});
     const ok = legsDown && sp.speed < .02 && !sp.charging && !sp.posture && !sp.plucking && !sp.feed && raise === 0 && pcs.ph !== 'burst';
     I.t = ok ? I.t + dt : 0; const on = I.t > 1.5;
     if(on){
@@ -656,17 +656,30 @@ function updateSpider(dt){
     } else { I.rTgt = 0; I.rT = rr(1, 3); }
     I.roll += (I.rTgt - I.roll)*(1 - Math.exp(-(on ? 2.5 : 10)*dt));
     P.head.rotation.z = I.roll;
+    // now and then she settles a little lower on her legs, holds it, and rises again
+    if(on){ I.dipT -= dt; if(I.dipT <= 0){ if(I.dipTgt){ I.dipTgt = 0; I.dipT = rr(3, 7); } else { I.dipTgt = rr(.5, 1); I.dipT = rr(1.2, 3); } } }
+    else { I.dipTgt = 0; I.dipT = rr(2, 5); }
+    I.dip += (I.dipTgt - I.dip)*(1 - Math.exp(-(on ? 3 : 12)*dt));
+    // and a short shiver runs through the abdomen: a quick flutter, side to side and up and down, dying away
+    if(on){ I.shkT -= dt; if(I.shkT <= 0){ I.shk = rr(.35, .7); I.shkD = I.shk; I.shkT = rr(3, 8); } } else I.shk = 0;
+    if(I.shk > 0){ I.shk = Math.max(0, I.shk - dt); const f = I.shk/I.shkD, a = Math.sin(Math.PI*f)*(.6 + .4*f), t = I.t;
+      P.abd.rotation.x += a*.045*Math.sin(t*41); P.abd.rotation.y = a*.06*Math.sin(t*33 + 1.3); }
+    else P.abd.rotation.y = 0;
     if(I.pr){
       const L = I.pr.L; I.pr.t += dt; const k = I.pr.t/I.pr.dur;
       if(!on || L.free || L.step || !L.planted || k >= 1){ I.pr = null; I.wait = rr(.8, 2.6); }
       else {
         const ss = x => x*x*(3 - 2*x), e = ss(Math.min(1, k/.3))*ss(Math.min(1, (1 - k)/.25)), t = I.pr.t, s = P.s;
         const fb = P.body.worldToLocal(L.foot.clone()), front = L.k === 0;
-        if(front){
+        if(front && I.pr.high){                                                          // held up high, waved slowly overhead
+          fb.y += e*(.12 + .015*Math.sin(t*3.1))*s;
+          fb.z += e*(.01 + .012*Math.sin(t*1.7))*s;
+          fb.x += e*L.side*(.015 + .012*Math.sin(t*2.3 + .4))*s;
+        } else if(front){
           fb.y += e*(.05 + .012*Math.sin(t*4.3))*s;                                     // lifted, bobbing gently
           fb.z += e*(.024 + .014*Math.sin(t*2.1 + .7))*s;                               // reaching ahead and drawing back
           fb.x += e*L.side*(.008 + .01*Math.sin(t*1.6))*s;                              // and sweeping a touch outward
-        } else fb.y += e*.02*s;                                                         // another leg: just raised a little and set down again
+        } else fb.y += e*(I.pr.high ? .05 : .02)*s;                                    // another leg: raised a little (now and then higher) and set down again
         legIK(L, fb);
       }
     } else if(on){
@@ -674,7 +687,8 @@ function updateSpider(dt){
       if(I.wait <= 0){                                                                  // mostly the front legs, now and then one of the others
         const other = rnd() < .25, k = other ? 1 + Math.floor(rnd()*3) : 0, side = other ? (rnd() < .5 ? -1 : 1) : (I.side = -I.side);
         const L = P.legs.find(L => L.k === k && L.side === side && L.planted && !L.step && !L.free);
-        if(L) I.pr = {L, t: 0, dur: other ? rr(.7, 1.2) : rr(1.8, 3)}; else I.wait = .3; }
+        const high = rnd() < (other ? .3 : .35);                                       // every few raises one goes much higher
+        if(L) I.pr = {L, t: 0, high, dur: other ? rr(.7, 1.2) : rr(1.8, 3)*(high ? 1.25 : 1)}; else I.wait = .3; }
     }
   }
   updateHair(m, dt);
