@@ -1015,15 +1015,34 @@ const surfY = (p, x, z) => p.ground ? floorAt(x, z) : surfAt(p, x, z);   // the 
 // a blade's half-width (in units of w) at t along it: 0 at the base, 1 at the tip (as leafPoint draws it)
 const leafWd = (type, t) => type === 'heart' ? Math.pow(Math.sin(Math.PI*(.12 + .88*Math.pow(t, .8))), .7)*1.05
   : type === 'round' ? Math.sqrt(Math.max(0, 1 - (2*t - 1)**2)) : Math.pow(Math.sin(Math.PI*Math.pow(t, .85)), .8);
-// a leaf's walkable outline: the ellipse it always had (rx = .82w, rz = .78l), joined toward the tip by the blade's
-// own taper. The ellipse alone stopped 22% short of the tip, and on the big herb leaves that is a drooping tongue of
-// blade metres long, drawn but not there: she walked under or into it and could never get onto it. The base keeps
-// the ellipse (a heart's notch and the stalk lie beyond it). Star-shaped about the centre, so it is tabled as the
-// outline's radius per direction, in units of (w, l), and the "how far out" measure is radius over that
+// a leaf's walkable outline: the ellipse it always had (rx = .82w, rz = .78l), joined by the blade's own shape inset to
+// .8 of its half-width. The ellipse alone stopped 22% short of the tip, and on the big herb leaves that is a drooping
+// tongue of blade metres long, drawn but not there: she walked under or into it and could never get onto it. The base
+// half was kept to the ellipse at first, but a heart's lobes (and a round or lance blade's flanks) reach well past it:
+// walking toward the stalk she rolled under while half a metre of blade still lay ahead. So the blade is traced there
+// too, notch and all (the notch's V is cut by the same shift leafPoint gives a heart's base). Star-shaped about the
+// centre, so it is tabled as the outline's radius per direction, in units of (w, l), and the "how far out" measure is
+// radius over that. Placing leaves apart (leavesCrowd) keeps the old outline: the world is seeded, and a wider one
+// would reject other leaves and so change everything generated after them
 const LEAF_EDGE = {}, LEAF_EDGE_N = 720;
-function leafEdgeTable(type){
-  if(LEAF_EDGE[type]) return LEAF_EDGE[type];
-  const inN = (X, Z) => (X/.82)**2 + (Z/.78)**2 <= 1 || (Z <= 0 && Z >= -.97 && Math.abs(X) <= .8*leafWd(type, (1 - Z)/2));
+function leafBladePoly(type){                  // the blade's outline at .8 of its half-width, (X, Z) in units of (w, l)
+  const pt = (u, t) => { let yy = t*2 - 1; if(type === 'heart') yy += .32*(1 - Math.abs(u))*Math.pow(Math.max(0, 1 - t/.28), 2);
+    return [u*leafWd(type, t), -yy]; };
+  const P = [], N = 120;
+  for(let i = 0; i <= N; i++) P.push(pt(.8, i/N));                 // one flank, base to tip
+  for(let i = N; i >= 0; i--) P.push(pt(-.8, i/N));                // the other, back to the base
+  for(let i = 1; i < 40; i++) P.push(pt(-.8 + 1.6*i/40, 0));       // the base edge (a heart's notch)
+  return P;
+}
+const inPoly = (P, x, z) => { let c = false;
+  for(let i = 0, j = P.length - 1; i < P.length; j = i++){ const [xi, zi] = P[i], [xj, zj] = P[j];
+    if((zi > z) !== (zj > z) && x < (xj - xi)*(z - zi)/(zj - zi) + xi) c = !c; }
+  return c; };
+function leafEdgeTable(type, place = false){
+  const key = type + (place ? ':place' : '');
+  if(LEAF_EDGE[key]) return LEAF_EDGE[key];
+  const P = place ? null : leafBladePoly(type);
+  const inN = (X, Z) => (X/.82)**2 + (Z/.78)**2 <= 1 || (Z >= -.97 && (place ? Z <= 0 && Math.abs(X) <= .8*leafWd(type, (1 - Z)/2) : inPoly(P, X, Z)));
   const T = new Float32Array(LEAF_EDGE_N + 1);
   for(let i = 0; i <= LEAF_EDGE_N; i++){
     const a = -Math.PI + 2*Math.PI*i/LEAF_EDGE_N, ux = Math.cos(a), uz = Math.sin(a);
@@ -1031,11 +1050,11 @@ function leafEdgeTable(type){
     let hi = lo + .005; for(let k = 0; k < 12; k++){ const m = (lo + hi)/2; if(inN(ux*m, uz*m)) lo = m; else hi = m; }
     T[i] = lo;
   }
-  return LEAF_EDGE[type] = T;
+  return LEAF_EDGE[key] = T;
 }
-function leafE(p, lx, lz){                      // < 1 on the blade, 1 at its walkable edge, measured out from the centre
+function leafE(p, lx, lz, place = false){       // < 1 on the blade, 1 at its walkable edge, measured out from the centre
   const q = p.leaf, X = lx/q.w, Z = lz/q.l, r = Math.hypot(X, Z); if(r < 1e-9) return 0;
-  const T = leafEdgeTable(q.type), f = (Math.atan2(Z, X) + Math.PI)/(2*Math.PI)*LEAF_EDGE_N, i = Math.min(LEAF_EDGE_N - 1, Math.floor(f)), k = f - i;
+  const T = leafEdgeTable(q.type, place), f = (Math.atan2(Z, X) + Math.PI)/(2*Math.PI)*LEAF_EDGE_N, i = Math.min(LEAF_EDGE_N - 1, Math.floor(f)), k = f - i;
   return r/(T[i] + (T[i + 1] - T[i])*k);
 }
 // how far out (x, z) is on a top: 1 at its rim; and the reach of its rim from the centre (a cheap bounding radius)
@@ -1050,10 +1069,10 @@ function leavesCrowd(a, b){
   const H = leafGapH(a, b), V = leafGapV(a, b);
   if(Math.hypot(a.x - b.x, a.z - b.z) > platR(a) + platR(b) + H) return false;
   const grownIn = (p, x, z) => { const dx = x - p.x, dz = z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot), lx = dx*c - dz*s, lz = dx*s + dz*c;
-    const e = leafE(p, lx, lz); return e <= 1 || Math.hypot(lx, lz)*(1 - 1/e) <= H; };
+    const e = leafE(p, lx, lz, true); return e <= 1 || Math.hypot(lx, lz)*(1 - 1/e) <= H; };
   const probe = (p, o) => { const c = Math.cos(p.rot), s = Math.sin(p.rot);
     for(let i = 0; i <= 12; i++) for(let j = 0; j <= 12; j++){
-      const lx = (i/6 - 1)*p.leaf.w, lz = (j/6 - 1)*p.leaf.l; if(leafE(p, lx, lz) > 1) continue;
+      const lx = (i/6 - 1)*p.leaf.w, lz = (j/6 - 1)*p.leaf.l; if(leafE(p, lx, lz, true) > 1) continue;
       const x = p.x + lx*c + lz*s, z = p.z - lx*s + lz*c;
       if(grownIn(o, x, z) && Math.abs(surfAt(p, x, z) - surfAt(o, x, z)) < V) return true; }
     return false; };
@@ -1090,7 +1109,14 @@ function randomIn(p, margin = .2){
 }
 // surface height of a platform at (x, z), and clamping a point onto it
 function leafH(q, lx, lz){
-  const yy = Math.max(-1, Math.min(1, -lz/q.l)), t = (yy + 1)/2, wd = leafWd(q.type, t);
+  const yy = Math.max(-1, Math.min(1, -lz/q.l));
+  let t = (yy + 1)/2;
+  if(q.type === 'heart' && t < .45){   // leafPoint shifts a heart's base rows tipward (the lobes and notch): find the row that lands here
+    const f = t => 2*t - 1 + .32*(1 - Math.min(1, Math.abs(lx)/Math.max(1e-3, leafWd('heart', t)*q.w)))*Math.max(0, 1 - t/.28)**2 - yy;
+    if(f(0) >= 0) t = 0;
+    else { let lo = 0, hi = t; for(let k = 0; k < 16; k++){ const m = (lo + hi)/2; if(f(m) < 0) lo = m; else hi = m; } t = (lo + hi)/2; }
+  }
+  const wd = leafWd(q.type, t);
   const u = Math.max(-1, Math.min(1, lx/Math.max(1e-3, wd*q.w)));
   return Math.abs(u)*wd*q.fold*q.w - q.droop*Math.pow(Math.max(0, t - .65)/.35, 2)*q.l*.35 - .07*u*u*q.w;
 }
