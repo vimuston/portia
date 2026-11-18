@@ -190,8 +190,8 @@ function wrapAbdomen(p, t, on){
   const a0 = R.p.clone().sub(pv).normalize();
   const tgt = A.body.worldToLocal(sp.m.userData.parts.body.getWorldPosition(new V3())).sub(pv).normalize();
   const side = new V3().crossVectors(a0, new V3(0, 1, 0)).normalize();
-  const d = a0.clone().addScaledVector(tgt, .75)
-    .addScaledVector(side, .2*Math.cos(t*9)).addScaledVector(new V3(0, 1, 0), .15*Math.sin(t*9)).normalize();
+  const d = a0.clone().addScaledVector(tgt, .45)   // held low, tip a little toward her
+    .addScaledVector(side, .035*Math.cos(t*9)).addScaledVector(new V3(0, 1, 0), .02*Math.sin(t*9)).normalize();   // a small weave
   const qd = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(a0, d), on);
   abd.quaternion.copy(qd).multiply(R.q); abd.position.copy(pv).add(R.p.clone().sub(pv).applyQuaternion(qd));
 }
@@ -236,7 +236,7 @@ function eatPose(p, t){
   const P = p.m.userData.parts, W = DOOM.wrap;
   const on = W && W.t > 0 ? sstepH(0, .3, W.t)*(1 - sstepH(WRAP_T, WRAP_T + .4, W.t)) : 0;
   if(W && W.t > 0 && W.t < WRAP_T){                 // leaning into each pull as it throws the silk
-    const S = W.sk; P.body.rotation.z = S ? .14*(S.i % 2 ? 1 : -1)*Math.sin(Math.PI*S.pull) : 0; P.body.rotation.x = .1; }
+    const S = W.sk; P.body.rotation.z = S ? .05*(S.i % 2 ? 1 : -1)*Math.sin(Math.PI*S.pull) : 0; P.body.rotation.x = -.14; }   // head up, abdomen down
   else { if(W) P.body.rotation.z = 0; if(DOOM.eatT > 0){ const k = Math.min(1, DOOM.eatT*2); P.body.rotation.x = k*(.22 + .1*Math.max(0, Math.sin(t*5.5))); } }
   if(W && p.kind === 'argiope'){
     // the orb-weaver stands up tall on its legs, so the abdomen can curl down and forward with its spinnerets to her
