@@ -149,14 +149,15 @@ function wrapCorpsePose(){
   W.pivot = pivot; W.baseQ = q0.multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 1, 0), k*Math.PI/2));   // her frame, unrolled
 }
 // rolling her is legwork, hand over hand: on each stroke one front leg (left, then right) reaches off the silk, hooks
-// her near side and yanks it round, then lets go and goes back to its foothold while she lies still a moment. Strokes
-// differ in length and pace, so the roll comes in uneven jerks. She turns only while a leg is pulling.
+// her near side and yanks it round, then lets go and goes back to its foothold. Between pulls she keeps rolling,
+// slowly, as the other legs keep her turning: fast, slow, fast, slow. Strokes differ in length and pace.
 function strokeTick(W, dt){
-  const S = W.sk || (W.sk = {i: 0, t: -.45, D: .45, A: 1.6, base: 0, pull: 0, u: 0});   // the first waits for her to be turned
+  const S = W.sk || (W.sk = {i: 0, t: -.45, D: .45, A: 1.3, base: 0, pull: 0, u: 0, drift: 0});   // the first waits for her to be turned
   S.t += dt;
-  if(S.t >= S.D){ S.base += S.A; S.i++; S.t = 0; S.D = rr(.32, .6); S.A = rr(1.1, 2.3); }
-  S.u = Math.max(0, S.t)/S.D; S.pull = S.t < 0 ? 0 : sstepH(.22, .62, S.u);
-  W.spin = S.base + S.A*S.pull;
+  if(S.t >= S.D){ S.base += S.A; S.i++; S.t = 0; S.D = rr(.35, .6); S.A = rr(.9, 1.7); }
+  S.u = Math.max(0, S.t)/S.D; S.pull = S.t < 0 ? 0 : sstepH(.18, .68, S.u);
+  if(S.i || S.t > 0) S.drift += dt*1.1;               // the slow roll between pulls
+  W.spin = S.base + S.A*S.pull + S.drift;
 }
 function wrapLegs(p){
   const W = DOOM.wrap, S = W && W.sk; if(!S || S.t < 0 || !W.pivot) return;
