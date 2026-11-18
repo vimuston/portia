@@ -92,9 +92,8 @@ function updateEncounter(dt){
 
 function updateHud(dt){
   updateEncounter(dt);
-  // the spider card appears over a spider when the pointer hovers it or you look straight at it (not the one you're engaged with)
-  const W = innerWidth || 1280, H = innerHeight || 800, cands = [];
-  if(aimPt.x != null && !aimPt.pad) cands.push([aimPt.x, aimPt.y, 70]); cands.push([W/2, H/2, 90]);
+  // the spider card appears over a spider when you look straight at it (not the one you're engaged with); pointer hover does nothing
+  const W = innerWidth || 1280, H = innerHeight || 800, cands = [[W/2, H/2, 90]];
   let tg = null, best = 1e9, at = null;
   for(const p of [...PREY, male]){ if(p === ENC.tg || (p === male && (male.gone || male.dead))) continue; const c = (p.m.userData.parts.body || p.m).getWorldPosition(new V3()); if(c.distanceTo(camera.position) > 9) continue;
     const v = c.clone().project(camera); if(v.z > 1 || v.z < -1) continue; const sx = (v.x*.5 + .5)*W, sy = (.5 - v.y*.5)*H;
