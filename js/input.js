@@ -276,6 +276,7 @@ addEventListener('keydown', e => {
   // senses are always on (no 1-4 toggles)
   if(e.code === 'KeyG') toggleGuide(true);
   if(e.code === 'KeyH') $('#hud').classList.toggle('hidehud');
+  if(e.code === 'KeyP'){ cam.pov = cam.pov === false; toast(cam.pov ? 'camera: follows her roll' : 'camera: stays level'); }
   if(e.code === 'KeyV' && e.ctrlKey && e.shiftKey){ e.preventDefault(); toggleLook(); }
 });
 addEventListener('keyup', e => { keys[e.code] = false; if((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && shiftSolo && !introOpen()){ shiftSolo = false; toggleMove('dash'); }if(e.code === 'Space' && sp.charging) jump(); if(e.code === 'Space' && sp.balloon) endBalloon(); });

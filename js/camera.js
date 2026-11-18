@@ -49,13 +49,16 @@ const camQ = new THREE.Quaternion(), camUp = new V3(0, 1, 0);
 const camFwd = () => new V3(Math.sin(cam.yaw), 0, Math.cos(cam.yaw)).applyQuaternion(camQ);
 const camRight = () => new V3(-Math.cos(cam.yaw), 0, Math.sin(cam.yaw)).applyQuaternion(camQ);
 function camFrame(dt){
-  // the view stays level with the horizon everywhere (stone, stumps, the log, under leaves) except on the big trees,
-  // where it turns with the bark, and even there only once she has climbed clear of the floor
-  const onTree = sp.mode === 'climb' && sp.plat && sp.plat.tree;
-  let tu = onTree ? sp.plat.normal(sp.pos).clone() : UP.clone();
+  // POV mode (cam.pov, on by default): the view's up follows whatever she clings to (bark, stone, the log, under a
+  // leaf), so when she hangs upside down the view does too. Off: the view stays level everywhere except the big trees.
+  // Either way, near the floor the roll is eased out so the ground doesn't tilt as she steps onto a surface.
+  const pov = cam.pov !== false;
+  const onSurf = sp.mode === 'climb' && sp.plat && (pov ? !sp.plat.web : sp.plat.tree);
+  let tu = onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
   tu.normalize();
-  if(onTree){
-    const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), f = Math.max(0, Math.min(1, (clr - .25)/.55)), k = f*f*(3 - 2*f);
+  if(onSurf){
+    const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), lo = pov && !sp.plat.tree ? .04 : .25, span = pov && !sp.plat.tree ? .25 : .55;
+    const f = Math.max(0, Math.min(1, (clr - lo)/span)), k = f*f*(3 - 2*f);
     if(k < 1){ const ang = Math.acos(Math.max(-1, Math.min(1, tu.y)))*k, ax = new V3().crossVectors(UP, tu);
       if(ax.lengthSq() < 1e-8) ax.copy(camRight());
       tu = UP.clone().applyAxisAngle(ax.normalize(), ang); }
@@ -95,7 +98,7 @@ function updateCamera(dt){
   // the look angle is always yours: full range (negative = from below, looking up), and it follows quickly
   // under a leaf the view stays level and looks up at her from below: your whole pitch range maps onto the angles
   // below the blade (steeply under her … nearly edge-on), eased in and out as she goes under or comes back over
-  cam.under = (cam.under || 0) + ((under ? 1 : 0) - (cam.under || 0))*(1 - Math.exp(-4*dt));
+  cam.under = (cam.under || 0) + ((under && cam.pov === false ? 1 : 0) - (cam.under || 0))*(1 - Math.exp(-4*dt));
   const pu = -1.25 + (cam.pitch - CAM_PITCH_MIN)/(CAM_PITCH_MAX - CAM_PITCH_MIN)*1.17, pw = cam.pitch + (pu - cam.pitch)*cam.under;
   cam.pitchEff += (pw - cam.pitchEff)*(1 - Math.exp(-12*dt));
   // the point the camera orbits must itself be clear of solids (at a root/trunk join it can fall inside the
