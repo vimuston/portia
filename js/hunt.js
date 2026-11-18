@@ -146,7 +146,7 @@ function pounce(p){
   if(p.kind === 'scytodes' && !p.egg && angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .6){ spit(p); return false; }
   if(p.kind === 'badumna' && (p.state === 'retreat' || p.state === 'peek')) return false;
   if(p.kind === 'argiope' && p.state === 'pump'){ toast('The web is bucking — you cannot get a grip.'); return false; }
-  if(p.kind === 'argiope' && p.state === 'lunge'){ toast('It meets you fangs-first.'); die(); return false; }
+  if(p.kind === 'argiope' && p.state === 'lunge'){ toast('It meets you fangs-first.'); die(p); return false; }
   if(p === male){                                  // the spent suitor: no defence but flight
     p.dead = true; p.deadT = 0; p.drain = 0; p.flip = 0; sp.caught++; endBalloon();
     pulses.push({pos: p.pos.clone(), amp: 1.4, decay: .7}); AUDIO.sfx.bite(); toast('You turn on your mate. Fangs in, venom pumping.');
