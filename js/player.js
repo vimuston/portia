@@ -622,6 +622,7 @@ function updateSpider(dt){
     const pc = sp.pc || {}, snap = sp.sprinting && !sp.charging && !sp.noSnap, tidy = pc.ph === 'freeze' && pc.t < PACE.cad*2, hold = pc.ph === 'freeze' && !tidy;   // a freeze opens with one beat that tucks any straggling feet back under her
     bodyOnFeet(m, dt, sp.pos, climbing ? sp.climbHead : new V3(Math.sin(sp.yaw), 0, Math.cos(sp.yaw)), climbing ? sp.plat.normal(sp.pos) : UP, snap, sp.sneaking);
     // each snap ends with the body dropping a hair onto its freshly planted feet
+    { const J = sp.idle, B = m.userData.parts.body; B.rotation.set(J ? J.bx : 0, J ? J.by : 0, J ? J.bz : 0); }   // the body sways with the abdomen's shiver (last frame's, so the feet are solved against it)
     poseSpider(m, {raise, crouch: sp.charging ? sp.charge : 0, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0)});   // idle dip: last frame's, so the feet are solved against it
     const cad = snap && (pc.ph === 'burst' || tidy) ? {t: pc.t, per: tidy ? PACE.cad : pc.cad, min: tidy ? .5 : 0} : null, onIt = snap && (pc.ph === 'burst' || pc.ph === 'freeze');
     gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => L.k === 0 && raise > 0});
@@ -641,13 +642,13 @@ function updateSpider(dt){
     gaitRelease(m); m.position.set(sp.pos.x, sp.pos.y, sp.pos.z); m.rotation.y = sp.yaw;
     if(sp.mode === 'hang'){ m.rotation.x += (Math.PI/2 - m.rotation.x)*Math.min(1, dt*6); m.rotation.z *= .85; }   // hanging straight, head down
     else { m.rotation.x = -Math.atan2(sp.vel.y, Math.hypot(sp.vel.x, sp.vel.z))*.6; m.rotation.y = Math.atan2(sp.vel.x, sp.vel.z); m.rotation.z = 0; }
-    m.userData.parts.body.position.z = 0;
+    m.userData.parts.body.position.z = 0; m.userData.parts.body.rotation.set(0, 0, 0);
     poseSpider(m, {raise: raise*rw, air: sp.mode === 'air', hang: sp.mode === 'hang' && !sp.charging, wave: sp.plucking ? time*25 : 0});
   }
   // standing still a while she looks about: now and then she cocks her head to one side and holds it there, and a
   // front leg lifts and slowly feels the air ahead before settling back on its foothold, one leg at a time
   { const P = m.userData.parts, legsDown = sp.mode === 'ground' || sp.mode === 'climb', pcs = sp.pc || {};
-    const I = sp.idle || (sp.idle = {t: 0, roll: 0, rTgt: 0, rT: 2, pr: null, wait: 1, side: 1, dip: 0, dipTgt: 0, dipT: 3, shk: 0, shkT: 2.5});
+    const I = sp.idle || (sp.idle = {t: 0, roll: 0, rTgt: 0, rT: 2, pr: null, wait: 1, side: 1, dip: 0, dipTgt: 0, dipT: 3, shk: 0, shkT: 4, bx: 0, by: 0, bz: 0});
     const ok = legsDown && sp.speed < .02 && !sp.charging && !sp.posture && !sp.plucking && !sp.feed && raise === 0 && pcs.ph !== 'burst';
     I.t = ok ? I.t + dt : 0; const on = I.t > 1.5;
     if(on){
@@ -661,10 +662,12 @@ function updateSpider(dt){
     else { I.dipTgt = 0; I.dipT = rr(2, 5); }
     I.dip += (I.dipTgt - I.dip)*(1 - Math.exp(-(on ? 3 : 12)*dt));
     // and a short shiver runs through the abdomen: a quick flutter, side to side and up and down, dying away
-    if(on){ I.shkT -= dt; if(I.shkT <= 0){ I.shk = rr(.45, .85); I.shkD = I.shk; I.shkT = rr(3, 8); } } else I.shk = 0;
+    if(on){ I.shkT -= dt; if(I.shkT <= 0){ I.shk = rr(.45, .85); I.shkD = I.shk; I.shkT = rr(7, 16); } } else I.shk = 0;
     if(I.shk > 0){ I.shk = Math.max(0, I.shk - dt); const f = I.shk/I.shkD, a = Math.sin(Math.PI*f)*(.6 + .4*f), t = I.t;
-      P.abd.rotation.x += a*.12*Math.sin(t*41); P.abd.rotation.y = a*.16*Math.sin(t*33 + 1.3); P.abd.rotation.z = a*.08*Math.sin(t*37 + .6); }
-    else P.abd.rotation.y = P.abd.rotation.z = 0;
+      const sx = Math.sin(t*41), sy = Math.sin(t*33 + 1.3), sz = Math.sin(t*37 + .6);
+      P.abd.rotation.x += a*.085*sx; P.abd.rotation.y = a*.11*sy; P.abd.rotation.z = a*.055*sz;
+      I.bx = -a*.018*sx; I.by = -a*.03*sy; I.bz = a*.02*sz; }                         // the front of the body rocks back against it, a little
+    else { P.abd.rotation.y = P.abd.rotation.z = 0; I.bx = I.by = I.bz = 0; }
     if(I.pr){
       const L = I.pr.L; I.pr.t += dt; const k = I.pr.t/I.pr.dur;
       if(!on || L.free || L.step || !L.planted || k >= 1){ I.pr = null; I.wait = rr(.8, 2.6); }
