@@ -34,17 +34,19 @@ function pickTarget(px, py){
   const ndc = new V3(px/W*2 - 1, -(py/H*2 - 1), .5).unproject(camera), o = camera.position.clone(), d = ndc.sub(o).normalize();
   if(!isFinite(d.x + d.y + d.z + o.x + o.y + o.z)) return {pos: sp.pos.clone().add(new V3(Math.sin(sp.yaw), 0, Math.cos(sp.yaw))), hit: false};
   const p = new V3(), q = new V3(); let t = .05;
-  // Argiope in its orb: pointing at her aims at her (seen edge-on, the sheet itself is too thin to pick out)
-  let argB = !ARGI.dead && !ARGI.dropped ? ARGI.m.userData.parts.body.getWorldPosition(new V3()) : null;
-  const tA = argB ? argB.clone().sub(o).dot(d) : -1; if(!(tA > 0 && o.clone().addScaledVector(d, tA).distanceTo(argB) < .3)) argB = null;   // only if the ray passes over her
+  // an Argiope in its orb: pointing at her aims at her (seen edge-on, the sheet itself is too thin to pick out)
+  let argB = null, argO = null, tA = -1;
+  for(const O of ORBS){ const A = O.spider; if(A.dead || A.dropped) continue;
+    const b = A.m.userData.parts.body.getWorldPosition(new V3()), tb = b.clone().sub(o).dot(d);
+    if(tb > 0 && o.clone().addScaledVector(d, tb).distanceTo(b) < .3 && (!argB || tb < tA)){ argB = b; argO = O; tA = tb; } }   // only if the ray passes over her
   for(const P of PLAT) if(P._br === undefined) P._br = platR(P) + .01;   // bounding radius: cheap reject before the outline test
   for(let i = 0; i < 260 && t < 26; i++){
     q.copy(p); p.copy(o).addScaledVector(d, t);
     // well above the baked coarse soil (and the litter on it)? then she can't be at the floor: skip the full noise lookup
     const fy = LIT.h && Math.abs(p.x) < LIT.R - 1 && Math.abs(p.z) < LIT.R - 1 && p.y > litSoil(p.x, p.z) + .25 && p.y > litTop(p.x, p.z) ? -Infinity : floorAt(p.x, p.z);
     if(p.y <= fy){ p.y = fy; return {pos: p.clone(), hit: true, plat: GROUND}; }
-    if(argB && t >= tA){ const h = argB.clone(); WEB.project(h); return {pos: h, hit: true, plat: WEB}; }
-    if(i > 0 && !argB){ const hw = orbContact(q, p, false); if(hw) return {pos: hw.addScaledVector(ARG.n, -Math.sign(o.clone().sub(ARG.C).dot(ARG.n) || 1)*.005), hit: true, plat: WEB}; }   // the orb: wherever the ray passes through it, out to its frame
+    if(argB && t >= tA){ const h = argB.clone(); argO.S.project(h); return {pos: h, hit: true, plat: argO.S}; }
+    if(i > 0 && !argB){ const hw = orbContact(q, p, false); if(hw){ const O = hw.orb; return {pos: hw.addScaledVector(O.n, -Math.sign(o.clone().sub(O.C).dot(O.n) || 1)*.005), hit: true, plat: O.S}; } }   // an orb: wherever the ray passes through it, out to its frame
     for(const P of PLAT){ if(P.ground || (argB && P === sp.plat)) continue; const bx = p.x - P.x, bz = p.z - P.z; if(bx*bx + bz*bz > P._br*P._br || !inPlat(P, p.x, p.z)) continue; const sy = surfAt(P, p.x, p.z);
       if(i > 0 && q.y >= sy && p.y <= sy + .002){ p.y = sy; return {pos: p.clone(), hit: true, plat: P}; } }
     const cm = Math.max(.015, (.02 + t*.012)*.6);                                  // half a ray step (and a bit): a thin limb is never stepped over
@@ -89,7 +91,7 @@ function bestLeap(T, plat){
   let alt = null;
   for(const o of [0, .25, .5, -.15, .75, 1.0]){
     const s = o ? solveLeap(T, o, plat) : sol; if(!s.ok) continue;
-    const h = predictLeap(s.v.clone(), null, plat === WEB ? T : null); if(!h) continue;
+    const h = predictLeap(s.v.clone(), null, plat && plat.web ? T : null); if(!h) continue;
     if(h.plat === plat) return s;
     if(!alt && same(h.plat)) alt = s;
   }
@@ -119,11 +121,11 @@ function leapVel(dyaw = 0, dpitch = 0, ks = 1){
   return v;
 }
 // follow the arc until it meets something she'd stop on: a top, the soil, bark or stone, a leaf from below, the orb
-function predictLeap(v, out, goal = sp.aim && sp.aim.plat === WEB ? sp.aim.target : null){
+function predictLeap(v, out, goal = sp.aim && sp.aim.plat && sp.aim.plat.web ? sp.aim.target : null){
   const p = sp.pos.clone(), q = new V3(), dt = 1/60, own = sp.plat, inPlane = inOrbPlane(sp.pos);
   for(let t = 0; t < 3; t += dt){
     q.copy(p); v.y -= G*dt; p.addScaledVector(v, dt); p.y += .5*G*dt*dt; if(out) out.push(p.clone());
-    const hw = orbHit(q, p, inPlane, goal); if(hw) return {pos: hw, n: ARG.n.clone().multiplyScalar(Math.sign(q.clone().sub(ARG.C).dot(ARG.n)) || 1), t, plat: WEB};
+    const hw = orbHit(q, p, inPlane, goal); if(hw){ const O = hw.orb; return {pos: hw, n: O.n.clone().multiplyScalar(Math.sign(q.clone().sub(O.C).dot(O.n)) || 1), t, plat: O.S}; }
     const near = climbsNear(p.x, p.z, .5), segL = q.distanceTo(p);
     if(segL > .04 && near.length){ const n = Math.min(10, Math.ceil(segL/.04)), pt = new V3();                      // sweep between steps, as the real flight does: thin branches are never skipped
       for(let k = 1; k < n; k++){ pt.lerpVectors(q, p, k/n);
@@ -178,7 +180,7 @@ function jump(){
   const fromBark = sp.mode === 'climb' && !underLeaf() ? sp.plat.normal(sp.pos) : null; sp.leftFrom = sp.plat;
   if(sp.mode === 'ground' || sp.mode === 'climb') startAir();
   else { sp.mode = 'air'; sp.braked = false; sp.committed = false; sp.ropeL = sp.pos.distanceTo(sp.anchor); }
-  sp.tried = null; sp.vel.copy(v); sp.airT = 0; sp.aimWanted = sp.aim ? sp.aim.plat : null; sp.leapHit = leapHit; sp.orbGoal = sp.aim && sp.aim.ok && sp.aim.plat === WEB ? sp.aim.target.clone() : null;
+  sp.tried = null; sp.vel.copy(v); sp.airT = 0; sp.aimWanted = sp.aim ? sp.aim.plat : null; sp.leapHit = leapHit; sp.orbGoal = sp.aim && sp.aim.ok && sp.aim.plat && sp.aim.plat.web ? sp.aim.target.clone() : null;
   if(fromBark){ sp.pos.addScaledVector(fromBark, .03); sp.climbGrace = .4; }    // clear of the bark by a hair; no extra push, so she flies the arc she aimed
   sp.heat = Math.min(1, sp.heat + .25 + sp.charge*.3);                 // leaping warms her muscles
   sp.climbGrace = Math.max(sp.climbGrace, .2);
@@ -516,11 +518,11 @@ function updateSpider(dt){
         // the orb sways along its normal (a few cm when the Argiope pumps it), so the pivot rides with the web and the
         // far face is set outright: re-reading it from a world point after the roll can land back on the old one
         const n0 = S.normal(np), out = t.clone().addScaledVector(n0, -t.dot(n0)).normalize(), inw = out.clone().negate(), piv = np.clone();
-        const pivL = np.clone().sub(ARG_WEB.position), face = -S.side;
+        const pivL = np.clone().sub(S.orb.g.position), face = -S.side;
         sp.webFlipT = performance.now()/1000 + .55 + .8;
         startRoll(piv, out, () => {
           S.side = face;
-          const at = S.project(pivL.clone().add(ARG_WEB.position).addScaledVector(inw, .12));   // on the sheet itself, so enterClimb keeps the face
+          const at = S.project(pivL.clone().add(S.orb.g.position).addScaledVector(inw, .12));   // on the sheet itself, so enterClimb keeps the face
           enterClimb(S, at, inw); S.side = face;
           cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null;
           pulses.push({pos: sp.pos.clone(), amp: .3, decay: 6});
@@ -580,8 +582,9 @@ function updateSpider(dt){
     if(sp.mode === 'air' && !sp.plop){ const pr = preyAt(sp.pos, .26); if(pr && !(sp.tried || (sp.tried = new Set())).has(pr)){ sp.tried.add(pr); if(pounce(pr)) return; } }
     const hw = sp.webGrace > 0 ? null : orbHit(prev, sp.pos, sp.planeLaunch, sp.orbGoal);
     if(hw){
-      if(!(sp.climbGrace > 0 && sp.leftFrom === WEB)){ WEB.side = WEB.sideFrom(prev, sp.vel); enterClimb(WEB, hw, sp.vel.clone());
-        pulses.push({pos: hw.clone(), amp: .7, decay: 4}); ARGI.alert += .35; toast('You catch hold of the orb’s radii.'); return; }
+      const W = hw.orb.S;
+      if(!(sp.climbGrace > 0 && sp.leftFrom === W)){ W.side = W.sideFrom(prev, sp.vel); enterClimb(W, hw, sp.vel.clone());
+        pulses.push({pos: hw.clone(), amp: .7, decay: 4}); hw.orb.spider.alert += .35; toast('You catch hold of the orb’s radii.'); return; }
     }
     if(sp.mode === 'air') sp.airT = (sp.airT || 0) + dt;
     // a leap flies exactly the arc she gauged and lands where its prediction (the aim ring) said, whatever the frame

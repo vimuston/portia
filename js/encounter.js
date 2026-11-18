@@ -50,7 +50,7 @@ function updateEncounter(dt){
   if(introOpen()){ bar.classList.remove('on'); E.style.opacity = 0; return; }
   const live = p => p === male ? !male.gone && !male.dead && (!sp.mated || male.state === 'mount' || male.state === 'linger') : !p.dead;
   const onOrb = sp.mode === 'climb' && sp.plat && sp.plat.web;
-  const dist = p => p.kind === 'argiope' ? (onOrb ? 0 : 1e9) : p.pos.distanceTo(sp.pos);   // the orb weaver: when she's on its web
+  const dist = p => p.kind === 'argiope' ? (onOrb && sp.plat.silk === p ? 0 : 1e9) : p.pos.distanceTo(sp.pos);   // an orb weaver: when she's on its own web
   // the engaged one is kept until you are well clear of it; otherwise the nearest live spider within reach
   if(ENC.tg && (dist(ENC.tg) > ENC_OUT || !live(ENC.tg))){
     if(ENC.tg.dead && !ENC.won && sp.feed && sp.feed.p === ENC.tg) bossWin('PREY DEVOURED', ENC.tg === male ? 'PORTIA LABIATA' : BOSS[ENC.tg.kind].name);

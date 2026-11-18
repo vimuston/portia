@@ -178,17 +178,20 @@ function makeArgiope(){
 // widens outward with switchbacks filling the lower half, the zig-zag stabilimentum, Y-forked anchor lines, a wrapped prey parcel
 const SILK_T = 99/255;                                  // web threads carry this exact temperature: a tag filters can read
 const tagSilk = g => g.traverse(o => { if(o.isLine) o.userData.temp = SILK_T; });
-const ARG_WEB = hot(new THREE.Group(), .3); scene.add(ARG_WEB);
-{
-  const {C, u, R} = ARG, v = new V3(0, 1, 0);
+// built as a function so a second web (in a tree's fork, hung from bark rather than leaves) can be made from it.
+// frame0: the frame polygon, [x, y] around C in the web's plane; none: an irregular ring. RR/RN: its random source
+function buildOrbWeb(O, G, frame0 = null, RR = rr, RN = rnd){
+
+  const {C, u, R} = O, v = new V3(0, 1, 0), rr = RR, rnd = RN;
   const P2 = (x, y) => C.clone().addScaledVector(u, x).addScaledVector(v, y), P = (r, a) => P2(Math.cos(a)*r, Math.sin(a)*r);
-  const NF = 9, F2 = [];
-  for(let k = 0; k < NF; k++){ const a = k/NF*6.283 + rr(-.14, .14), rf = R*rr(1.02, 1.12)*(Math.sin(a) < -.3 ? 1.08 : 1); F2.push([Math.cos(a)*rf, Math.sin(a)*rf]); }
+  const F2 = frame0 || [], NF0 = 9;
+  if(!frame0) for(let k = 0; k < NF0; k++){ const a = k/NF0*6.283 + rr(-.14, .14), rf = R*rr(1.02, 1.12)*(Math.sin(a) < -.3 ? 1.08 : 1); F2.push([Math.cos(a)*rf, Math.sin(a)*rf]); }
+  const NF = F2.length;
   const rayHit = a => { const dx = Math.cos(a), dy = Math.sin(a); let best = R;
     for(let k = 0; k < NF; k++){ const [x1, y1] = F2[k], [x2, y2] = F2[(k + 1) % NF], ex = x2 - x1, ey = y2 - y1, den = ex*dy - dx*ey;
       if(Math.abs(den) < 1e-9) continue; const t = (ex*y1 - x1*ey)/den, q = (dx*y1 - dy*x1)/den; if(t > 0 && q >= 0 && q <= 1) best = t; }
     return best; };
-  ARG.edge = rayHit;
+  O.edge = rayHit;
   const frame = [], radii = [], hub = [], sticky = [], stab = [], anchor = [];
   for(let k = 0; k < NF; k++){ const [x1, y1] = F2[k], [x2, y2] = F2[(k + 1) % NF];
     frame.push(P2(x1, y1), P2(x2, y2), P2(x1*1.012, y1*1.012), P2(x2*1.012, y2*1.012)); }
@@ -209,23 +212,30 @@ const ARG_WEB = hot(new THREE.Group(), .3); scene.add(ARG_WEB);
     const d = u.clone().multiplyScalar(Math.cos(a0)).addScaledVector(v, Math.sin(a0)), pp = u.clone().multiplyScalar(-Math.sin(a0)).addScaledVector(v, Math.cos(a0));
     const n = Math.round(len/.018);
     for(const off of [-.004, .004]){ let last = null;
-      for(let k = 0; k <= n; k++){ const q = C.clone().addScaledVector(d, .1 + k*.018).addScaledVector(pp, (k % 2 ? 1 : -1)*(.014 + k*.0009) + off); if(last) stab.push(last, q); last = q; } }
+      for(let k = 0; k <= n; k++){ if(.1 + k*.018 > rayHit(a0)*.8) break;   // a corner web's arms stop short of its frame
+        const q = C.clone().addScaledVector(d, .1 + k*.018).addScaledVector(pp, (k % 2 ? 1 : -1)*(.014 + k*.0009) + off); if(last) stab.push(last, q); last = q; } }
   }
+  if(O.above){                                             // slung from leaves and the ground: Y-forked anchor lines
   const pick = f => F2.reduce((b, q) => f(q) > f(b) ? q : b), top = P2(...pick(q => q[1])), bot = P2(...pick(q => -q[1])), sideF = P2(...pick(q => q[0])), back = P2(...pick(q => -q[0]));
   const fork = (a, b, spread) => { const m = a.clone().lerp(b, .55); anchor.push(a, m, m, b.clone().add(spread), m, b.clone().sub(spread)); };
-  fork(top, new V3(ARG.above.x - .2, ARG.above.y - .02, ARG.above.z), new V3(0, 0, .12));
-  fork(sideF, new V3(C.x, ARG.side.y - .01, ARG.side.z - .35), new V3(.08, 0, 0));
+  fork(top, new V3(O.above.x - .2, O.above.y - .02, O.above.z), new V3(0, 0, .12));
+  fork(sideF, new V3(C.x, O.side.y - .01, O.side.z - .35), new V3(.08, 0, 0));
   fork(bot, new V3(bot.x, hAt(bot.x, bot.z - .25), bot.z - .25), new V3(.15, 0, 0));
   fork(back, new V3(back.x, hAt(back.x, back.z - .7), back.z - .7), new V3(.12, 0, 0));
   for(let k = 0; k < NF; k++){ const q = P2(...F2[k]); if(q.y < C.y - .3 && rnd() < .6){ const g = q.clone().add(new V3(rr(-.3, .3), 0, rr(-.4, .4))); g.y = hAt(g.x, g.z); anchor.push(q, g); } }
-  ARG_WEB.add(new THREE.LineSegments(segsFrom(frame), silkM(.62)), new THREE.LineSegments(segsFrom(radii), silkM(.5)), new THREE.LineSegments(segsFrom(hub), silkM(.55)),
+  }
+  G.add(new THREE.LineSegments(segsFrom(frame), silkM(.62)), new THREE.LineSegments(segsFrom(radii), silkM(.5)), new THREE.LineSegments(segsFrom(hub), silkM(.55)),
     new THREE.LineSegments(segsFrom(sticky), silkM(.42, 0xe8f0ff)), new THREE.LineSegments(segsFrom(stab), silkM(.95, 0xffffff)), new THREE.LineSegments(segsFrom(anchor), silkM(.5)));
+  if(!O.above) return;
   // a prey parcel wrapped in swathing silk, hung on the spiral
   const at = P(R*.62, -2.1), parcel = hot(new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshStandardMaterial({color:0xece8dc, roughness:.9})), TEMP.dead);
-  parcel.scale.set(.028, .045, .028); parcel.position.copy(at); ARG_WEB.add(parcel);
+  parcel.scale.set(.028, .045, .028); parcel.position.copy(at); G.add(parcel);
   const wrap = []; for(let i = 0; i < 60; i++){ const a = i*.9, y = (i/60 - .5)*.085; wrap.push(at.clone().add(new V3(Math.cos(a)*.03, y, Math.sin(a)*.03)), at.clone().add(new V3(Math.cos(a + .9)*.03, y + .0015, Math.sin(a + .9)*.03))); }
-  ARG_WEB.add(hot(new THREE.LineSegments(segsFrom(wrap), silkM(.8, 0xffffff)), TEMP.dead));
+  G.add(hot(new THREE.LineSegments(segsFrom(wrap), silkM(.8, 0xffffff)), TEMP.dead));
 }
+const ARG_WEB = hot(new THREE.Group(), .3); scene.add(ARG_WEB);
+ARG.g = ARG_WEB; buildOrbWeb(ARG, ARG_WEB);
+
 // --- Badumna's sheet: an irregular lacy sheet spreading from the funnel retreat in the log. Signal threads fan out
 // from the mouth; between them, woolly cribellate bands loop across (densest near the retreat, torn here and there);
 // crossing structural threads, caught debris, a wispy sheet of fine silk; scaffolding up to the bark; a funnel retreat
