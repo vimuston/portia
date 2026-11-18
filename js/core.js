@@ -3,8 +3,9 @@
 
 const $ = s => document.querySelector(s);
 const V3 = THREE.Vector3;
-const store = {get(k, d){ try { const v = localStorage.getItem('salticid.' + k); return v == null ? d : v; } catch(e){ return d; } },
-               set(k, v){ try { localStorage.setItem('salticid.' + k, v); } catch(e){} }};
+// 'salticid.' is the old prefix, still read so settings saved before the rename carry over.
+const store = {get(k, d){ try { let v = localStorage.getItem('portia.' + k); if(v == null) v = localStorage.getItem('salticid.' + k); return v == null ? d : v; } catch(e){ return d; } },
+               set(k, v){ try { localStorage.setItem('portia.' + k, v); } catch(e){} }};
 
 /* =====================================================================
    LOCKED STYLE — Braille glyph ramp, Thermal palette (colour = temperature)
