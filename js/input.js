@@ -59,8 +59,8 @@ function cyclePluck(d){ pluckIdx = (pluckIdx + d + PLUCKS.length) % PLUCKS.lengt
 // a big word in the middle of the screen that fades away
 let flashT = 0;
 function flash(big, small){ $('#flash').innerHTML = `<small>${small}</small>${big}`; flashT = 1.6; }
-// intro: title → controls → hunting. Open on every page load and with G; it swallows game keys while open.
-const intro = {el: $('#intro'), i: 0, scenes: [...document.querySelectorAll('#intro .in-scene')], logoRaf: 0};
+// intro: a single screen — title and the three moves of a hunt. Open on every page load and with G; it swallows game keys while open.
+const intro = {el: $('#intro'), logoRaf: 0};
 const introOpen = () => !intro.el.hidden;
 function decodeLogo(){   // each letter flickers through braille glyphs, then settles
   // Time is accumulated per frame with each step clamped, so a long stall (the rest of the game loading and
@@ -85,32 +85,16 @@ function decodeLogo(){   // each letter flickers through braille glyphs, then se
   draw();   // scrambled from the start, so the plain word never flashes before the decode
   intro.logoRaf = requestAnimationFrame(step);
 }
-function introShow(i){
-  intro.i = Math.max(0, Math.min(intro.scenes.length - 1, i));
-  intro.scenes.forEach((s, k) => s.classList.toggle('on', k === intro.i));
-  intro.el.querySelectorAll('.in-dots button').forEach((b, k) => b.setAttribute('aria-current', k === intro.i));
-  intro.el.querySelector('[data-go="-1"]').disabled = intro.i === 0;
-  $('#in-next').textContent = intro.i === intro.scenes.length - 1 ? 'begin ▸' : 'next ▸';
-  if(intro.i === 0) decodeLogo();
-}
-function introNext(){ if(intro.i >= intro.scenes.length - 1) toggleGuide(false); else introShow(intro.i + 1); }
 function toggleGuide(on){
   const open = on === undefined ? !introOpen() : on;
   intro.el.hidden = !open;
-  if(open) introShow(0);
+  if(open) decodeLogo();
 }
-intro.el.addEventListener('click', e => {
-  const b = e.target.closest('button');
-  if(!b){ if(!e.target.closest('.in-scene')) introNext(); return; }   // click the backdrop to advance
-  if(b.dataset.to) introShow(+b.dataset.to);
-  else if(b.dataset.go === '1') introNext();
-  else if(b.dataset.go === '-1') introShow(intro.i - 1);
-  b.blur();
-});
+intro.el.addEventListener('click', e => { e.target.closest('button')?.blur(); toggleGuide(false); });   // a click anywhere begins
 // (index.html opens the guide once every script has loaded and the first frame is drawn)
 function padActions(dt){
   if(!pad.connected) return;
-  if(introOpen()){ if(pressed('a')) introNext(); if(pressed('x')) introShow(intro.i - 1); if(pressed('b') || pressed('back')) toggleGuide(false); return; }
+  if(introOpen()){ if(pressed('a') || pressed('b') || pressed('back') || pressed('start')) toggleGuide(false); return; }
   if(pad.rx){ cam.swing = null; cam.swingDir = null; cam.userT = performance.now(); }
   // gauging a leap: she stands still, so the left stick steers the reticule; the right stick keeps turning the camera
   if(sp.charging && aimPt.pad){ aimPt.x = Math.min(innerWidth, Math.max(0, aimPt.x + pad.lx*700*dt)); aimPt.y = Math.min(innerHeight, Math.max(0, aimPt.y + pad.ly*700*dt)); }
@@ -275,7 +259,7 @@ function updateSlowTip(){
   const aiming = !!sp.charging && !introOpen();
   if(!aiming) SLOWMO.armed = false;
   legendEl.classList.toggle('aiming', aiming); slowTip.hidden = !aiming;
-  for(const el of document.querySelectorAll('.mv-slow')){ const t = SLOWMO.armed ? 'slow motion armed' : 'hold for slow motion'; if(el.textContent !== t) el.textContent = t; el.classList.toggle('on', SLOWMO.armed); }
+  for(const el of document.querySelectorAll('.mv-slow')){ const t = SLOWMO.armed ? 'slow motion armed' : 'hold for slow motion'; if(el.closest('#slowtip') && el.textContent !== t) el.textContent = t; el.classList.toggle('on', SLOWMO.armed); }   // the bottom legend keeps its short label, lit when armed
   if(!aiming) return;
   tipBox.setFromObject(sp.m); let low = -Infinity;                      // the lowest point of her (legs included) on screen
   for(let i = 0; i < 8; i++){ tipV.set(i & 1 ? tipBox.max.x : tipBox.min.x, i & 2 ? tipBox.max.y : tipBox.min.y, i & 4 ? tipBox.max.z : tipBox.min.z).project(camera); low = Math.max(low, (1 - tipV.y)/2); }
@@ -295,9 +279,7 @@ addEventListener('keydown', e => {
   if(introOpen()){   // the intro owns the keyboard while it's up
     if(e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     if(e.repeat) return;
-    if(['ArrowRight', 'Enter', 'Space', 'KeyD'].includes(e.code)) introNext();
-    else if(['ArrowLeft', 'KeyA'].includes(e.code)) introShow(intro.i - 1);
-    else if(e.code === 'Escape' || e.code === 'KeyG') toggleGuide(false);
+    if(['Enter', 'Space', 'Escape', 'KeyG'].includes(e.code)) toggleGuide(false);
     return;
   }
   if(e.repeat){ if(e.code === 'Space') e.preventDefault(); return; }
