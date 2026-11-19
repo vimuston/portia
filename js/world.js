@@ -1213,28 +1213,51 @@ function addLog({x:cx, z:cz, ang, r, len}){
     PLAT.push({id:'F' + PLAT.length, kind:'fungus', x:c.x, y:gy + h + .025, z:c.z, rx:fr*.42, rz:fr*.42, rot:0});
   }
 }
+// a boulder half sunk in the litter: lumpy at a few scales and broken by flat fracture faces, darker in its crevices,
+// mossed where it faces up. She walks it all over; its solid is the very same shape as its mesh (a star-shaped
+// surface: the radius in each direction from its centre), so her feet stay on the stone
 function addRock({x, z, r, h}){
-  const gy = hAt(x, z);
-  const g = new THREE.CylinderGeometry(r*.85, r, h + .3, 9, 10); const p = g.attributes.position, col = [], c = new THREE.Color();
-  for(let i = 0; i < p.count; i++){
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), H = h + .3, ly = (y + H/2)/H, rad = Math.hypot(x, z);
-    if(rad > .01){ const k = 1 + (hash2(Math.atan2(z, x)*3.1, y*4.3) - .5)*.035; p.setX(i, x*k); p.setZ(i, z*k); }       // slight unevenness (feet stay within ~2 cm)
-    const n = hash2(x*5.3 + y*2.1, z*4.7), top = ly > .97;
-    c.setRGB(.52 + .1*n, .5 + .09*n, .46 + .08*n).multiplyScalar(.6 + .4*ly);                                            // grey stone, darker toward the soil
-    if(top && n > .45) c.lerp(new THREE.Color(.2, .32, .1), .7); else if(ly > .75 && n > .8) c.lerp(new THREE.Color(.22, .3, .12), .5);   // moss only in patches
-    if(ly < .25) c.lerp(new THREE.Color(.16, .12, .08), (.25 - ly)*2);                                                     // soil-stained base
-    col.push(c.r, c.g, c.b);
+  const gy = hAt(x, z), yaw = rnd()*6.28, sd = rnd()*50;
+  const rx = r*rr(.95, 1.1), rz = r*rr(.75, .9), ry = h*.95, C = new V3(x, gy + h - ry*1.05, z), ab = new V3(rx, ry, rz);
+  const cuts = Array.from({length: 3 + Math.floor(rnd()*2)}, () => [new V3(rr(-1, 1), rr(-.2, 1), rr(-1, 1)).normalize(), rr(.72, .86)]);
+  const fbm = v => { let a = 0, amp = .5, f = 1.2; for(let o = 0; o < 4; o++){ a += amp*(vnoise(v.x*f + v.z*f*.6 + o*3.7 + sd, v.y*f + v.x*f*.4 - o*1.3) - .5); amp *= .5; f *= 2.1; } return a; };
+  const kAt = d => { let k = 1 + fbm(d)*.32; for(const [cn, c] of cuts){ const t = d.dot(cn); if(t > c) k = Math.min(k, c/t); } return k; };   // d: a unit direction
+  const cs = Math.cos(yaw), sn = Math.sin(yaw);
+  const toL = v => { const d = v.clone().sub(C); return new V3(d.x*cs - d.z*sn, d.y, d.x*sn + d.z*cs); };
+  const toW = l => new V3(l.x*cs + l.z*sn, l.y, -l.x*sn + l.z*cs);
+  // the mesh
+  const g = new THREE.IcosahedronGeometry(1, 5), q = g.attributes.position, col = [], cc = new THREE.Color(), d = new V3();
+  for(let i = 0; i < q.count; i++){
+    d.set(q.getX(i), q.getY(i), q.getZ(i)).normalize(); const k = kAt(d);
+    q.setXYZ(i, d.x*k*rx, d.y*k*ry, d.z*k*rz);
+    const crev = Math.max(0, 1 - k)*1.4, n2 = vnoise(d.x*6 + 3 + sd, d.z*6 + d.y*4), wy = d.y*k*ry + C.y - gy;
+    cc.setRGB(.58 + .1*n2, .56 + .09*n2, .52 + .08*n2).multiplyScalar(1 - crev*.5);
+    if(d.y > .4 && n2 > .5) cc.lerp(new THREE.Color(.24, .36, .12), Math.min(.8, (n2 - .5)*2.5));        // moss on the tops
+    else if(n2 > .8) cc.lerp(new THREE.Color(.82, .84, .7), .4);                                            // pale lichen
+    if(wy < .25) cc.lerp(new THREE.Color(.16, .12, .08), Math.min(1, (.25 - wy)*3));                      // soil-stained where it meets the litter
+    col.push(cc.r, cc.g, cc.b);
   }
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals();
-  const m = hot(new THREE.Mesh(g, antiTile(new THREE.MeshStandardMaterial({vertexColors:true, map: STONE_TEX, bumpMap: STONE_TEX, bumpScale: 2.5, roughness:.9}))), TEMP.rock);
-  const rot = rnd()*3;
-  m.position.set(x, gy + (h - .3)/2, z); m.rotation.y = rot; m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
-  const top = {id:'R' + PLAT.length, kind:'rock', x, y:gy + h, z, rx:r*.78, rz:r*.78, rot:0}; PLAT.push(top);
-  const H = h + .3, n = 9, seg = 2*Math.PI/n;
-  top.climb = makeClimb({label:'stone', cx:x, cz:z, y0: gy - .3, y1: gy + h, top, radius: (ux, uz, ly) => {
-    const lx = ux*Math.cos(rot) - uz*Math.sin(rot), lz = ux*Math.sin(rot) + uz*Math.cos(rot), th = ((Math.atan2(lx, lz) % seg) + seg) % seg;
-    return (r + (r*.85 - r)*ly/H)*Math.cos(Math.PI/n)/Math.cos(th - Math.PI/n);
-  }});
+  const m = hot(new THREE.Mesh(g, antiTile(new THREE.MeshStandardMaterial({vertexColors:true, map: STONE_TEX, bumpMap: STONE_TEX, bumpScale: 3, roughness:.9}))), TEMP.rock);
+  m.position.copy(C); m.rotation.y = yaw; m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
+  // the solid: e < k(dir), in units of the radii
+  const unit = l => new V3(l.x/rx, l.y/ry, l.z/rz), F = v => { const u = unit(toL(v)), e = u.length() || 1e-6; return e/kAt(u.divideScalar(e)); };
+  const surfL = l => { const u = unit(l), e = u.length() || 1e-6; u.divideScalar(e); return u.multiplyScalar(kAt(u)).multiply(ab); };
+  const br = Math.max(rx, ry, rz)*1.25;
+  const S = {kind:'climb', ground:false, id:'C' + CLIMBS.length, label:'stone', top:null, cx: x, cz: z, y0: C.y - ry*1.25, y1: C.y + ry*1.25, ext: br};
+  S.normal = v => { const e = .02, gx = F(v.clone().setX(v.x + e)) - F(v.clone().setX(v.x - e)), gyy = F(v.clone().setY(v.y + e)) - F(v.clone().setY(v.y - e)), gz = F(v.clone().setZ(v.z + e)) - F(v.clone().setZ(v.z - e));
+    const n = new V3(gx, gyy, gz); return n.lengthSq() > 1e-12 ? n.normalize() : UP.clone(); };
+  S.project = v => { const p = C.clone().add(toW(surfL(toL(v)))); p.addScaledVector(S.normal(p), .002); const g0 = hAt(p.x, p.z) + .004; if(p.y < g0) p.y = g0; return v.copy(p); };
+  S.inside = (v, m0 = 0) => { if(v.distanceTo(C) > br + m0) return false; const l = toL(v), u = unit(l), e = u.length() || 1e-6; u.divideScalar(e);
+    const R = surfL(l).length(); return l.length() < R + m0; };
+  S.near = v => v.distanceTo(C) < br + .6;
+  S.hit = (x, y, z, dir) => { const v = new V3(x, y, z); if(!S.inside(v, .1)) return false; const nn = S.normal(v); return -(dir.x*nn.x + dir.z*nn.z) > .12; };
+  S.pushOut = (v, vel, m0 = .05) => { const l = toL(v), sl = surfL(l), R = sl.length(); v.copy(C).add(toW(sl.multiplyScalar((R + m0)/R))); const nn = S.normal(v), vn = vel.dot(nn); if(vn < 0) vel.addScaledVector(nn, -vn); };
+  S.topAt = () => false; S.atRim = () => false;
+  S.atBottom = v => v.y <= floorAt(v.x, v.z) + .04;
+  S.soilExit = (v, nn) => { const q = new V3(v.x + nn.x*.18, 0, v.z + nn.z*.18); q.y = floorAt(q.x, q.z); return q; };
+  S.canEnter = () => true;
+  CLIMBS.push(S);
 }
 const START = addLeaf(0, 2.0, 0, 'heart', 1.0, 1.4, .3);
 addLeaf(3.2, 2.5, -1.0, 'lance', .8, 1.4, 1.1);
