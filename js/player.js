@@ -945,7 +945,7 @@ function updateSpider(dt){
   // aim steadiness: swinging the aim around shakes the estimate; it settles within a few tenths of a second
   { const tg = sp.aim ? sp.aim.target : sp.pos, mv = sp.aimLast ? tg.distanceTo(sp.aimLast)/Math.max(.3, tg.distanceTo(sp.pos)) : 0;
     sp.aimLast = tg.clone(); sp.aimShake = Math.min(1, (sp.aimShake || 0)*Math.exp(-dt/.3) + (sp.charging ? mv*1.5 : 0)); }
-  dots.visible = sp.charging; aimRing.visible = false; sp.aimPrey = null; sp.aimSure = false;
+  dots.visible = sp.charging; aimRing.visible = false; sp.aimPrey = null; sp.aimSure = false; lockMark.visible = false;
   if(sp.charging){
     // the arc only changes with the aim (or where she stands): reuse last frame's flight otherwise
     const PC = aimArc; if(PC.aim !== sp.aim || PC.plat !== sp.plat || !PC.pos.equals(sp.pos)){ PC.pts = []; PC.hit = predictLeap(leapVel(), PC.pts); PC.aim = sp.aim; PC.plat = sp.plat; PC.pos.copy(sp.pos); }
@@ -972,6 +972,12 @@ function updateSpider(dt){
       aimRingM.color.set(!sp.aim.ok ? 0x9a9488 : sp.aimSure ? 0xff5a20 : preyIn ? 0xffb060 : 0xffe0a0); aimFill.material.color.copy(aimRingM.color);
       aimFill.material.opacity = sp.aimSure ? .22 + .2*lock : .12;
       aimOwner.temp = sp.aimSure ? .82 + .15*lock : preyIn ? .7 : TEMP.preview;
+      if(preyIn){                                       // the halo on the prey itself: dim and still while unsure, spinning in and pulsing once it's a sure hit
+        const R = lockR(preyIn)*(sp.aimSure ? 1.15 - .15*lock : 1.35);
+        lockMark.visible = true; lockMark.position.copy(preyBody(preyIn)); lockMark.quaternion.copy(camera.quaternion);
+        lockMark.rotateZ(sp.aimSure ? time*1.5 : 0); lockMark.scale.setScalar(R);
+        lockM.color.copy(aimRingM.color); lockM.opacity = sp.aimSure ? .75 + .25*lock : .45;
+      }
     }
   }
   hlTick(dt, sp.aimPrey, sp.aimSure); fangTick(P, sp.aimPrey ? 1 : 0, dt);   // prey in her sights: fangs bared, prey burning bright
