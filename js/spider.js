@@ -774,5 +774,5 @@ a = [-.8 - r*.95, 1.0 - r*.75, .35 - r*.25, .25 - r*.1, .25]; y = L.base*(1 - r*
     for(let j = 0; j < 5; j++) L.joints[j].rotation.x = a[j];
     L.yawG.rotation.y = y;
   }
-  abd.rotation.x = -.12 + (o.twitch || 0);
+  abd.rotation.x = -.12 + (o.twitch || 0) - (o.abdDown || 0)*.3;
 }
