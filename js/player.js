@@ -632,6 +632,7 @@ function updateSpider(dt){
     sp.moveVel.copy(t).multiplyScalar(snappy ? lead : spd);
     if(!snappy && !stalk) spd *= .25 + .75*gaitSupport(sp.m);
     spd *= gaitLimit(sp.m, t.clone().multiplyScalar(spd*dt), snappy ? 1.02 : .93);
+    if(spd > 0 && S.rimStep) S.rimStep(sp.pos, t);                        // backing off a leaf's edge: inward under the blade
     const np = sp.pos.clone().addScaledVector(t, spd*dt); S.project(np);
     if(snappy && spd > 0 && (np.distanceTo(sp.pos) > spd*dt*3 + .02 || climbLeaves(S, np, t))){ pc.t = pc.dur; spd = 0; np.copy(sp.pos); }   // a dart stops short of the rim, the soil or another solid
     if(spd > 0){                                                          // walking into another solid: step onto it instead of through it

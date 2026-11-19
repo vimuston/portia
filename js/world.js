@@ -422,7 +422,16 @@ function leafUnder(p){
   S.near = v => { const [lx, lz] = leafLocal(p, v); return E(lx, lz) < 1.5 && Math.abs(v.y - surfAt(p, v.x, v.z)) < .6; };
   S.hit = () => false; S.pushOut = () => {}; S.atBottom = () => false; S.soilExit = v => v; S.canEnter = () => true;
   S.topAt = (v, vel) => vel.y <= 0 && v.y >= surfAt(p, v.x, v.z) - .015;
-  S.atRim = (v, t) => { const [lx, lz, c, s] = leafLocal(p, v); return E(lx, lz) > .95 && t.dot(out(lx, lz, c, s)) > .3; };
+  // the way round the edge toward the top: outward while the normal still faces down, upward once it faces out. Testing
+  // only "outward" left her stuck on the rim band itself, where the normal is out and her heading straight up or down:
+  // the clamped projection held her in place and the roll never fired
+  const over = (v, lx, lz, c, s) => { const o = out(lx, lz, c, s), n = S.normal(v); return o.multiplyScalar(Math.max(0, -n.y)).add(new V3(0, Math.max(0, n.dot(o)), 0)).normalize(); };
+  S.atRim = (v, t) => { const [lx, lz, c, s] = leafLocal(p, v); return E(lx, lz) > .95 && t.dot(over(v, lx, lz, c, s)) > .3; };
+  // on the rim band a step back round the edge (against `over`) would project straight back onto the rim: turn that
+  // part of it inward, under the blade, so she can climb off the edge the way she came
+  S.rimStep = (v, t) => { const [lx, lz, c, s] = leafLocal(p, v); if(E(lx, lz) < .92) return t;
+    const d = over(v, lx, lz, c, s), k = t.dot(d); if(k >= 0) return t;
+    return t.addScaledVector(d, -k).addScaledVector(out(lx, lz, c, s), k).normalize(); };
   S.rimLand = v => { const [lx, lz, c, s] = leafLocal(p, v), o = out(lx, lz, c, s), q = v.clone().addScaledVector(o, -.12); q.y = surfAt(p, q.x, q.z);
     return {pos: q, yaw: Math.atan2(-o.x, -o.z), swing: true}; };
   S.rimPoint = (x, z) => { const [lx, lz, c, s] = leafLocal(p, new V3(x, 0, z)), e = E(lx, lz) || 1, k = .985/e, q = new V3(p.x + (lx*c + lz*s)*k, 0, p.z + (-lx*s + lz*c)*k);
