@@ -960,13 +960,16 @@ function updateSpider(dt){
       const r = Math.min(1.5, .09 + dist*leapSpread()*1.8)*(1 + .04*Math.sin(time*9));
       aimRing.visible = true; aimRing.position.copy(hit.pos).addScaledVector(hit.n, .012);
       aimRing.quaternion.setFromUnitVectors(new V3(0, 0, 1), hit.n); aimOuter.scale.set(r, r, 1); aimFill.scale.set(r, r, 1);
-      // the prey inside the landing estimate, nearest its centre (spiders by where their body stands, as the bite reckons it)
-      let preyIn = null, bd = 1e9;
-      for(const q of [...PREY, male]){ if(q.dead || (q === male && !maleIsPrey())) continue; const d = q.m.userData.parts.body.getWorldPosition(new V3()).distanceTo(hit.pos); if(d < r + .12 && d < bd){ bd = d; preyIn = q; } }
-      for(const f of flies){ if(f.gone || f.held || f.state === 'fly') continue; const d = f.pos.distanceTo(hit.pos); if(d < r + .1 && d < bd){ bd = d; preyIn = f; } }
+      // the prey inside the landing estimate, nearest its centre (spiders by where their body stands, as the bite reckons it).
+      // Measured along the surface: a spider in an orb hangs a body's depth off the sheet, which doesn't put her out of the ring
+      let preyIn = null, bd = 1e9, bp = 0;
+      const sights = (b, slack) => { const v = b.sub(hit.pos), perp = Math.abs(v.dot(hit.n)), along = Math.sqrt(Math.max(0, v.lengthSq() - perp*perp));
+        return along < r + slack && perp < .42 && along < bd ? (bd = along, bp = perp, true) : false; };
+      for(const q of [...PREY, male]){ if(q.dead || (q === male && !maleIsPrey())) continue; if(sights(q.m.userData.parts.body.getWorldPosition(new V3()), .12)) preyIn = q; }
+      for(const f of flies){ if(f.gone || f.held || f.state === 'fly') continue; if(sights(f.pos.clone(), .1)) preyIn = f; }
       if(!sp.aim.ok) preyIn = null;
-      // a sure hit: the whole landing estimate falls within her bite's reach of it (strike() on touchdown)
-      sp.aimPrey = preyIn; sp.aimSure = !!preyIn && bd + r*.85 < .42;
+      // a sure hit: wherever in the landing estimate she comes down, the prey is within her bite's reach (strike() on touchdown)
+      sp.aimPrey = preyIn; sp.aimSure = !!preyIn && Math.hypot(bp, bd + r*.85) < .42;
       const lock = sp.aimSure ? .5 + .5*Math.sin(time*7) : 0;
       if(sp.aimSure){ const k = 1 + .12*lock; aimOuter.scale.multiplyScalar(k); aimFill.scale.multiplyScalar(k); }
       aimRingM.color.set(!sp.aim.ok ? 0x9a9488 : sp.aimSure ? 0xff5a20 : preyIn ? 0xffb060 : 0xffe0a0); aimFill.material.color.copy(aimRingM.color);
@@ -976,7 +979,7 @@ function updateSpider(dt){
         const R = lockR(preyIn)*(sp.aimSure ? 1.15 - .15*lock : 1.35);
         lockMark.visible = true; lockMark.position.copy(preyBody(preyIn)); lockMark.quaternion.copy(camera.quaternion);
         lockMark.rotateZ(sp.aimSure ? time*1.5 : 0); lockMark.scale.setScalar(R);
-        lockM.color.copy(aimRingM.color); lockM.opacity = sp.aimSure ? .75 + .25*lock : .45;
+        lockM.color.copy(aimRingM.color); lockM.opacity = sp.aimSure ? .8 + .2*lock : .7;
       }
     }
   }
