@@ -83,9 +83,9 @@ function camFrame(dt){
     cam.nSm = camUp.clone();
     return;
   }
-  // locked onto a web's spider (webLock) the view's up is the sheet's normal on her face, POV or not: the view then
-  // stands behind her as she stands, so her left and right (which A/D step her along) are the screen's
-  const onSurf = sp.mode === 'climb' && sp.plat && (cam.lockOn ? true : pov ? !sp.plat.web : sp.plat.tree);
+  // on an orb web the view's up is always the sheet's normal on her face, POV or not: the view stands behind her as
+  // she stands, so her left and right are the screen's (locked onto its spider, A/D step her along them)
+  const onSurf = sp.mode === 'climb' && sp.plat && (sp.plat.web || (pov ? true : sp.plat.tree));
   let tu = onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
   tu.normalize();
   if(onSurf){
