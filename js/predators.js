@@ -497,9 +497,10 @@ function doomReset(){
 // level ground she rolls belly-up like the husks she leaves
 function corpseTick(t){
   const P = sp.m.userData.parts, twitch = 1 - sstep(.3, 1.5, t), curl = sstep(.5, 1.7, t);
-  const e = DOOM.flat ? sstep(1.1, 2.0, t) : 0, up = UP.clone().applyQuaternion(DOOM.q);
+  const glued = DOOM.killer && DOOM.killer.kind === 'scytodes';   // stuck fast in its glue: no throes, no rolling over
+  const e = DOOM.flat && !glued ? sstep(1.1, 2.0, t) : 0, up = UP.clone().applyQuaternion(DOOM.q);
   gaitRelease(sp.m); sp.charging = false; sp.vel.set(0, 0, 0);
-  poseSpider(sp.m, {twitch: Math.sin(t*46)*.45*twitch, raise: .5*twitch*(1 - curl), crouch: 1 - curl, curl});
+  poseSpider(sp.m, glued ? GLUED_POSE : {twitch: Math.sin(t*46)*.45*twitch, raise: .5*twitch*(1 - curl), crouch: 1 - curl, curl});
   sp.m.quaternion.copy(DOOM.q).multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 0, 1), Math.PI*e));
   sp.m.position.copy(DOOM.at).addScaledVector(up, (2*P.body.position.y + .01)*e);
   if(DOOM.wrap) wrapCorpsePose();                   // an orb-weaver's kill: turned and rolled as it is wrapped

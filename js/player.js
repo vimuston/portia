@@ -440,7 +440,7 @@ function updateSpider(dt){
     }
     sp.m.position.copy(sp.pos);
     gaitRelease(sp.m); sp.m.position.copy(sp.pos);
-    poseSpider(sp.m, sp.stuckKind === 'gum' ? {walk: .25, phase: time*9, crouch: .6} : {walk: .8, phase: time*30, hang: sp.mode === 'hang'});   // glued: a feeble twitch
+    poseSpider(sp.m, sp.stuckKind === 'gum' ? GLUED_POSE : {walk: .8, phase: time*30, hang: sp.mode === 'hang'});   // glued: held still
     return;
   }
   if(sp.mode === 'feed'){ feedTick(dt); return; }

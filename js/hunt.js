@@ -621,30 +621,57 @@ function scyCreep(p, dt){
     toast('It reaches your back and bites. The venom spreads.'); die();
   }
 }
-// the spit: a zigzag of glue from its fangs to her, and a tangle of it over her and down onto the leaf
+// the spit: a zigzag jet of glue from its fangs to her, then band on band of it slapped across her and stuck to the
+// leaf either side. Thick, pale strands (tubes, not hairline silk), sized to her body, laid on over a fraction of a second.
+// The bands ride her own frame; the jet hangs in the world between them.
 const SPAT = [];
+const spatMat = () => new THREE.MeshStandardMaterial({color: 0xf3edd8, roughness: .45, emissive: 0x2c2a20, transparent: true, opacity: .95});
+function spatTube(pts, rad, delay, dur, parent){
+  const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.max(24, pts.length*3), rad, 5);
+  const o = hot(new THREE.Mesh(g, spatMat()), .2); o.frustumCulled = false; g.setDrawRange(0, 0);
+  parent.add(o); drawables.push(o); SPAT.push({o, delay, dur, n: g.index.count}); return o;
+}
 function spit(p){
   p.state = 'spat'; p.creepBest = 1e9; p.creepT = 0; p.side = 0; p.flipped = false;
   if(sp.mode !== 'ground'){                                   // caught mid-leap: it pins her to its leaf
     const [x, z] = clampTo(p.plat, sp.pos.x, sp.pos.z); sp.pos.set(x, surfY(p.plat, x, z), z);
     Object.assign(sp, {mode: 'ground', plat: p.plat, braked: false, committed: false, plop: false}); sp.m.position.copy(sp.pos);
   }
-  const a = p.pos.clone().add(new V3(Math.sin(p.yaw)*.13, .05, Math.cos(p.yaw)*.13)), b = sp.pos.clone().add(new V3(0, .05, 0));
-  const perp = new V3(-(b.z - a.z), 0, b.x - a.x).normalize(), zz = [];
-  for(let k = 0; k <= 26; k++){ const t = k/26, w = Math.sin(t*Math.PI)*(k % 2 ? 1 : -1); zz.push(a.clone().lerp(b, t).addScaledVector(perp, w*.06).add(new V3(0, w*.03, 0))); }
-  const gl = new THREE.LineBasicMaterial({color: 0xf0f0d0, transparent: true, opacity: .85});
-  const seg = [];                                             // strands thrown over her back, tied down to the leaf either side
-  for(let k = 0; k < 70; k++){
-    const ang = rnd()*6.28, rr0 = .07 + rnd()*.09, top = sp.pos.clone().add(new V3((rnd() - .5)*.12, .03 + rnd()*.06, (rnd() - .5)*.14));
-    const g1 = sp.pos.clone().add(new V3(Math.sin(ang)*rr0, .003, Math.cos(ang)*rr0)), a3 = ang + Math.PI + rr(-.6, .6);
-    seg.push(g1, top, top, sp.pos.clone().add(new V3(Math.sin(a3)*rr0, .003, Math.cos(a3)*rr0)));
-  }
-  for(const o of [new THREE.Line(segsFrom(zz), gl), new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg), gl)]){ hot(o, .2); o.frustumCulled = false; scene.add(o); drawables.push(o); SPAT.push(o); }
   sp.stuck = 1e9; sp.stuckKind = 'gum'; sp.stuckPos = sp.pos.clone(); sp.charging = false; sp.vel.set(0, 0, 0); sp.aim = null;
+  poseSpider(sp.m, GLUED_POSE); gaitRelease(sp.m);
+  // her size, in her own frame: the body for the arch of each band, the legs for where it is stuck down
+  const P = sp.m.userData.parts, q0 = sp.m.quaternion.clone(), x0 = sp.m.position.clone();
+  sp.m.quaternion.identity(); sp.m.position.set(0, 0, 0); sp.m.updateMatrixWorld(true);
+  const bb = new THREE.Box3().setFromObject(P.head).union(new THREE.Box3().setFromObject(P.abd)), all = new THREE.Box3().setFromObject(sp.m);
+  sp.m.quaternion.copy(q0); sp.m.position.copy(x0); sp.m.updateMatrixWorld(true);
+  const L = bb.max.z - bb.min.z, Wb = (bb.max.x - bb.min.x)/2, top = bb.max.y, cx = (bb.max.x + bb.min.x)/2;
+  const reach = Math.max(Wb*1.6, Math.min(all.max.x, -all.min.x)*.6), rad = L*.008;
+  // the jet: from its fangs to the middle of her back, zigzagging as the glue does
+  const a = p.pos.clone().add(new V3(Math.sin(p.yaw)*.13, .05, Math.cos(p.yaw)*.13)), b = sp.m.localToWorld(new V3(cx, top*.9, (bb.max.z + bb.min.z)/2));
+  const perp = new V3(-(b.z - a.z), 0, b.x - a.x).normalize(), zz = [];
+  for(let k = 0; k <= 30; k++){ const t = k/30, w = Math.sin(t*Math.PI)*(k % 2 ? 1 : -1); zz.push(a.clone().lerp(b, t).addScaledVector(perp, w*L*.05).add(new V3(0, Math.sin(t*Math.PI)*L*.12 + w*L*.02, 0))); }
+  spatTube(zz, rad*.8, 0, .12, scene);
+  // the bands: across her, front to back, each a zigzag arch from the leaf on one side over her to the leaf on the other
+  const N = 15;
+  for(let k = 0; k < N; k++){
+    const z0 = bb.min.z - L*.1 + (L*1.2)*(k + rr(.2, .8))/N, skew = rr(-.45, .45), W = reach*rr(.75, 1.05), amp = L*rr(.02, .04), pts = [];
+    for(let i = 0; i <= 18; i++){
+      const t = i/18, x = cx - W + 2*W*t, u = (x - cx)/Wb, z = z0 + skew*(x - cx) + amp*(i % 2 ? 1 : -1)*Math.sin(Math.PI*t);
+      const zf = Math.max(0, 1 - ((z - (bb.max.z + bb.min.z)/2)/(L*.55))**2);   // lower over her ends
+      const y = Math.abs(u) < 1 ? top*Math.sqrt(1 - u*u)*(.55 + .45*zf) + rad*1.5 : rad*1.2 + Math.max(0, .5*top*(1 - (Math.abs(u) - 1)*1.4));
+      pts.push(new V3(x, Math.max(rad, y), z));
+    }
+    spatTube(pts, rad*rr(.8, 1.2), .1 + k*.035, .12, sp.m);
+  }
   pulses.push({pos: a, amp: .8, decay: 4}); gusts.push({pos: a, amp: .6});
   toast('Spat on — glued down in venomous silk. There is no getting free.');
 }
-function spatClear(){ for(const o of SPAT){ scene.remove(o); const i = drawables.indexOf(o); if(i >= 0) drawables.splice(i, 1); o.geometry.dispose(); } SPAT.length = 0; }
+function spatTick(dt){
+  for(const s of SPAT){ if(s.t == null) s.t = 0; s.t += dt; const k = Math.max(0, Math.min(1, (s.t - s.delay)/s.dur)); s.o.geometry.setDrawRange(0, Math.floor(k*s.n/3)*3); }
+}
+function spatClear(){ for(const {o} of SPAT){ o.removeFromParent(); const i = drawables.indexOf(o); if(i >= 0) drawables.splice(i, 1); o.geometry.dispose(); o.material.dispose(); } SPAT.length = 0; }
+// glued down: crouched flat, abdomen pressed to the leaf, legs still
+const GLUED_POSE = {crouch: 1, abdDown: 1};
 function updBadumna(p, dt){
   if(deadTick(p, dt)) return;
   const BAD = p.site;
@@ -823,6 +850,7 @@ function updatePrey(dt, t){
     if(p.fallH > 0){ p.fallV += 9*dt; p.fallH = Math.max(0, p.fallH - p.fallV*dt); p.m.position.y += p.fallH;   // the dropped husk falls,
       if(p.fallH === 0) pulses.push({pos: p.pos.clone(), amp: .3, decay: 6}); }                                // and lands with a faint tap
   }
+  spatTick(dt);
   for(let i = gums.length - 1; i >= 0; i--){ const g = gums[i]; g.t -= dt; if(g.t <= 0){ scene.remove(g.ln); drawables.splice(drawables.indexOf(g.ln), 1); gums.splice(i, 1); } }
   // webs tremble in the breeze; the orb bucks when pumped
   for(const O of ORBS) O.g.position.copy(O.n).multiplyScalar(Math.sin(t*7)*(.006 + wind.gust*.03)*(O.corner ? .4 : 1) + (O.spider.state === 'pump' ? Math.sin(t*32)*.05 : 0));   // bark holds a corner web stiffer
