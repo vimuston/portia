@@ -235,11 +235,16 @@ function updateCamera(dt){
     if(!cam.badAt || cam.badAt.distanceToSquared(sp.pos) > .15*.15){ cam.bad = []; cam.badAt = sp.pos.clone(); }
     const pitchAt = p => Math.min(1.45, cam.pitchEff + p);
     const isBad = (y, p) => cam.bad.some(b => angDiff(cam.yaw + y, b.yaw) < .3 && Math.abs(p - b.p) < .2);
-    const roomAt = (y, p, floor) => { if((y || p) && isBad(y, p)) return 0;
-      const o = offAt(cam.yaw + y, pitchAt(p)), r = sight(o, need, null, .18);
-      return r < floor || casts-- <= 0 ? Math.min(r, floor - 1e-3) : Math.min(r, sight(o, need, smallOccluders(), .18)); };
+    const roomAt = (y, p, floor, far = need) => { if((y || p) && isBad(y, p)) return 0;
+      const o = offAt(cam.yaw + y, pitchAt(p)), r = sight(o, far, null, .18);
+      return r < floor || casts-- <= 0 ? Math.min(r, floor - 1e-3) : Math.min(r, sight(o, far, smallOccluders(), .18)); };
     const pY = cam.dodgeY || 0, pP = cam.dodgeP || 0, sg = pY < 0 ? -1 : 1;
-    if(roomAt(0, 0, need*.9) < need*.9){
+    // already round an obstacle, your own angle has to be clear the whole way out before the view swings back to it:
+    // clear only for the short stretch the dodge needs, it would swing back and then slam in against the trunk she
+    // just walked out from along a branch, wedged between it and her
+    let homeNeed = need*.9;
+    if(pY || pP){ const slot = roomAt(pY, pP, need*.9, cam.dist); if(slot >= need*.9) homeNeed = Math.max(homeNeed, Math.min(cam.dist, slot)*.9); }
+    if(roomAt(0, 0, homeNeed, homeNeed > need ? cam.dist : need) < homeNeed){
       if((pY || pP) && roomAt(pY, pP, need*.9) >= need*.9){ dY = pY; dP = pP; }    // the slot found last frame is still clear: stay in it
       else {
         const flat = cam.pitchEff > .2 ? .06 - cam.pitchEff : null, pitches = [0, .35, flat, .7].filter(p => p !== null);
