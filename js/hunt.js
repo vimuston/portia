@@ -161,16 +161,6 @@ function argMove(p, target, speed, dt, dash){   // dash: a strike, not a walk; t
   return L;
 }
 const gums = [];
-function spit(p){
-  p.cool = 7; p.state = 'hunt';
-  const a = p.pos.clone().add(new V3(Math.sin(p.yaw)*.13, .05, Math.cos(p.yaw)*.13)), b = sp.pos.clone().add(new V3(0, .08, 0));
-  const perp = new V3(-(b.z - a.z), 0, b.x - a.x).normalize(), pts = [];
-  for(let k = 0; k <= 26; k++){ const t = k/26, w = Math.sin(t*Math.PI)*(k % 2 ? 1 : -1); pts.push(a.clone().lerp(b, t).addScaledVector(perp, w*.06).add(new V3(0, w*.03, 0))); }
-  const ln = hot(new THREE.Line(segsFrom(pts), new THREE.LineBasicMaterial({color:0xf0f0d0})), .2); scene.add(ln); drawables.push(ln); gums.push({ln, t: 2.8});
-  sp.stuck = 3.5; sp.stuckKind = 'gum'; sp.stuckPos = sp.pos.clone(); sp.charging = false;
-  pulses.push({pos: a, amp: .8, decay: 4}); gusts.push({pos: a, amp: .6});
-  toast('Spat on — sticky, venomous gum. Tap WASD to struggle free!');
-}
 function stickInWeb(pt){
   sp.stuck = 4.5; sp.stuckKind = 'web'; sp.stuckPos = pt.clone(); sp.pos.copy(pt); sp.vel.set(0, 0, 0); sp.charging = false;
   pulses.push({pos: pt.clone(), amp: 1.3, decay: 2});
@@ -348,7 +338,7 @@ const HOLD_D = .19;                                // her stance sits this far b
 function preyAt(pos, r){ let best = null, bd = r; for(const p of [...PREY, male]){ if(p.dead || (p === male && !maleIsPrey())) continue; const d = p.m.userData.parts.body.getWorldPosition(new V3()).distanceTo(pos); if(d < bd){ bd = d; best = p; } } return best; }
 function pounce(p){
   if(sp.stuck > 0) return false;
-  if(p.kind === 'scytodes' && !p.egg && angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .6){ spit(p); return false; }
+  if(p.kind === 'scytodes' && (p.state === 'watch' || p.state === 'lunge') && angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .6){ toast('It was watching you — it meets you fangs-first.'); die(p); return false; }
   if(p.kind === 'badumna' && (p.state === 'retreat' || p.state === 'peek')) return false;
   if(p.kind === 'argiope' && p.state === 'pump'){ toast('The web is bucking — you cannot get a grip.'); return false; }
   if(p.kind === 'argiope' && p.state === 'lunge'){ toast('It meets you fangs-first.'); die(p); return false; }
@@ -582,32 +572,59 @@ function deadLook(p, dt){
   else if(flat) p.m.rotation.z = 0;
 }
 
+// Scytodes on its own leaf: once it feels her in its tangle it turns and watches her, still, sizing her up (edging
+// closer if she is out of reach); then it lunges across the leaf and sinks its fangs in. No spitting, no wrapping:
+// it feeds on her where she fell. Only getting off its leaf saves her. One carrying its egg sac has its fangs full.
+const SCY_WATCH = 1.8, SCY_REACH = 1.3, SCY_DASH = 1.7, SCY_BITE = .18;
 function updScytodes(p, dt){
   if(deadTick(p, dt)) return;
   const dx = sp.pos.x - p.pos.x, dz = sp.pos.z - p.pos.z, dist = Math.hypot(dx, dz), near = dist < 3 && Math.abs(sp.pos.y - p.pos.y) < .8;
-  const pk = preyPluck(p), faceP = Math.atan2(dx, dz), front = angDiff(p.yaw, faceP);
+  const pk = preyPluck(p), faceP = Math.atan2(dx, dz), front = angDiff(p.yaw, faceP), onIt = near && onSilkOf(p);
   p.alert = Math.max(0, p.alert + preyNoise(p)*dt*1.4 + (pk ? dt*.6 : 0) - dt*.12);
   p.motion = 0; p.vib = 0; p.cool -= dt;
+  const armed = !p.egg && p.cool <= 0 && DOOM.t < 0;
   if(p.state === 'idle'){
     p.t -= dt; if(p.t <= 0){ p.want = p.yaw + rr(-2.2, 2.2); p.t = rr(5, 9); }
     if(p.alert > .45 && near) p.want = faceP;                 // feels you through its silk and turns to face you
-    if(pk && near) p.state = 'lured';
+    if(armed && onIt && (p.alert > .45 || pk)){ p.state = 'watch'; p.watchT = 0; p.idleT = 0; toast('The spitting spider turns and watches you…'); }
+    else if(p.egg && pk && near) p.state = 'lured';
   }
-  if(p.state === 'lured'){
+  if(p.state === 'lured'){                                    // the egg-carrier: it comes to see, and nips if you stay
     p.want = faceP;
     if(!pk){ p.idleT += dt; if(p.idleT > 3){ p.state = 'idle'; p.idleT = 0; } } else p.idleT = 0;
     if(front < .5 && dist > .38){ stepToward(p, sp.pos, .22, dt, p.plat); p.motion = .4; p.vib = .5; }
     if(dist < .42){ p.close += dt; if(p.close > 1.6){ hurt(.2, 'The spitting spider bites.'); p.close = 0; p.state = 'idle'; } } else p.close = 0;
   }
-  if(p.state === 'hunt'){                                      // you are gummed: it comes to bite
-    if(sp.stuck <= 0 && dist > .6){ p.state = 'idle'; }
-    else if(stepToward(p, sp.pos, .35, dt, p.plat) < .4){ hurt(.45, 'Gummed down, you are bitten by the spitting spider.'); sp.stuck = 0; knockOff(); p.state = 'idle'; p.alert = 0; }
-    p.motion = .5; p.vib = .6;
-  } else {
+  if(p.state === 'watch'){                                    // dead still, eyes on her; movement only hurries it
+    p.want = faceP;
+    if(!onIt || DOOM.t >= 0){ p.idleT += dt; if(p.idleT > 2){ p.state = 'idle'; p.idleT = 0; p.alert *= .5; } }
+    else {
+      p.idleT = 0;
+      if(front < .35) p.watchT += dt*(sp.speed > 0 || sp.plucking ? 1.6 : 1);
+      if(front < .35 && dist > SCY_REACH){ stepToward(p, sp.pos, .1, dt, p.plat); p.motion = .25; p.vib = .2; }   // edging closer
+      if(p.watchT > SCY_WATCH && dist <= SCY_REACH){ p.state = 'lunge'; toast('It lunges!'); pulses.push({pos: p.pos.clone(), amp: .9, decay: 4}); }
+    }
+  }
+  if(p.state === 'lunge'){                                    // a dash: no gait limit, the legs scramble to keep up
+    p.motion = 1; p.vib = 1.2;
+    if(DOOM.t >= 0) p.state = 'back';
+    else if(!onIt){ p.state = 'back'; p.cool = 8; p.alert = .3; toast('You got off its leaf in time. It goes back to its spot.'); }
+    else if(dist < SCY_BITE){ toast('The spitting spider sinks its fangs into you.'); die(); p.state = 'back'; p.alert = 0; }
+    else {
+      const st = Math.min(dist - SCY_BITE*.8, SCY_DASH*dt), [nx, nz] = clampTo(p.plat, p.pos.x + dx/dist*st, p.pos.z + dz/dist*st);   // kept on its leaf
+      const moved = Math.hypot(nx - p.pos.x, nz - p.pos.z); p.phase += moved*40; p.pos.x = nx; p.pos.z = nz;
+      if(moved < .2*st){                                      // pinned at the rim: it strikes if she is in reach, else gives up
+        if(dist < SCY_BITE*2){ toast('The spitting spider sinks its fangs into you.'); die(); p.state = 'back'; p.alert = 0; }
+        else { p.state = 'back'; p.cool = 4; } }
+      p.yaw = gaitTurn(p.m, p.yaw, lerpAngle(p.yaw, faceP, 1 - Math.exp(-14*dt)));
+    }
+  }
+  if(p.state === 'back'){
+    if(stepToward(p, p.home, .2, dt, null) < .05) p.state = 'idle';   // home lies on the leaf: no edge check, or a lunge to its rim strands it
+    p.motion = .3; p.vib = .3;
+  } else if(p.state !== 'lunge'){
     const d = angDelta(p.yaw, p.want); p.yaw = gaitTurn(p.m, p.yaw, p.yaw + Math.max(-1.4*dt, Math.min(1.4*dt, d))); if(Math.abs(d) > .05) p.motion = Math.max(p.motion, .2);
   }
-  // armed and aware: anything in front of it, in range, gets spat on
-  if(!p.egg && p.cool <= 0 && sp.stuck <= 0 && near && dist < 1.45 && front < .55 && (p.alert > .45 || p.state === 'lured')) spit(p);
 }
 function updBadumna(p, dt){
   if(deadTick(p, dt)) return;
