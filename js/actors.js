@@ -187,7 +187,11 @@ const sp = {
   raiseW: 0, raiseLvl: 0, line: false, plop: false, holdIn: false
 };
 sp.m.userData.owner = sp;
-const male = {m: makeSpider(true), plat: MALE_LEAF, pos: new V3(MALE_LEAF.x, MALE_LEAF.y, MALE_LEAF.z), t: 0, motion: 0, vib: 0, temp: .64};
+// the male displays out in the jungle, on a big herb leaf (L74) high on its stalk; home is the spot he dances around
+const MALE_HOME = new V3(-35.38, 0, 2.14);
+const MALE_LEAF = PLAT.filter(p => p.herb && inPlat(p, MALE_HOME.x, MALE_HOME.z, 0)).sort((a, b) => Math.abs(a.y - 9.6) - Math.abs(b.y - 9.6))[0];
+MALE_HOME.y = MALE_LEAF.y;
+const male = {m: makeSpider(true), plat: MALE_LEAF, home: MALE_HOME, pos: MALE_HOME.clone(), t: 0, motion: 0, vib: 0, temp: .64};
 male.m.userData.owner = male;
 const flies = [];
 const FLY_HOMES = [PLAT[1], PLAT[3], PLAT.find(p => p.kind === 'log')];

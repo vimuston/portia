@@ -1261,7 +1261,7 @@ function updateMale(dt){
   const BURST = 1.6, MOVE = .5, SPOTS = [.28, .08, -.28, -.08], bi = Math.floor(male.t/BURST), bt = male.t - bi*BURST;
   const bk = Math.min(1, bt/MOVE), bs = bk*bk*(3 - 2*bk), o0 = SPOTS[(bi + 3) % 4], o1 = SPOTS[bi % 4];
   const darting = dancing && bt < MOVE;
-  let want = new V3(male.plat.x, male.plat.y, male.plat.z).addScaledVector(side, dancing ? o0 + (o1 - o0)*bs : 0);
+  let want = male.home.clone().addScaledVector(side, dancing ? o0 + (o1 - o0)*bs : 0);
   if(male.state === 'approach'){
     // circle round to her rear: while he's beside or ahead of her, aim wide of her flank first
     const rx = male.pos.x - sp.pos.x, rz = male.pos.z - sp.pos.z, ahead = rx*fx + rz*fz, lat = rx*fz - rz*fx;
