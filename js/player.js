@@ -445,7 +445,15 @@ function sidlePulse(dt){
   return u < SIDLE.on ? SIDLE.peak*Math.sin(Math.PI*u/SIDLE.on) : SIDLE.rest;
 }
 
+// nearing the rim of the floor she may walk (AREA): told once, and told again only after she has gone back in a way
+const EDGE = {warned: false, near: 2.5, rearm: 6};
+function edgeWarn(){
+  const d = Math.hypot(sp.pos.x, sp.pos.z);
+  if(!EDGE.warned && d > AREA - EDGE.near){ EDGE.warned = true; toast('These are not your hunting grounds. Turn back.'); }
+  else if(EDGE.warned && d < AREA - EDGE.rearm) EDGE.warned = false;
+}
 function updateSpider(dt){
+  edgeWarn();
   const fwd = camFwd(), right = camRight();      // in the camera's frame: on a trunk or under a leaf, W is 'up the screen'
   const ix = Math.max(-1, Math.min(1, (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + pad.lx));
   const iz = Math.max(-1, Math.min(1, (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - pad.ly));
