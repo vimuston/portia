@@ -29,8 +29,8 @@ function predClimb(S){
   if(!w) PRED_WRAP.set(S, w = {id: S.id, S, proj: v => S.project(v.clone()), norm: q => S.normal(q), ok: q => q.y > floorAt(q.x, q.z) - .05});
   return w;
 }
-// a tree-dweller's view of the same bark: only the part held well clear of the soil counts, so the trunk base and
-// the root flare are no way down
+// a tree-dweller's view of the same bark: only the part held well clear of the soil counts, so the trunk base is no
+// way down
 const TREE_CLEAR = 10;    // never lower than this on its trunk (~30 cm): it keeps to the bark well above the litter
 const TREE_BAND = [14, 46]; // where it likes to sit and wander: 40 cm to 1.4 m up
 const treeBark = S => !S.web && S.label === 'bark' && !S.top && !S.log && S.project && S.normal;

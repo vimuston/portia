@@ -347,26 +347,6 @@ const FLOWER_SPOTS = [];
   scene.add(fp);
 }
 
-// ---- buttress roots flaring from every big trunk, snaking into the soil
-{
-  for(const [x, z, r] of TREE_LIST){
-    const n = 5 + Math.floor(rnd()*3), big = r > 5;
-    for(let j = 0; j < n; j++){
-      const a = j/n*6.28 + rr(-.3, .3), pts = [], reach = big ? rr(1.3, 2.3) : rr(2.2, 3.2);
-      for(let k = 0; k <= 8; k++){ const t = k/8, d = r*(.85 + t*reach), aa = a + Math.sin(t*3 + j)*.15, px = x + Math.cos(aa)*d, pz = z + Math.sin(aa)*d;
-        if(k > 2 && (nearPlat(px, pz, 1.5) || ANT_HILLS.some(([hx, hz]) => Math.hypot(px - hx, pz - hz) < ANT_HILL_R + 1))) break;   // stop short of leaves, webs and mounds
-        pts.push(new V3(px, hAt(px, pz) + r*.9*Math.pow(1 - t, 1.8) - .04*t, pz)); }
-      if(pts.length < 4) continue;
-      const curve = new THREE.CatmullRomCurve3(pts);
-      const R0 = r*.55, rAt = t => R0*Math.pow(1 - t, 1.25) + (big ? .1 : .025);        // thick at the trunk, a thin tip in the soil
-      const m = hot(new THREE.Mesh(taperedTube(curve, rAt, {seg: 30, radial: big ? 28 : 16, w: .5, h: 1.55}), BARK_ROOT_M), TEMP.wood); m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
-      // the walkable solid on the mesh's own 30 rings: on these thick, steeply tapering roots a coarser axis bulged the
-      // solid out past the bark at every bend, and she walked on air
-      const sp = curve.getPoints(30); tubeSurface(sp, sp.map((_, k) => rAt(k/30)), 'bark', {w: .5, h: 1.55});
-    }
-  }
-}
-
 // ---- fallen branches furred with moss, fringed with bracket fungi, spotted with lichen; seed pods and little mushrooms
 {
   const brM = antiTile(new THREE.MeshStandardMaterial({color:0x6a5440, map: BARK_TEX_S, bumpMap: BARK_TEX_S, bumpScale: 1.5, roughness:.95}));

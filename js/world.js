@@ -97,7 +97,6 @@ const barkDraw = (x, w, h) => {
 };
 const BARK_TEX = canvasTex(512, 512, barkDraw, [3, 13]);
 const BARK_TEX_S = canvasTex(512, 512, barkDraw, [2, 1.2]);
-const BARK_ROOT_M = antiTile(new THREE.MeshStandardMaterial({color:0x8a7258, map: BARK_TEX_S, bumpMap: BARK_TEX_S, bumpScale: 1.5, roughness:.95}));
 // leaves: pale midrib and lateral veins, darker margins, a few blemishes (multiplied by each leaf's own green)
 // stone: granular grey with darker flecks, fine cracks and pale lichen rosettes
 const STONE_TEX = canvasTex(256, 256, (x, w, h) => {
