@@ -572,7 +572,7 @@ function updateSpider(dt){
     if(up){ sp.plat = up; sp.pos.set(nx, surfAt(up, nx, nz), nz); }                               // another leaf lies over hers: walk up onto its top, not under it
     else if(snappy && spd > 0 && (wall || !inPlat(sp.plat, nx, nz))){ pc.t = pc.dur; spd = 0; }   // a dart stops at the edge of its surface
     else if(wall){ enterClimb(wall, new V3(nx, sp.pos.y + .06, nz), dir); return; }
-    else if(sp.plat.ground){ const r = Math.hypot(nx, nz), k = r > 30 ? 30/r : 1; sp.pos.set(nx*k, floorAt(nx*k, nz*k), nz*k); }
+    else if(sp.plat.ground){ const r = Math.hypot(nx, nz), k = r > AREA ? AREA/r : 1; sp.pos.set(nx*k, floorAt(nx*k, nz*k), nz*k); }   // held to the rim of the floor (AREA)
     else if(inPlat(sp.plat, nx, nz)){ sp.pos.set(nx, surfAt(sp.plat, nx, nz), nz); }   // her height rides the blade's droop and fold, or the camera and the next step start inside it
     else if(spd > 0 && sp.plat.climb && sp.plat.climb.canEnter(new V3(nx, 0, nz))){ enterClimb(sp.plat.climb, new V3(nx, surfAt(sp.plat, nx, nz) - .05, nz), dir); return; }   // over the rim, down the side
     else if(spd > 0 && sp.plat.under && dropToBelow(dir, spd)) return;            // a leaf just below the rim: step down onto it
