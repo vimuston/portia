@@ -57,7 +57,7 @@ const TUT = (() => {
   }
   tagSilk(O.g); add(O.g);
   const S = webSurface(O);
-  const spider = addPrey({kind: 'argiope', name: 'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: L3, pos: C.clone(), state: 'hub', wary: 0, fwd: new V3(0, -1, 0), orb: O});
+  const spider = addPrey({kind: 'argiope', name: 'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: L3, pos: C.clone(), state: 'hub', wary: 0, fwd: new V3(0, -1, 0), orb: O, practice: true});
   spider.m.traverse(c => { if(c.isMesh || c.isLine) drawables.push(c); });
   L3.silk = spider; S.silk = spider; Object.assign(O, {S, spider}); ORBS.push(O);
   // a fly that keeps to the plant: it lands on the broad leaf when the lesson calls it, and flees only between these blades
@@ -100,13 +100,20 @@ const TUT_STEPS = [
     goals: [{t: `Stalk ${K('C', 'RT')} to within a leap of the fly, without startling it`, need: 1, tick: () => { const f = TUT.fly; return !f.gone && f.state !== 'fly' && f.pos.distanceTo(sp.pos) < 1.6 ? 1 : 0; }},
             {t: `Leap onto it ${K('Space', 'A')}`, need: 1, tick: () => sp.feed && sp.feed.p === TUT.fly ? 1 : 0}]},
   {name: 'The Orb-Weaver', text: 'This is what makes Portia famous. She hunts other spiders in their own webs by speaking their language: plucking the silk, she plays the struggle of a small insect caught in the threads, and the owner comes out to take it. If one signal fails she tries another, a flexibility biologists hardly expected from so small a brain. If the weaver starts to pump its web, freeze.',
-    start: () => { if(TUT.spider.dead) respawnPrey(TUT.spider); },
+    start: () => { if(TUT.spider.dead) tutReviveSpider(); },
     goals: [{t: 'Leap to the small leaf with the web hanging from its tip, and land softly', need: 1, tick: () => sp.mode === 'ground' && sp.plat === TUT.L3 ? 1 : 0},
             {t: `Hold ${K('Q', 'RB')} by its tip to pluck the silk. ${K('R', 'LB')} changes the signal`, need: 2, tick: (e, dt) => sp.plucking ? dt : 0},
             {t: `When it comes close, leap on it ${K('Space', 'A')}`, need: 1, tick: () => TUT.spider.dead ? 1 : 0}]},
   {name: 'Into the Forest', text: 'Below, in the leaf litter, the real hunt waits: spitting spiders, house spiders lurking in their tubes, orb-weavers, and a mantis that hunts her in turn. Portia goes down to meet them.',
     goals: [{t: `Leap from the leaf and balloon ${K('Space', 'A')} down into the forest`, need: 1, tick: () => 0}]}
 ];
+
+// the practice orb-weaver is the one spider that comes back (wild ones stay dead): a fresh one at its hub for a replay
+function tutReviveSpider(){
+  const p = TUT.spider;
+  Object.assign(p, {dead: false, deadT: 0, alert: 0, temp: p.temp0, close: 0, idleT: 0, drain: 0, flip: 0, held: false, dropped: false, limp: 0, fallH: 0, hl: 0, state: 'hub', wary: 0});
+  p.pos.copy(p.orb.C); p.fwd.set(0, -1, 0);
+}
 
 /* ---------- the narration panel ---------- */
 function tutDraw(){

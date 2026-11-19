@@ -54,14 +54,14 @@ function bossWin(name, epi){ encCard('', name, epi, '', true); ENC.won = true; i
 // order as each is eaten; the rose diamond set apart at the end is for mating. The dead never come back, so it only fills
 const KILLS = {n: -1, mated: null};
 function updateOrbs(){
-  const E = $('#orbs');
-  if(!E.childElementCount) E.innerHTML = '<i></i>'.repeat(PREY.length + 1) + '<span class="sep"></span><b></b>';
-  const n = PREY.filter(p => p.dead).length + (male.dead ? 1 : 0), mated = !!sp.mated;
+  const E = $('#orbs'), prey = PREY.filter(p => !p.practice);   // (the tutorial's orb-weaver is practice: it doesn't count)
+  if(!E.childElementCount) E.innerHTML = '<i></i>'.repeat(prey.length + 1) + '<span class="sep"></span><b></b>';
+  const n = prey.filter(p => p.dead).length + (male.dead ? 1 : 0), mated = !!sp.mated;
   if(n === KILLS.n && mated === KILLS.mated) return;
   const flare = (o, on) => { if(on && !o.classList.contains('lit') && KILLS.n >= 0){ o.classList.add('new'); o.addEventListener('animationend', () => o.classList.remove('new'), {once: true}); } o.classList.toggle('lit', on); };
   E.querySelectorAll('i').forEach((o, k) => flare(o, k < n)); flare(E.querySelector('b'), mated);
   KILLS.n = n; KILLS.mated = mated;
-  E.setAttribute('aria-label', `Spiders eaten: ${n} of ${PREY.length + 1}. ${mated ? 'Mated.' : 'Not yet mated.'}`);
+  E.setAttribute('aria-label', `Spiders eaten: ${n} of ${prey.length + 1}. ${mated ? 'Mated.' : 'Not yet mated.'}`);
 }
 function updateEncounter(dt){
   updateOrbs();
