@@ -455,17 +455,17 @@ function endFeed(drained){
   p.fallH = Math.max(0, at.y - p.pos.y); p.fallV = 0; p.yaw = Math.atan2(F.fw.x, F.fw.z) + rr(-.8, .8); p.flip = 0;
   // back onto the face she fed from. F.base is already in world space (it rides the sway): taking the sway off again
   // set her a few cm off the plane, and enterClimb's setSide then flipped her to whichever way the orb was swinging
-  if(p.orb && !F.midair){ const S = p.orb.S, face = Math.sign(F.up.dot(p.orb.n)) || 1; S.side = face; enterClimb(S, F.base.clone(), F.fw.clone()); S.side = face; }
+  if(p.orb && !F.midair){ const S = p.orb.S, face = Math.sign(F.up.dot(p.orb.n)) || 1; enterClimb(S, F.base.clone(), F.fw.clone(), face); }
   else if(F.bark) enterClimb(F.bark, F.base.clone(), F.fw.clone());
   else { sp.mode = 'ground'; sp.plat = p.plat; sp.pos.copy(F.base); sp.yaw = Math.atan2(F.fw.x, F.fw.z); }
   toast(drained ? 'Drained. You let the shrivelled husk drop.' : 'You let it drop, half-drained.');
 }
 // landing near a spider counts as landing on it
 function strike(){ const p = preyAt(sp.pos, .42); return !!p && pounce(p); }
-function enterClimb(S, at, hint){
+function enterClimb(S, at, hint, side){   // side: the face the caller already settled on (a web); otherwise taken from `at`
   sp.leapHit = null;
   const was = sp.mode; if(was === 'air') landBounce(sp.vel);
-  if(S.setSide) S.setSide(at);
+  if(side) S.side = side; else if(S.setSide) S.setSide(at);
   if(S.web) S.lastOff = S.orb.g.position.clone();
   endBalloon();
   S.project(at); sp.pos.copy(at); sp.mode = 'climb'; sp.plat = S; sp.vel.set(0, 0, 0); sp.braked = false; sp.committed = false; sp.plop = false;
