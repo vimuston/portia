@@ -239,13 +239,14 @@ ARG.g = ARG_WEB; buildOrbWeb(ARG, ARG_WEB);
 // --- Badumna's sheet: an irregular lacy sheet spreading from the funnel retreat in the log. Signal threads fan out
 // from the mouth; between them, woolly cribellate bands loop across (densest near the retreat, torn here and there);
 // crossing structural threads, caught debris, a wispy sheet of fine silk; scaffolding up to the bark; a funnel retreat
-const BAD_WEB = hot(new THREE.Group(), .3); scene.add(BAD_WEB);
-{
-  const p = BAD.plat, c = Math.cos(p.rot), s = Math.sin(p.rot), LGC = PLAT.find(q => q.kind === 'log').climb;
+// B: a site {mouth, sd (into the wood), ax (along the bark), plat (the sheet), bark (the surface it is tied to), high}
+function badumnaWeb(B){
+  const G = B.g = hot(new THREE.Group(), .3); scene.add(G);
+  const p = B.plat, c = Math.cos(p.rot), s = Math.sin(p.rot), LGC = B.bark;
   const edgeR = a => 1 + .14*Math.sin(a*3 + 1.3) + .08*Math.sin(a*7 + .4) + .05*Math.sin(a*13 + 2);
   const E = (lx, lz) => Math.hypot(lx/p.rx, lz/p.rz)/edgeR(Math.atan2(lz/p.rz, lx/p.rx));
   const W = (lx, lz, dy = 0) => { const e = Math.min(1, E(lx, lz)); return new V3(p.x + lx*c + lz*s, p.y - .015*(1 - e*e) + dy, p.z - lx*s + lz*c); };
-  const md = BAD.mouth.clone().sub(new V3(p.x, 0, p.z)), ml = [md.x*c - md.z*s, md.x*s + md.z*c];
+  const md = B.mouth.clone().sub(new V3(p.x, 0, p.z)), ml = [md.x*c - md.z*s, md.x*s + md.z*c];
   const edgeAt = a => { let lo = 0, hi = 3; for(let k = 0; k < 18; k++){ const m = (lo + hi)/2; (E(ml[0] + Math.cos(a)*m*p.rx, ml[1] + Math.sin(a)*m*p.rz) < 1 ? lo = m : hi = m); } return lo; };
   const sig = [], wool = [], cross = [], scaf = [];
   // signal threads: from the mouth across the sheet, gently curving
@@ -276,11 +277,13 @@ const BAD_WEB = hot(new THREE.Group(), .3); scene.add(BAD_WEB);
   }
   // scaffolding: knots above the sheet tied up to the bark; the rim tied down to the soil and plants
   for(let k = 0; k < 60; k++){ let a; do { a = [rr(-1, 1)*p.rx, rr(-1, 1)*p.rz]; } while(E(...a) > .85);
-    const knot = W(a[0]*.75, a[1]*.75, rr(.15, .5)), bark = LGC.project(BAD.mouth.clone().addScaledVector(BAD.ax, rr(-1.4, 1.4)).add(new V3(0, rr(.05, .55), 0)));
+    const knot = W(a[0]*.75, a[1]*.75, rr(.15, .5)), bark = LGC.project(B.mouth.clone().addScaledVector(B.ax, rr(-1.4, 1.4)).add(new V3(0, rr(.05, .55), 0)));
     scaf.push(W(...a), knot, knot, bark); if(rnd() < .5){ let b2; do { b2 = [rr(-1, 1)*p.rx, rr(-1, 1)*p.rz]; } while(E(...b2) > 1); scaf.push(knot, W(...b2)); } }
   for(let k = 0; k < 22; k++){ const a = k/22*6.28, L = edgeAt(a), e = W(ml[0] + Math.cos(a)*L*p.rx*.98, ml[1] + Math.sin(a)*L*p.rz*.98);
+    // up a trunk the rim is slung from the bark above, not tied down to a floor far below
+    if(B.high){ scaf.push(e, LGC.project(B.mouth.clone().addScaledVector(B.ax, rr(-2.2, 2.2)).add(new V3(0, rr(.3, 1.6), 0)))); continue; }
     const g = new V3(e.x + rr(-.35, .35), 0, e.z + rr(-.35, .35)); g.y = hAt(g.x, g.z); scaf.push(e, g); }
-  BAD_WEB.add(new THREE.LineSegments(segsFrom(cross), silkM(.32, 0xd8d6e4)), new THREE.LineSegments(segsFrom(wool), silkM(.5, 0xe8eaf8)),
+  G.add(new THREE.LineSegments(segsFrom(cross), silkM(.32, 0xd8d6e4)), new THREE.LineSegments(segsFrom(wool), silkM(.5, 0xe8eaf8)),
     new THREE.LineSegments(segsFrom(sig), silkM(.7, 0xf6f6ff)), new THREE.LineSegments(segsFrom(scaf), silkM(.42, 0xdcd8e8)));
   // the fine sheet: an irregular outline with a lacy, wispy alpha (silk thickest near the retreat)
   const lace = canvasTex(256, 256, (x, w, h) => {
@@ -296,26 +299,29 @@ const BAD_WEB = hot(new THREE.Group(), .3); scene.add(BAD_WEB);
   for(let k = 0; k < sq.count; k++){ const lx = sq.getX(k), lz = sq.getY(k), w3 = W(lx, lz, -.004); sq.setXYZ(k, w3.x, w3.y, w3.z); suv.setXY(k, .5 + lx/(2*p.rx*1.2), .5 + lz/(2*p.rz*1.2)); }
   sg.computeVertexNormals();
   const sheet = new THREE.Mesh(sg, new THREE.MeshStandardMaterial({color:0xe2e2ee, alphaMap: lace, transparent:true, opacity:.75, side:THREE.DoubleSide, depthWrite:false, roughness:.6}));
-  BAD_WEB.add(sheet);
+  G.add(sheet);
   // what the sheet has caught: husks and bits of leaf
   const husk = new THREE.MeshStandardMaterial({color:0x2a1e14, roughness:.4}), bit = new THREE.MeshStandardMaterial({color:0x6a5030, side:THREE.DoubleSide});
   for(let k = 0; k < 9; k++){ let a; do { a = [rr(-1, 1)*p.rx, rr(-1, 1)*p.rz]; } while(E(...a) > .8);
     const m = new THREE.Mesh(k % 3 ? new THREE.SphereGeometry(.018, 6, 5) : new THREE.CircleGeometry(.03, 6).rotateX(-Math.PI/2), k % 3 ? husk : bit);
-    m.position.copy(W(...a, .008)); m.scale.set(1, .6, 1.5); m.rotation.y = rnd()*6; BAD_WEB.add(m); }
+    m.position.copy(W(...a, .008)); m.scale.set(1, .6, 1.5); m.rotation.y = rnd()*6; G.add(m); }
   // retreat: a funnel flared at the mouth, wide enough for the spider, running into a crack in the log
   const prof = [[.26, -.1], [.22, -.05], [.18, .02], [.155, .12], [.14, .3], [.13, .6]].map(([r, y]) => new THREE.Vector2(r, y));
   const tubeM = new THREE.MeshStandardMaterial({color:0xe6e2ee, transparent:true, opacity:.5, side:THREE.DoubleSide, depthWrite:false});
   const tube = new THREE.Mesh(new THREE.LatheGeometry(prof, 20), tubeM);
-  tube.position.copy(BAD.mouth); tube.quaternion.setFromUnitVectors(new V3(0, 1, 0), BAD.sd); BAD_WEB.add(tube);
-  const tl = [], e1 = BAD.ax, e2 = new V3().crossVectors(BAD.sd, e1).normalize();
-  const tp = (r, y, a) => BAD.mouth.clone().addScaledVector(BAD.sd, y).addScaledVector(e1, Math.cos(a)*r).addScaledVector(e2, Math.sin(a)*r);
+  tube.position.copy(B.mouth); tube.quaternion.setFromUnitVectors(new V3(0, 1, 0), B.sd); G.add(tube);
+  const tl = [], e1 = B.ax, e2 = new V3().crossVectors(B.sd, e1).normalize();
+  const tp = (r, y, a) => B.mouth.clone().addScaledVector(B.sd, y).addScaledVector(e1, Math.cos(a)*r).addScaledVector(e2, Math.sin(a)*r);
   for(let k = 0; k < 18; k++){ const a = k/18*6.283 + rr(-.1, .1); for(let i = 0; i + 1 < prof.length; i++) tl.push(tp(prof[i].x, prof[i].y, a), tp(prof[i + 1].x, prof[i + 1].y, a + rr(-.06, .06))); }
   for(let i = 0; i < prof.length; i++) for(let k = 0; k < 24; k++) tl.push(tp(prof[i].x, prof[i].y, k/24*6.283), tp(prof[i].x, prof[i].y, (k + 1)/24*6.283));
   for(let k = 0; k < 40; k++){ const a = rnd()*6.283, rim = tp(.26, -.1, a);                // the lacy collar spread onto the bark
     tl.push(rim, LGC.project(rim.clone().addScaledVector(e1, Math.cos(a)*rr(.15, .45)).addScaledVector(e2, Math.sin(a)*rr(.15, .45)))); }
-  BAD_WEB.add(new THREE.LineSegments(segsFrom(tl), silkM(.6, 0xf2f0fa)));
+  G.add(new THREE.LineSegments(segsFrom(tl), silkM(.6, 0xf2f0fa)));
+  tagSilk(G); return G;
 }
-tagSilk(ARG_WEB); tagSilk(BAD_WEB);
+BAD.bark = PLAT.find(q => q.kind === 'log').climb;
+const BAD_WEB = badumnaWeb(BAD);
+tagSilk(ARG_WEB);
 // --- Scytodes: a sparse, irregular tangle over its leaf: knots in the air, guy lines down to the blade, threads laid on it
 function scytodesWeb(p){
   const c = Math.cos(p.rot), s = Math.sin(p.rot), g = [];

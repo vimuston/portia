@@ -6,6 +6,7 @@ const BOSS = {
   scytodes: {pre: 'YOUR PREY', name: 'SCYTODES PALLIDA', epi: 'THE SPITTING SPIDER', lab: 'AWARENESS'},
   badumna:  {pre: 'YOUR PREY', name: 'BADUMNA LONGINQUA', epi: 'THE LURKER IN THE TUBE', lab: 'AWARENESS'},
   argiope:  {pre: 'YOU ARE ON ITS WEB', name: 'ARGIOPE', epi: 'WEAVER OF THE CROSS', lab: 'AWARENESS'},
+  araneus:  {pre: 'YOUR PREY', name: 'ARANEUS', epi: 'THE PATIENT SPINNER', lab: 'AWARENESS'},
   mantis:   {pre: 'YOU ARE HUNTED', name: 'PRAYING MANTIS', epi: 'THE PATIENT REAPER', lab: 'HUNTING YOU'},
   male:     {pre: 'A SUITOR', name: 'PORTIA LABIATA', epi: 'HE WHO COURTS', lab: 'TRUST', ally: true},
 };
@@ -32,6 +33,10 @@ function bossDo(p){
     peek: ['It stirs. Keep plucking.', false],
     out: p.rush > .6 ? ['It is rushing you. Switch to calming taps!', true] : ['It is coming. Wait, then leap.', false],
     back: ['It is going back. Pluck again.', false]})[p.state] || ['', false];
+  if(p.kind === 'araneus') return ({radii: ['It is laying radii. Leap onto it, or wait for the spiral.', false],
+    spin: ['It is busy spinning. Creep up softly and leap onto it.', false], freeze: ['It felt you and froze. Keep still a moment, then strike.', false],
+    return: ['It is going back to the hub. Leap onto it.', false], hub: ['It rests at the hub. Leap onto it.', false],
+    down: ['It is taking its web down. Leap onto it.', false]})[p.state] || ['', false];
   return ({hub: ['Pluck the web (hold Q) to lure it toward you.', false], pump: ['It is feeling for movement. FREEZE, or it strikes.', true],
     lunge: ['It felt you move! Get off the web!', true],
     walk: ['It is coming toward the signal. Leap when it is close.', false], rush: ['It is coming to wrap you. Get off the web!', true],

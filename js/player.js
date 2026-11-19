@@ -36,7 +36,7 @@ function pickTarget(px, py){
   const p = new V3(), q = new V3(); let t = .05;
   // an Argiope in its orb: pointing at her aims at her (seen edge-on, the sheet itself is too thin to pick out)
   let argB = null, argO = null, tA = -1;
-  for(const O of ORBS){ const A = O.spider; if(A.dead || A.dropped) continue;
+  for(const O of ORBS){ const A = O.spider; if(A.dead || A.dropped || O.edge(0) < .3) continue;   // (a web not spun yet gives her nothing to land on)
     const b = A.m.userData.parts.body.getWorldPosition(new V3()), tb = b.clone().sub(o).dot(d);
     if(tb > 0 && o.clone().addScaledVector(d, tb).distanceTo(b) < .3 && (!argB || tb < tA)){ argB = b; argO = O; tA = tb; } }   // only if the ray passes over her
   for(const P of PLAT) if(P._br === undefined) P._br = platR(P) + .01;   // bounding radius: cheap reject before the outline test

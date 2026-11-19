@@ -9,7 +9,7 @@ const SCY = [PLAT[2], PLAT[6]].map((pl, i) => {
   const p = addPrey({kind:'scytodes', name:'Scytodes pallida · spitting spider', m: makeScytodes(), plat: pl, home, pos: home.clone(), yaw: rnd()*6.28, egg: i === 1, cool: 0, state:'idle'});
   p.want = p.yaw; pl.silk = p; return p;
 });
-const BADU = addPrey({kind:'badumna', name:'Badumna longinqua · grey house spider', m: makeBadumna(), plat: BAD.plat, pos: BAD.mouth.clone(), yaw: 0,
+const BADU = addPrey({kind:'badumna', name:'Badumna longinqua · grey house spider', m: makeBadumna(), site: BAD, plat: BAD.plat, pos: BAD.mouth.clone(), yaw: 0,
   state:'retreat', pref: 'fly', interest: 0, rush: 0, sulk: 0, known: false, peekT: 0});
 BAD.plat.silk = BADU;
 const ARGI = addPrey({kind:'argiope', name:'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: ARG.side, pos: ARG.C.clone(), state:'hub', wary: 0, fwd: new V3(0, -1, 0), orb: ARG});
@@ -49,6 +49,46 @@ const ARG2 = (() => {
 const WEB2 = ARG2 && webSurface(ARG2);
 const ARGI2 = ARG2 && addPrey({kind:'argiope', name:'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: WEB2, pos: ARG2.C.clone(), state:'hub', wary: 0, fwd: new V3(0, -1, 0), orb: ARG2});
 if(ARG2){ WEB2.silk = ARGI2; Object.assign(ARG2, {S: WEB2, spider: ARGI2}); ORBS.push(ARG2); }
+
+// the spiders added later each draw on their own random stream (both the world's and the textures'), so the seeded
+// world generated after them is unchanged
+function ownStream(s, f){ const s0 = seed, t0 = texSeed; seed = s; texSeed = s + 7; try { return f(); } finally { seed = s0; texSeed = t0; } }
+// ---- more spitting spiders, up on the higher leaves; one of them guards its eggs
+const SCY2 = ownStream(51511, () => [[PLAT[9], false], [PLAT[10], true], [PLAT[11], false]].map(([pl, egg]) => {
+  scytodesWeb(pl);
+  const home = randomIn(pl, .4);
+  const p = addPrey({kind:'scytodes', name:'Scytodes pallida · spitting spider', m: makeScytodes(), plat: pl, home, pos: home.clone(), yaw: rnd()*6.28, egg, cool: 0, state:'idle'});
+  p.want = p.yaw; pl.silk = p; return p;
+}));
+// ---- a second house spider, up a young tree: its retreat in a crack in the bark about 9 up, the lacy sheet slung
+// out from the trunk toward the clearing and tied to the bark above
+const BAD2 = ownStream(72733, () => {
+  const tr = TREE_LIST.find(([x, z]) => Math.hypot(x - 14, z - 3) < .01); if(!tr) return null;
+  const trunk = CLIMBS.find(S => S.tree && !S._pts && S.cx === tr[0] && S.cz === tr[1]); if(!trunk) return null;
+  const ctr = new V3(tr[0], 0, tr[1]), out = new V3(-tr[0], 0, -tr[1]).normalize(), y = hAt(tr[0], tr[1]) + 9;
+  const q = ctr.clone().addScaledVector(out, tr[2]*2); q.y = y; trunk.project(q);
+  const sd = ctr.clone().sub(q).setY(0).normalize(), ax = new V3().crossVectors(sd, UP).normalize();
+  const mouth = q.clone().addScaledVector(sd, .02), RX = 1.35, RZ = 1.25, center = mouth.clone().addScaledVector(sd, -(RX + .02)); center.y = mouth.y - .04;
+  const plat = {id:'WEB-B2', kind:'web', x:center.x, y:center.y, z:center.z, rx:RX, rz:RZ, rot: Math.atan2(-sd.z, sd.x)};
+  PLAT.push(plat);
+  const B = {ax, sd, mouth, plat, bark: trunk, high: true}; badumnaWeb(B);
+  B.spider = addPrey({kind:'badumna', name:'Badumna longinqua · grey house spider', m: makeBadumna(), site: B, plat, pos: mouth.clone(), yaw: 0,
+    state:'retreat', pref: 'fly', interest: 0, rush: 0, sulk: 0, known: false, peekT: 0});
+  plat.silk = B.spider; return B;
+});
+const BAD_SITES = [BAD, BAD2].filter(Boolean);
+// ---- the garden orb-weavers up in the air (life.js BUILDERS). Each spins its web slowly: radii, then the sticky spiral
+// turn by turn, finished in ten minutes; five minutes after one starts, the next one starts, and so on round. It rests
+// at the hub on the finished web, takes it down and begins again. The web is walkable only as far out as it is spun
+const SPIN = {radii: 120, done: 600, down: 840, cycle: 900, gap: 300};
+const ARAN = ownStream(91919, () => BUILDERS.map((B, i) => {
+  const O = {C: B.C, n: B.n, u: B.u, R: B.R, g: B.g, B, walk: 0, builder: true};
+  O.edge = () => O.walk;
+  const S = webSurface(O);
+  const p = addPrey({kind:'araneus', name:'Araneus · garden orb-weaver', m: B.m, plat: S, pos: B.C.clone(), state:'hub', fwd: new V3(0, -1, 0), orb: O,
+    bt: ((-i*SPIN.gap) % SPIN.cycle + SPIN.cycle) % SPIN.cycle});
+  S.silk = p; Object.assign(O, {S, spider: p}); ORBS.push(O); return p;
+}));
 
 // mimicry signals Portia can pluck into silk
 const PLUCKS = [
@@ -297,7 +337,8 @@ function killPrey(p){
   pulses.push({pos: p.pos.clone(), amp: 1.4, decay: .7});
   toast({scytodes: p.egg ? 'You land on it past the egg sac — fangs in, venom pumping.' : 'You drop onto it from behind — it never turned. Fangs in, venom pumping.',
          badumna: 'You leap onto the house spider on its own sheet — fangs in, venom pumping.',
-         argiope: 'You land on it in the orb — fangs in, venom pumping.'}[p.kind]);
+         argiope: 'You land on it in the orb — fangs in, venom pumping.',
+         araneus: p.orb && p.orb.walk < .3 ? 'You snatch it off its half-spun threads — fangs in, and you fall together.' : 'You take the orb-weaver on its own web — fangs in, venom pumping.'}[p.kind]);
 }
 // ---- the kill is a leap: land on a spider and bite. A burst of rapid fang strokes pumps the venom in; then she
 // seizes it in her front legs and palps, lifts it off its feet in her fangs, and drains it over 5 s, the body
@@ -320,8 +361,10 @@ function pounce(p){
   // the face she bites from: the one she is on, or leapt from; a leap along the web can drift through its plane
   // before it reaches her, and that mustn't flip her onto the far face
   const O = p.orb, fromWeb = O && (sp.plat === O.S || (sp.mode === 'air' && sp.leftFrom === O.S));
-  const up = p.kind === 'argiope' ? O.n.clone().multiplyScalar(fromWeb ? O.S.side : Math.sign(sp.pos.clone().sub(p.m.getWorldPosition(new V3())).dot(O.n)) || 1) : null;
-  const F = startFeed(p, up, p.kind === 'argiope' ? null : p.plat, HOLD_D, .55);
+  // an orb-weaver caught where its web is not yet spun (out on a bare radius): nothing holds her, and she falls with it
+  if(O && O.edge(0) < .3){ const F = startFeed(p, UP.clone(), null, HOLD_D, .55); F.fall = new V3(); F.midair = true; p.airborne = true; return true; }
+  const up = O ? O.n.clone().multiplyScalar(fromWeb ? O.S.side : Math.sign(sp.pos.clone().sub(p.m.getWorldPosition(new V3())).dot(O.n)) || 1) : null;
+  const F = startFeed(p, up, O ? null : p.plat, HOLD_D, .55);
   if(p.kind === 'badumna') F.base.y = Math.max(F.base.y, F.p0.y);
   return true;
 }
@@ -393,12 +436,18 @@ function endFeed(drained){
     sp.yaw = Math.atan2(F.fw.x, F.fw.z); p.airborne = false;
     toast(drained ? 'Drained. You let the shrivelled fly drop.' : 'You let the fly drop, half-drained.'); return;
   }
-  if(p.kind === 'argiope'){ p.dropped = true; p.pos.set(at.x, floorAt(at.x, at.z), at.z); }
+  if(F.midair && F.fall){                         // the meal ended still falling: let go of the husk and fly on
+    p.dropped = true; p.airborne = false; p.pos.set(at.x, floorAt(at.x, at.z), at.z); p.fallH = Math.max(0, at.y - p.pos.y); p.fallV = 0; p.yaw = Math.atan2(F.fw.x, F.fw.z);
+    sp.mode = 'air'; sp.pos.copy(F.base); sp.vel.set(0, 0, 0); sp.m.rotation.set(0, Math.atan2(F.fw.x, F.fw.z), 0); sp.yaw = Math.atan2(F.fw.x, F.fw.z);
+    toast(drained ? 'Drained. You let the shrivelled husk drop.' : 'You let it drop, half-drained.'); return;
+  }
+  if(F.midair){ p.dropped = true; p.airborne = false; }   // fell with it and landed: the husk lies where she fed (p.plat, the landing)
+  if(p.orb && !F.midair){ p.dropped = true; p.pos.set(at.x, floorAt(at.x, at.z), at.z); }
   else { const [x, z] = clampTo(p.plat, at.x, at.z); p.pos.set(x, surfY(p.plat, x, z), z); if(p.kind === 'badumna') p.pos.y = Math.max(p.pos.y, F.p0.y); }
   p.fallH = Math.max(0, at.y - p.pos.y); p.fallV = 0; p.yaw = Math.atan2(F.fw.x, F.fw.z) + rr(-.8, .8); p.flip = 0;
   // back onto the face she fed from. F.base is already in world space (it rides the sway): taking the sway off again
   // set her a few cm off the plane, and enterClimb's setSide then flipped her to whichever way the orb was swinging
-  if(p.kind === 'argiope'){ const S = p.orb.S, face = Math.sign(F.up.dot(p.orb.n)) || 1; S.side = face; enterClimb(S, F.base.clone(), F.fw.clone()); S.side = face; }
+  if(p.orb && !F.midair){ const S = p.orb.S, face = Math.sign(F.up.dot(p.orb.n)) || 1; S.side = face; enterClimb(S, F.base.clone(), F.fw.clone()); S.side = face; }
   else { sp.mode = 'ground'; sp.plat = p.plat; sp.pos.copy(F.base); sp.yaw = Math.atan2(F.fw.x, F.fw.z); }
   toast(drained ? 'Drained. You let the shrivelled husk drop.' : 'You let it drop, half-drained.');
 }
@@ -527,7 +576,7 @@ function deadLook(p, dt){
   if(P.abd && P.abdS){ const k = 1 - .55*dr; P.abd.scale.set(P.abdS.x*k, P.abdS.y*k*.7 + P.abdS.y*.3*(1 - dr), P.abdS.z*(.65 + .35*k)); }   // sucked flat and wrinkled
   P.body.scale.setScalar(1 - .15*dr);                                                                                                     // the whole husk shrinks a little
   if(p.held) return;                                                                                                                       // in her fangs: she places it
-  const flat = p.kind !== 'argiope' || p.dropped;
+  const flat = !p.orb || p.dropped;
   p.flip = (p.flip || 0) + ((p.dead && !fed && flat ? 1 : 0) - (p.flip || 0))*(1 - Math.exp(-4*dt));
   if(flat && p.flip > .001){ const e = p.flip*p.flip*(3 - 2*p.flip), hb = P.body.position.y;
     p.m.rotation.z = Math.PI*e; p.m.position.y = p.pos.y + (2*hb + .02)*e; }
@@ -537,8 +586,9 @@ function respawnPrey(p){
   p.drain = 0; p.flip = 0; p.held = false; p.dropped = false; p.limp = 0; p.fallH = 0; p.hl = 0;
   Object.assign(p, {dead: false, deadT: 0, alert: 0, temp: p.temp0, close: 0, idleT: 0});
   if(p.kind === 'scytodes'){ p.pos.copy(p.home); p.egg = rnd() < .5; p.state = 'idle'; }
-  if(p.kind === 'badumna'){ p.pos.copy(BAD.mouth); Object.assign(p, {state:'retreat', interest: 0, known: false, sulk: 0}); }
+  if(p.kind === 'badumna'){ p.pos.copy(p.site.mouth); Object.assign(p, {state:'retreat', interest: 0, known: false, sulk: 0}); }
   if(p.kind === 'argiope'){ p.pos.copy(p.orb.C); p.state = 'hub'; p.wary = 0; p.fwd.set(0, -1, 0); }
+  if(p.kind === 'araneus'){ p.pos.copy(p.orb.C); p.plat = p.orb.S; p.state = 'hub'; p.fwd.set(0, -1, 0); }   // a newcomer takes over the web where it was left
 }
 
 function updScytodes(p, dt){
@@ -570,6 +620,7 @@ function updScytodes(p, dt){
 }
 function updBadumna(p, dt){
   if(deadTick(p, dt)) return;
+  const BAD = p.site;
   const pk = preyPluck(p), home = BAD.mouth.clone().addScaledVector(BAD.sd, .14);
   p.alert = Math.max(0, p.alert + preyNoise(p)*dt*1.2 - dt*.15);
   p.motion = 0; p.vib = 0;
@@ -668,11 +719,47 @@ function updArgiope(p, dt, t){
     p.motion = .8; p.vib = 1;
   }
 }
+// the garden orb-weaver at work, on its clock p.bt (see SPIN). Footsteps or plucks on its silk make it freeze, feeling
+// the threads, until all is quiet again; it never takes its web down while she is on it. A dead one's web stays as it was
+function updAraneus(p, dt){
+  if(deadTick(p, dt)) return;
+  const O = p.orb, B = O.B, {C, u, v, R, N, NR, path} = B;
+  p.motion = 0; p.vib = 0;
+  p.alert = Math.max(0, p.alert + preyNoise(p)*dt*2 + (preyPluck(p) ? dt*.6 : 0) - dt*.3);
+  if(p.state === 'freeze' ? p.alert > .15 : p.alert > .7){ p.state = 'freeze'; return; }
+  let T = p.bt + dt;
+  if(p.bt <= SPIN.down && T > SPIN.down && onSilkOf(p)) T = SPIN.down;
+  p.bt = T = T % SPIN.cycle;
+  let walk = R, fade = 1, pos = null, fwd = null;
+  if(T < SPIN.radii){                                      // the radii, one by one: out from the hub, then back along it
+    const fr = T/SPIN.radii, k = Math.min(NR - 1, Math.floor(fr*NR)), ph = fr*NR - k, a = k/NR*6.283;
+    const d = u.clone().multiplyScalar(Math.cos(a)).addScaledVector(v, Math.sin(a));
+    pos = C.clone().addScaledVector(d, .02 + (R - .02)*Math.sin(ph*Math.PI)); fwd = d.multiplyScalar(ph < .5 ? 1 : -1);
+    B.rL.geometry.setDrawRange(0, 2*k + (ph > .5 ? 2 : 0)); B.sL.geometry.setDrawRange(0, 0); walk = 0; p.state = 'radii';
+  } else if(T < SPIN.done){                                // the sticky spiral, turn by turn outward, the builder walking it
+    const x = (T - SPIN.radii)/(SPIN.done - SPIN.radii)*N, i = Math.min(N - 1, Math.floor(x));
+    pos = path[i].clone().lerp(path[i + 1], x - i); fwd = path[i + 1].clone().sub(path[i]);
+    B.rL.geometry.setDrawRange(0, 2*NR); B.sL.geometry.setDrawRange(0, 2*i);
+    walk = Math.min(R, pos.distanceTo(C) + .15); p.state = 'spin';
+  } else {                                                 // finished: back to the hub to wait; later it takes the web down
+    B.rL.geometry.setDrawRange(0, 2*NR); B.sL.geometry.setDrawRange(0, 2*N);
+    if(T >= SPIN.down){ fade = 1 - (T - SPIN.down)/(SPIN.cycle - SPIN.down); walk = 0; }
+    if(argMove(p, C, .35, dt) > .03){ p.state = 'return'; p.motion = .3; }
+    else { p.state = T >= SPIN.down ? 'down' : 'hub'; p.fwd.lerp(new V3(0, -1, 0), 1 - Math.exp(-3*dt)); }
+  }
+  if(pos){
+    p.phase += pos.distanceTo(p.pos)*35; p.pos.copy(pos); p.motion = .35; p.vib = .3;
+    if(fwd.lengthSq() > 1e-10){ fwd.normalize(); if(p.fwd.dot(fwd) < -.5) fwd.addScaledVector(new V3().crossVectors(O.n, p.fwd).normalize(), 1.5);   // turn round through the side
+      p.fwd.lerp(fwd, 1 - Math.exp(-6*dt)); }
+  }
+  O.walk = walk;
+  B.mats.forEach((mt, k) => mt.opacity = [.55, .45, .4][k]*fade);
+}
 function updatePrey(dt, t){
   for(const p of PREY){
     KILLER_NOW = p;
     if(DOOM.killer === p && DOOM.t >= 0 && !DOOM.reset) eatCorpse(p, dt);
-    else if(p.kind === 'scytodes') updScytodes(p, dt); else if(p.kind === 'badumna') updBadumna(p, dt); else updArgiope(p, dt, t);
+    else if(p.kind === 'scytodes') updScytodes(p, dt); else if(p.kind === 'badumna') updBadumna(p, dt); else if(p.kind === 'araneus') updAraneus(p, dt); else updArgiope(p, dt, t);
     KILLER_NOW = null;
     if(!p.dead) p.temp += ((p.motion > .6 ? .72 : .56) - p.temp)*(1 - Math.exp(-.8*dt));
     // pose: walking prey are carried on planted feet; resting or dead ones hold a pose
@@ -681,10 +768,10 @@ function updatePrey(dt, t){
     if(p.held){                                                    // in her fangs: feedTick places it; it spasms, then goes limp
       const bite = sp.feed && sp.feed.t < BITE_T;
       gaitRelease(p.m); poseArach(p.m, bite ? {walk: 1, phase: t*48, bob: Math.sin(t*70)*.003} : {limp: p.limp || 0});
-    } else if(p.kind === 'argiope' && !p.dropped){
+    } else if(p.orb && !p.dropped){
       const O = p.orb, z = p.fwd.clone().normalize(), y = O.n.clone(), x = new V3().crossVectors(y, z);
       M4.makeBasis(x, y, z); p.m.quaternion.setFromRotationMatrix(M4); p.m.position.copy(p.pos).add(O.g.position);
-      if(!p.dead && p.state !== 'hub' && p.state !== 'pump'){
+      if(!p.dead && p.state !== 'hub' && p.state !== 'pump' && p.state !== 'freeze' && p.state !== 'down'){
         // feet grip the silk: footholds lie on the (swaying) web plane, "up" is the web normal
         const c = O.C.clone().add(O.g.position);
         poseArach(p.m, {});
@@ -713,7 +800,7 @@ function updatePrey(dt, t){
   for(let i = gums.length - 1; i >= 0; i--){ const g = gums[i]; g.t -= dt; if(g.t <= 0){ scene.remove(g.ln); drawables.splice(drawables.indexOf(g.ln), 1); gums.splice(i, 1); } }
   // webs tremble in the breeze; the orb bucks when pumped
   for(const O of ORBS) O.g.position.copy(O.n).multiplyScalar(Math.sin(t*7)*(.006 + wind.gust*.03)*(O.corner ? .4 : 1) + (O.spider.state === 'pump' ? Math.sin(t*32)*.05 : 0));   // bark holds a corner web stiffer
-  BAD_WEB.position.y = Math.sin(t*6)*wind.gust*.015;
+  for(const B of BAD_SITES) B.g.position.y = Math.sin(t*6)*wind.gust*.015;
   if(sp.mode === 'climb' && sp.plat && sp.plat.web && !sp.roll){          // she and her footholds ride the swaying, bucking orb
     const off = sp.plat.orb.g.position.clone(), d = off.clone().sub(sp.plat.lastOff || off); sp.plat.lastOff = off;
     if(d.lengthSq() > 0){ sp.pos.add(d); sp.m.position.add(d); for(const L of sp.m.userData.parts.legs){ L.foot.add(d); if(L.step){ L.step.from.add(d); L.step.to.add(d); } } }
