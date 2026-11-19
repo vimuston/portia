@@ -927,7 +927,7 @@ const plantGrassTufts = () => {
   }
   im.receiveShadow = true; scene.add(im); litterBake(im);   // walkable: she steps over it, never under it
 }
-// surface roots
+// surface roots: walked over as part of the floor
 {
   const m = new THREE.MeshStandardMaterial({color:0x6a5038, map: ROOT_TEX, bumpMap: ROOT_TEX, bumpScale: 2.5, roughness:.9});
   for(let i = 0; i < 30; i++){
@@ -935,7 +935,9 @@ const plantGrassTufts = () => {
     for(let k = 0; k < 12; k++){ pts.push(new V3(x, hAt(x, z) + .015, z)); a += rr(-.5, .5); x += Math.cos(a)*1.1; z += Math.sin(a)*1.1; }
     const crv = new THREE.CatmullRomCurve3(pts), tr = rr(.12, .3);                                    // roots 7–18 mm thick, snaking 40 cm
     const t = hot(new THREE.Mesh(new THREE.TubeGeometry(crv, 40, tr, 6), m), TEMP.wood); t.receiveShadow = t.castShadow = true; scene.add(t); OCCLUDERS.push(t);
-    tubeSurface(crv.getPoints(24), tr);
+    // part of the floor she walks, like the twigs: she steps over a root, ramping up onto it. (As a climbable tube, half
+    // buried in the litter, walking into one sent her up its side and back down the same way, over and over.)
+    litterBake({geometry: t.geometry, count: 1, getMatrixAt: (n, M) => M.identity()});
   }
 }
 // half-buried boulders
