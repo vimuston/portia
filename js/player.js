@@ -850,11 +850,11 @@ function updateSpider(dt){
     { const J = sp.idle, B = m.userData.parts.body; B.rotation.set((J ? J.bx : 0) + .17*give, J ? J.by : 0, J ? J.bz : 0); }
     m.userData.parts.head.rotation.x = .1*nod;
     // idle dip: last frame's, so the feet are solved against it; the landing drop is capped so the dipped head stays clear of the surface
-    poseSpider(m, {raise, raise2: sp.charging || gest2 ? raise : 0, crouch: 1.25*load, abdDown: -.5*load, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0) - .026*m.userData.parts.s*give});
+    poseSpider(m, {raise, raise2: sp.charging ? raise : 0, gest2: gest2 ? raise : 0, crouch: 1.25*load, abdDown: -.5*load, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0) - .026*m.userData.parts.s*give});
     const cad = snap && (pc.ph === 'burst' || tidy) ? {t: pc.t, per: tidy ? PACE.cad : pc.cad, min: tidy ? .5 : 0} : null, onIt = snap && (pc.ph === 'burst' || pc.ph === 'freeze');
-    gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => raise > 0 && (L.k === 0 || (L.k === 1 && (gest2 || (sp.charging && (GA.up2 || GA.w2 > .04)))))});
+    gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => raise > 0 && (L.k === 0 || (L.k === 1 && (sp.charging ? GA.up2 || GA.w2 > .04 : gest2)))});
     // raised front legs swing up out of their last standing pose; the lunge throws the body forward a touch
-    for(const L of m.userData.parts.legs){ const w = L.k === 1 ? rw*Math.max(w2, g2) : rw; if(!L.free || !L.ikA || w >= .999) continue;   // the second legs rise and settle on their own (gauging a leap, or gesturing)
+    for(const L of m.userData.parts.legs){ const w = L.k === 1 ? rw*(sp.charging ? w2 : g2) : rw; if(!L.free || !L.ikA || w >= .999) continue;   // the second legs rise and settle on their own, by the leap's gauging or the gesture's
       for(let j = 0; j < 5; j++) L.joints[j].rotation.x = L.ikA[j] + (L.joints[j].rotation.x - L.ikA[j])*w;
       L.yawG.rotation.y = L.ikY + angDelta(L.ikY, L.yawG.rotation.y)*w;
     }
