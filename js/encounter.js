@@ -65,8 +65,19 @@ function updateOrbs(){
   KILLS.n = n; KILLS.mated = mated;
   E.setAttribute('aria-label', `Spiders eaten: ${n} of ${prey.length + 1}${n ? ' (' + KILLS.order.map(p => BOSS[p === male ? 'male' : p.kind].name.toLowerCase()).join(', ') + ')' : ''}. ${mated ? 'Mated.' : 'Not yet mated.'}`);
 }
+// out of the lessons and into the forest: the empty orbs glow for a while, and a line beneath them hints what fills them
+// (asked for, it waits for the next frame with the title card closed: see updateEncounter)
+let orbHintT = 0, orbHintWant = false;
+function orbHint(){ orbHintWant = true; }
+function orbHintShow(){
+  const E = $('#orbs'), H = $('#orbhint'); clearTimeout(orbHintT); orbHintWant = false;
+  H.textContent = 'Hungry. The forest is full of spiders.';
+  E.classList.add('hint'); H.classList.add('on');
+  orbHintT = setTimeout(() => { E.classList.remove('hint'); H.classList.remove('on'); }, 10000);
+}
 function updateEncounter(dt){
   updateOrbs();
+  if(orbHintWant && !introOpen()) orbHintShow();
   const now = performance.now()/1000, bar = $('#bossbar'), E = $('#encounter');
   if(introOpen()){ bar.classList.remove('on'); E.style.opacity = 0; return; }
   const live = p => p === male ? !male.gone && !male.dead && (!sp.mated || male.state === 'mount' || male.state === 'linger') : !p.dead;

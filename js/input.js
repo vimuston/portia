@@ -117,7 +117,7 @@ function padActions(dt){
   if(pressed('y')) tutToggle();   // the field notes (tutorial.js)
   if(pressed('start')) $('#hud').classList.toggle('hidehud');
   const flick = Math.hypot(pad.lx, pad.ly) > .7 && Math.hypot(padPrev.lx || 0, padPrev.ly || 0) <= .7;
-  if(sp.stuck > 0 && (pressed('a') || pressed('x') || pressed('b') || flick)) sp.stuck = Math.max(.01, sp.stuck - .3);   // struggle
+  if(sp.stuck > 0 && (pressed('a') || pressed('x') || pressed('b') || flick)) { sp.stuck = Math.max(.01, sp.stuck - .3); sp.struggleT = .3; }   // struggle
 }
 
 // contrast is fixed at 1.20 (the slider is gone)
@@ -288,7 +288,7 @@ addEventListener('keydown', e => {
   if((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && sp.charging){ shiftSolo = false; SLOWMO.armed = true; }   // aiming: holding Shift arms slow motion, not dash
   if(e.code === 'KeyC') toggleMove('sneak');
   if(e.code === 'Space'){ e.preventDefault(); if((sp.mode === 'ground' || sp.mode === 'hang' || sp.mode === 'climb') && sp.stuck <= 0){ sp.charging = true; sp.aimShake = 0; updateAim(true); SLOWMO.armed = !!(keys.ShiftLeft || keys.ShiftRight); } else if(sp.mode === 'air' && !sp.plop) startBalloon(); }
-  if(sp.stuck > 0 && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) sp.stuck = Math.max(.01, sp.stuck - .3);
+  if(sp.stuck > 0 && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(e.code)) { sp.stuck = Math.max(.01, sp.stuck - .3); sp.struggleT = .3; }
   if(e.code === 'KeyX') dropLine();
   if(e.code === 'KeyR') cyclePluck(e.shiftKey ? -1 : 1);
   // senses are always on (no 1-4 toggles)

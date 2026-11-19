@@ -37,10 +37,11 @@ const TUT = (() => {
   const L1 = blade('TUT-A', new V3(BX + .1, top, BZ + .2), 0, 'heart', 2.4, 3.4, .12, .05, .1, 0x4f8a3a);          // the broad leaf
   const L2 = blade('TUT-B', new V3(BX + 3.3, top - .35, BZ - 2.1), -Math.PI/2, 'round', 1.0, 1.15, .1, .08, .05, 0x6a9a44);   // a leap to the right
   const L3 = blade('TUT-C', new V3(BX - 3.3, top + .25, BZ - 2.8), Math.PI/2, 'lance', .85, 1.35, .12, .1, .05, 0x5a8a3c);    // the orb's leaf, to the left
-  // the orb: hung off L3's tip, facing it, its top frame at the blade's level so she plucks it from the tip
-  const n = new V3(-Math.sin(L3.rot), 0, -Math.cos(L3.rot)), u = new V3().crossVectors(new V3(0, 1, 0), n).normalize();
-  const tipP = new V3(L3.x, 0, L3.z).addScaledVector(n, L3.leaf.l*.92); tipP.y = surfAt(L3, tipP.x, tipP.z);
-  const R = 2.0, topB = .9*R, C = tipP.clone().addScaledVector(n, .28); C.y = tipP.y - .03 - topB;
+  // the orb: hung a little way off L3's tip, its top frame at the blade's level so she plucks it from the tip. Its normal
+  // n faces back at the leaf, so the weaver (which sits with its back to n) hangs on the face she comes at it from
+  const dir = new V3(-Math.sin(L3.rot), 0, -Math.cos(L3.rot)), n = dir.clone().negate(), u = new V3().crossVectors(new V3(0, 1, 0), n).normalize();
+  const tipP = new V3(L3.x, 0, L3.z).addScaledVector(dir, L3.leaf.l*.92); tipP.y = surfAt(L3, tipP.x, tipP.z);
+  const R = 2.0, topB = .9*R, C = tipP.clone().addScaledVector(dir, .9); C.y = tipP.y - .03 - topB;
   const F2 = []; for(let k = 0; k < 10; k++){ const a = k/10*6.283 + rr2(-.12, .12), rf = R*rr2(1.0, 1.1); F2.push([Math.cos(a)*rf, Math.min(topB, Math.sin(a)*rf)]); }
   const O = {C, n, u, R, tut: true};
   O.g = hot(new THREE.Group(), .3);
@@ -48,7 +49,7 @@ const TUT = (() => {
   { // anchor lines: the top corners up to the blade's tip and edges, the bottom down to the plant's stalk
     const P2 = (x, y) => C.clone().addScaledVector(u, x).add(new V3(0, y, 0)), pts = [];
     const tops = F2.filter(q => q[1] >= topB - 1e-6).sort((a, b) => a[0] - b[0]);
-    const edgeAt = sd => { const q = new V3(L3.x, 0, L3.z).addScaledVector(n, L3.leaf.l*.55).addScaledVector(u, sd*L3.leaf.w*.6); q.y = surfAt(L3, q.x, q.z) - .01; return q; };
+    const edgeAt = sd => { const q = new V3(L3.x, 0, L3.z).addScaledVector(dir, L3.leaf.l*.55).addScaledVector(u, sd*L3.leaf.w*.6); q.y = surfAt(L3, q.x, q.z) - .01; return q; };
     if(tops.length){ const a = P2(...tops[0]), b = P2(...tops[tops.length - 1]);
       pts.push(a, edgeAt(-1), a, tipP, b, edgeAt(1), b, tipP); }
     const low = F2.reduce((b, q) => q[1] < b[1] ? q : b), lp = P2(...low), stem = L3.stalk.getPoint(.62);
@@ -56,6 +57,10 @@ const TUT = (() => {
     O.g.add(new THREE.LineSegments(segsFrom(pts), silkM(.5)));
   }
   tagSilk(O.g); add(O.g);
+  // where the sticky spiral ends: a faint ring the rim lesson lights up, so she sees the dry band of frame threads beyond it
+  const ringPts = []; for(let k = 0; k < 96; k++){ const a = k/96*6.283, r = O.edge(a)*STICKY_OUT; ringPts.push(C.clone().addScaledVector(u, Math.cos(a)*r).add(new V3(0, Math.sin(a)*r, 0)).addScaledVector(n, .004)); }   // (on the near face)
+  const rim = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ringPts, true), 192, .014, 5, true), new THREE.MeshBasicMaterial({color: 0xffd36a, transparent: true, opacity: 0, depthWrite: false}));
+  rim.frustumCulled = false; O.g.add(rim); drawables.push(rim);
   const S = webSurface(O);
   const spider = addPrey({kind: 'argiope', name: 'Argiope · St Andrew’s Cross spider', m: makeArgiope(), plat: L3, pos: C.clone(), state: 'hub', wary: 0, fwd: new V3(0, -1, 0), orb: O, practice: true});
   spider.m.traverse(c => { if(c.isMesh || c.isLine) drawables.push(c); });
@@ -66,7 +71,7 @@ const TUT = (() => {
   const surfs = new Set([L1, L2, L3, L1.under, L2.under, L3.under, S]);
   const spawnYaw = Math.atan2(-Math.sin(L1.rot), -Math.cos(L1.rot)) + Math.PI;   // facing back along the blade, toward its base
   const spawn = new V3(L1.x, 0, L1.z).addScaledVector(new V3(-Math.sin(L1.rot), 0, -Math.cos(L1.rot)), -.6);
-  return {on: false, i: 0, g: [], t: 0, doneT: -1, base, top, L1, L2, L3, O, S, spider, fly, surfs, spawn, spawnYaw,
+  return {on: false, i: 0, g: [], t: 0, doneT: -1, base, top, L1, L2, L3, O, S, rim, spider, fly, surfs, spawn, spawnYaw, wasStuck: false,
     prevMode: sp.mode, prevPos: new V3(), leap: null, wasBalloon: false, fade: null, el: null};
 })();
 
@@ -90,20 +95,27 @@ const TUT_STEPS = [
     goals: [{t: `Leap off the leaf, then hold ${K('Space', 'A')} in mid-air. ${K('WASD', 'Left stick')} steers`, need: 2.5, tick: (e, dt) => sp.balloon && sp.mode === 'air' ? dt : 0}]},
   {name: 'The Slow Leap', text: 'A leap is over in a fraction of a second, far too fast for our eyes. Slowed down, it is an exact thing: legs drawn in, the front pair reaching forward, and she comes down where she looked.',
     goals: [{t: `Hold ${K('Space', 'A')} to gauge, hold ${K('Shift', 'LT')} as well, then let go of ${K('Space', 'A')}`, need: 1, tick: e => e.landed && e.leap && e.leap.slow ? 1 : 0}]},
-  {name: 'The Dragline', text: 'Before she leaps, a jumping spider glues a thread of silk to the leaf, and it pays out behind her through the air: her dragline, a safety line. If a leap goes wrong she brakes on it in mid-flight, hangs, and reels herself back up. Portia also uses it to come at a web from above, letting herself down on silk where its owner is not watching.',
+  {name: 'The Dragline', text: 'Before she leaps, a jumping spider glues a thread of silk to the leaf, and it pays out behind her through the air: her dragline, a safety line. If a leap goes wrong she brakes on it in mid-flight, hangs, and reels herself back up. Portia also uses it to come at a web from above, letting herself down on silk where its owner is not watching. When a line has served, she bites it through and leaves it behind.',
     lost: 'She fell without braking. Tie a line, and press X while still in the air.',
     goals: [{t: `${K('X', 'B')} Fix a dragline to the leaf`, need: 1, tick: () => sp.line ? 1 : 0},
             {t: `Leap out into the open air, and in mid-flight press ${K('X', 'B')} to brake on the line and hang`, need: 1.5, tick: (e, dt) => e.braked ? dt : 0},
-            {t: `${K('W', 'Left stick up')} Reel yourself back up to the leaf`, need: 1, tick: e => e.surf ? 1 : 0}]},
+            {t: `${K('W', 'Left stick up')} Reel yourself back up to the leaf`, need: 1, tick: e => e.surf ? 1 : 0},
+            {t: `${K('X', 'B')} Bite the dragline free. (While hanging, the same press cuts it and drops you)`, need: 1, tick: e => e.surf && !sp.line ? 1 : 0}]},
   {name: 'The Fly', text: 'Most jumping spiders live on insects, and Portia takes them too. A fly sees fast movement superbly and is gone at the first hint of it. So she stalks: slow, then still, then one leap.',
     start: () => { const f = TUT.fly; if(f.gone){ f.respawn = .3; } },
     goals: [{t: `Stalk ${K('C', 'RT')} to within a leap of the fly, without startling it`, need: 1, tick: () => { const f = TUT.fly; return !f.gone && f.state !== 'fly' && f.pos.distanceTo(sp.pos) < 1.6 ? 1 : 0; }},
             {t: `Leap onto it ${K('Space', 'A')}`, need: 1, tick: () => sp.feed && sp.feed.p === TUT.fly ? 1 : 0}]},
-  {name: 'The Orb-Weaver', text: 'This is what makes Portia famous. She hunts other spiders in their own webs by speaking their language: plucking the silk, she plays the struggle of a small insect caught in the threads, and the owner comes out to take it. If one signal fails she tries another, a flexibility biologists hardly expected from so small a brain. If the weaver starts to pump its web, freeze.',
-    start: () => { if(TUT.spider.dead) tutReviveSpider(); },
-    goals: [{t: 'Leap to the small leaf with the web hanging from its tip, and land softly', need: 1, tick: () => sp.mode === 'ground' && sp.plat === TUT.L3 ? 1 : 0},
-            {t: `Hold ${K('Q', 'RB')} by its tip to pluck the silk. ${K('R', 'LB')} changes the signal`, need: 2, tick: (e, dt) => sp.plucking ? dt : 0},
-            {t: `When it comes close, leap on it ${K('Space', 'A')}`, need: 1, tick: () => TUT.spider.dead ? 1 : 0}]},
+  {name: 'The Orb-Weaver', orb: true, calm: true, text: 'An orb-weaver is a far bigger spider than Portia, and no fool. Resting at the hub of its web, it watches: leap straight at it and it simply lets go, dropping out of reach on a line of silk. And the web it leaves behind is a trap. Between the hub and the frame runs the sticky spiral, and whatever lands in it is held fast.',
+    lost: 'Free of the glue, she drops clear of the web and climbs back to her leaf.',
+    start: () => tutReviveSpider(),
+    goals: [{t: `Leap straight at the orb-weaver on its hub ${K('Space', 'A')}, and see what it does`, need: 1, tick: () => sp.stuck > 0 && sp.stuckKind === 'web' ? 1 : 0},
+            {t: `Caught! Tap ${K('WASD', 'Left stick')} to struggle free before it climbs back to you`, need: 1, tick: e => e.freed ? 1 : 0}]},
+  {name: 'Speaking Silk', orb: true, text: 'This is what makes Portia famous. She hunts other spiders in their own webs by speaking their language. Out on the rim, where only dry frame threads run, she can stand safely. Plucking the silk there, she plays the struggle of a small insect caught in the threads, and the owner comes out to take it. If one signal fails she tries another, a flexibility biologists hardly expected from so small a brain. If the weaver starts to pump its web, freeze.',
+    start: () => tutReviveSpider(),
+    goals: [{t: 'Leap onto the rim of the web, outside the glowing ring, where the frame threads are dry', need: 1, ring: true,
+              tick: () => sp.mode === 'climb' && sp.plat === TUT.S && onOrbRim(TUT.O, sp.pos) ? 1 : 0},
+            {t: `Hold ${K('Q', 'RB')} to pluck the silk. ${K('R', 'LB')} changes the signal`, need: 2, tick: (e, dt) => sp.plucking && sp.plat === TUT.S ? dt : 0},
+            {t: `It is hunting your signal now, not watching for you. When it comes close, leap on it ${K('Space', 'A')}`, need: 1, tick: () => TUT.spider.dead ? 1 : 0}]},
   {name: 'Into the Forest', text: 'Below, in the leaf litter, the real hunt waits: spitting spiders, house spiders lurking in their tubes, orb-weavers, and a mantis that hunts her in turn. Portia goes down to meet them.',
     goals: [{t: `Leap from the leaf and balloon ${K('Space', 'A')} down into the forest`, need: 1, tick: () => 0}]}
 ];
@@ -157,7 +169,7 @@ function tutStop(drop){
   TUT.on = false; store.set(TUT_STORE + '.done', '1');
   document.getElementById('tut').hidden = true;
   TUT.fly.gone = true; TUT.fly.respawn = Infinity; TUT.fly.m.visible = false;
-  if(drop){ doomReset(); toast('Somewhere below, on the forest floor, the hunt begins.'); }
+  if(drop){ doomReset(); toast('Somewhere below, on the forest floor, the hunt begins.'); orbHint(); }
 }
 function tutToggle(){
   if(TUT.on) tutFade(() => tutStop(true));
@@ -191,6 +203,9 @@ function tutGlow(){
     const a = L.glowW*pulse;
     m.emissive.copy(L.glow0).lerp(TUT_GLOW_C, .22*a); m.emissiveIntensity = 1 + 1.1*a;
   }
+  const ringOn = k >= 0 && st.goals[k].ring;                                  // the sticky spiral's edge, for the rim lesson
+  TUT.rimW = (TUT.rimW || 0) + ((ringOn ? 1 : 0) - (TUT.rimW || 0))*.08;
+  TUT.rim.material.opacity = TUT.rimW*(.3 + .6*pulse); TUT.rim.visible = TUT.rimW > .01;
 }
 
 /* ---------- every frame ---------- */
@@ -202,7 +217,8 @@ function updateTutorial(dt){
   el.classList.toggle('veiled', introOpen());
   PRED.grace = Math.max(PRED.grace, 1);                                // the mantis doesn't climb 80 cm of bare stalk
   const st = TUT_STEPS[TUT.i];
-  if(TUT.i < TUT_STEPS.indexOf(TUT_STEPS.find(s => s.name === 'The Orb-Weaver')) && !TUT.spider.dead) TUT.spider.alert = 0;   // the weaver sleeps until its lesson
+  if(TUT.i < TUT_STEPS.findIndex(s => s.orb) && !TUT.spider.dead) TUT.spider.alert = 0;   // the weaver sleeps until its lessons
+  if(st.calm && !TUT.spider.dead) TUT.spider.alert = Math.min(TUT.spider.alert, .5);     // and in the first it never pumps: that lesson is the drop and the glue
   if(DOOM.t >= 0 || TUT.fade){ TUT.prevMode = sp.mode; TUT.prevPos.copy(sp.pos); return; }
   // what she did this frame
   const onS = (sp.mode === 'ground' || sp.mode === 'climb') && TUT.surfs.has(sp.plat);
@@ -215,6 +231,7 @@ function updateTutorial(dt){
   if(was === 'air' && sp.mode === 'hang') TUT.braked = true;                 // caught on the line in flight (X, or a missed leap)
   if(sp.mode !== 'hang') TUT.braked = false;
   e.braked = TUT.braked;
+  const stuckNow = sp.stuck > 0 && sp.stuckKind === 'web'; e.freed = TUT.wasStuck && !stuckNow; TUT.wasStuck = stuckNow;   // out of the sticky spiral (struggled free, or bitten and let go)
   if(sp.mode !== 'air' && sp.mode !== 'hang' && !e.landed) TUT.leap = null;
   TUT.prevMode = sp.mode; TUT.prevPos.copy(sp.pos);
   // the lesson: only the first unfinished goal moves on
@@ -237,5 +254,12 @@ function updateTutorial(dt){
 }
 
 // first visit: the lessons start on the leaf (after the intro); afterwards they wait for T
-if(store.get(TUT_STORE + '.done', '') !== '1') tutStart(Math.min(TUT_STEPS.length - 1, +store.get(TUT_STORE + '.step', 0) || 0));
+// #t10 in the address goes straight to lesson 10, numbered as on the field notes (on load, or typed in later);
+// #tx skips to the end of the lessons: down into the forest, as on finishing them
+function tutFromHash(){
+  if(/^#tx$/i.test(location.hash)){ tutStop(true); store.set(TUT_STORE + '.step', 0); return true; }
+  const m = /^#t(\d+)$/i.exec(location.hash); if(!m) return false; tutStart(Math.min(TUT_STEPS.length, Math.max(1, +m[1])) - 1); return true; }
+addEventListener('hashchange', tutFromHash);
+if(tutFromHash()){}
+else if(store.get(TUT_STORE + '.done', '') !== '1') tutStart(Math.min(TUT_STEPS.length - 1, +store.get(TUT_STORE + '.step', 0) || 0));
 addEventListener('keydown', e => { if(e.code === 'KeyT' && !e.repeat && !introOpen() && !(e.target.matches && e.target.matches('input, textarea'))) tutToggle(); });

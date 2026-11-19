@@ -458,16 +458,20 @@ function updateSpider(dt){
   sp.noise = 0; sp.plucking = false; sp.webGrace = Math.max(0, (sp.webGrace || 0) - dt); sp.climbGrace = Math.max(0, (sp.climbGrace || 0) - dt); sp.handT = Math.max(0, (sp.handT || 0) - dt); sp.lunge = Math.max(0, sp.lunge - dt); sp.tap = Math.max(0, sp.tap - dt);
   sp.vigor = Math.min(1, sp.vigor + dt*.01);
   if(sp.stuck > 0){
-    sp.stuck -= dt; sp.charging = false; sp.speed = 0;
-    if(sp.stuckKind === 'web') sp.pos.copy(sp.stuckPos);
+    const web = sp.stuckKind === 'web';
+    if(!web) sp.stuck -= dt;                           // the sticky spiral never lets go by itself: only struggling frees her
+    else if(sp.stuck <= .0101) sp.stuck = 0;           // (each struggle floors it at .01: worn down that far, she is out)
+    sp.charging = false; sp.speed = 0; sp.struggleT = Math.max(0, (sp.struggleT || 0) - dt);
+    if(web){ sp.pos.copy(sp.stuckPos);
+      if(sp.plat && sp.plat.web){ const up = sp.plat.normal(sp.pos), fw = sp.climbHead; M4.makeBasis(new V3().crossVectors(up, fw), up, fw); sp.m.quaternion.setFromRotationMatrix(M4); } }   // held flat to the sheet, as she stood on it
     if(sp.stuck <= 0){
-      if(sp.stuckKind === 'web'){ const side = Math.sign(sp.pos.clone().sub(ARG.C).dot(ARG.n) + (sp.anchor.x - ARG.C.x)*.01) || 1; sp.pos.addScaledVector(ARG.n, side*.2); sp.webGrace = 1.2;
+      if(web){ const O = sp.stuckOrb || ARG, side = sp.plat && sp.plat.web ? sp.plat.side : Math.sign(sp.pos.clone().sub(O.C).dot(O.n)) || 1; sp.pos.addScaledVector(O.n, side*.2); sp.webGrace = 1.2;
         sp.mode = 'air'; sp.vel.set(0, -.5, 0); sp.braked = false; sp.committed = false; if(!sp.anchorPlat) sp.anchor.copy(sp.pos); }
       toast('You tear free.');
     }
     sp.m.position.copy(sp.pos);
     gaitRelease(sp.m); sp.m.position.copy(sp.pos);
-    poseSpider(sp.m, sp.stuckKind === 'gum' ? GLUED_POSE : {walk: .8, phase: time*30, hang: sp.mode === 'hang'});   // glued: held still
+    poseSpider(sp.m, sp.stuckKind === 'gum' ? GLUED_POSE : web ? (sp.struggleT > 0 ? {walk: .8, phase: time*30} : {}) : {walk: .8, phase: time*30, hang: sp.mode === 'hang'});   // gum: held still; the web: still until she fights it
     return;
   }
   if(sp.mode === 'feed'){ feedTick(dt); return; }
@@ -732,20 +736,22 @@ function updateSpider(dt){
       if(L <= .2 && sp.pos.distanceTo(O) < .3 && sp.anchorPlat){ climbOver(piv); return; }
     }
     // a spider within reach mid-flight takes her before the silk it sits on does
-    if(sp.mode === 'air' && !sp.plop){ const pr = preyAt(sp.pos, .26); if(pr && !(sp.tried || (sp.tried = new Set())).has(pr)){ sp.tried.add(pr); if(pounce(pr)) return; } }
+    // (not while falling just after tearing free of a web: she drops past its owner, she doesn't strike it)
+    if(sp.mode === 'air' && !sp.plop && !(sp.webGrace > 0)){ const pr = preyAt(sp.pos, .26); if(pr && !(sp.tried || (sp.tried = new Set())).has(pr)){ sp.tried.add(pr); if(pounce(pr)) return; } }
     const hw = sp.webGrace > 0 ? null : orbHit(prev, sp.pos, sp.planeLaunch, sp.orbGoal);
     if(hw){
       const W = hw.orb.S;
-      if(!(sp.climbGrace > 0 && sp.leftFrom === W)){ enterClimb(W, hw, sp.vel.clone(), W.sideFrom(prev, sp.vel));
-        pulses.push({pos: hw.clone(), amp: .7, decay: 4}); hw.orb.spider.alert += .35; toast('You catch hold of the orb’s radii.'); return; }
+      if(!(sp.climbGrace > 0 && sp.leftFrom === W)){ if(webGlue(hw.orb, hw, prev, sp.vel)) return; enterClimb(W, hw, sp.vel.clone(), W.sideFrom(prev, sp.vel));
+        pulses.push({pos: hw.clone(), amp: .7, decay: 4}); hw.orb.spider.alert += .35; if(strike()) return; toast('You catch hold of the orb’s radii.'); return; }
     }
     if(sp.mode === 'air') sp.airT = (sp.airT || 0) + dt;
     // a leap flies exactly the arc she gauged and lands where its prediction (the aim ring) said, whatever the frame
     // rate: sampling the same arc at other instants could clip or miss a leaf rim the prediction didn't
     const LH = sp.mode === 'air' && !sp.braked && !sp.balloon && !sp.plop ? sp.leapHit : null;
     if(LH && sp.airT >= LH.t - 1e-6){
-      const P = LH.plat; sp.pos.copy(LH.pos);
-      if(P.kind === 'climb'){ enterClimb(P, sp.pos.clone(), sp.vel.clone(), P.web ? P.sideFrom(prev, sp.vel) : 0); pulses.push({pos: sp.pos.clone(), amp: .6, decay: 4}); toast(P.thin ? 'You land upside-down under the leaf.' : 'You land on the ' + P.label + ' and grip.'); }
+      const P = LH.plat; if(P.web && webGlue(P.orb, LH.pos.clone(), prev, sp.vel)) return;
+      sp.pos.copy(LH.pos);
+      if(P.kind === 'climb'){ enterClimb(P, sp.pos.clone(), sp.vel.clone(), P.web ? P.sideFrom(prev, sp.vel) : 0); pulses.push({pos: sp.pos.clone(), amp: .6, decay: 4}); if(P.web && strike()) return; toast(P.thin ? 'You land upside-down under the leaf.' : 'You land on the ' + P.label + ' and grip.'); }
       else land(P);
       return;
     }
