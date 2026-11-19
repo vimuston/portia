@@ -109,7 +109,7 @@ function camFrame(dt){
 // 'right' with it and send her round in a circle, and walking back toward the camera shouldn't spin it round.
 function followBehind(dt){
   const last = cam.lastPos; cam.lastPos = sp.pos.clone();
-  if(cam.pov === false || !last || dt <= 0 || cam.swing != null || cam.swingDir || sp.roll || sp.mode === 'air' || sp.mode === 'hang') return;
+  if(cam.pov === false || !last || dt <= 0 || cam.swing != null || cam.swingDir || sp.roll || sp.mode === 'air' || sp.mode === 'hang' || cam.lockOn) return;
   if(performance.now() - (cam.userT || -1e9) < 2500) return;
   const iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - (pad.ly || 0), ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + (pad.lx || 0);
   if(iz < .3 || Math.abs(ix) > iz) return;
@@ -121,6 +121,16 @@ function followBehind(dt){
   if(angDiff(cam.yaw, hy) > 1.9) return;
   cam.yaw = lerpAngle(cam.yaw, hy, 1 - Math.exp(-1.4*Math.min(1, spd/.5)*dt));
 }
+// On an orb weaver's web (an Argiope's, or a garden orb-weaver's) with its spider at home, and on the same face of
+// the sheet as it, the view locks onto it: it swings round behind her to look at the spider, and holds there while
+// she moves. The spider stands on the web's +n face (its body's up is the web normal); a dead one, or one dropped
+// from its web, holds nothing. Returns the occupant, or null.
+function webLock(){
+  const S = sp.mode === 'climb' && sp.plat && sp.plat.web ? sp.plat : null, p = S && S.silk, O = S && S.orb;
+  if(!p || !O || p.dead || p.dropped || p.held || p.orb !== O) return null;
+  const a = p.pos.clone().sub(O.C).dot(O.n), occSide = Math.abs(a) > .004 ? Math.sign(a) : 1;
+  return occSide === S.side ? p : null;
+}
 let _smallOcc = null, _smallOccN = -1;
 function smallOccluders(){
   if(_smallOccN !== OCCLUDERS.length){ _smallOccN = OCCLUDERS.length;
@@ -129,6 +139,25 @@ function smallOccluders(){
 }
 function updateCamera(dt){
   camFrame(dt);
+  const occ = cam.lockOn = webLock();
+  cam.lockW = (cam.lockW || 0) + ((occ ? 1 : 0) - (cam.lockW || 0))*(1 - Math.exp(-4*dt));
+  if(cam.lockW < 1e-3) cam.lockW = 0;
+  if(occ) cam.lockP = occ;                                                       // easing out, the view keeps tracking the spider it let go of
+  if(cam.lockW > 0 && cam.lockP) cam.lockP.m.getWorldPosition(cam.lockAt || (cam.lockAt = new V3()));
+  let lockPitch = null;
+  if(occ){
+    // aim from her to the spider, leaning in toward the silk from her face, so the camera stands out on her side of
+    // the sheet looking across it rather than edge-on along it (and the aim stays defined when the spider is
+    // straight above or below her). Yaw and pitch both follow it; your own pitch is kept for when the lock lets go.
+    const S = sp.plat, aim = cam.lockAt.clone().sub(sp.pos);
+    if(aim.lengthSq() > 1e-6){
+      aim.normalize().addScaledVector(S.normal(sp.pos), -.6).normalize().applyQuaternion(camQ.clone().invert());
+      const yw = Math.atan2(aim.x, aim.z);
+      cam.yaw = lerpAngle(cam.yaw, yw, 1 - Math.exp(-6*cam.lockW*dt));
+      lockPitch = Math.max(CAM_PITCH_MIN, Math.min(CAM_PITCH_MAX, -Math.asin(Math.max(-1, Math.min(1, aim.y)))));
+      cam.swing = null; cam.swingDir = null;
+    }
+  }
   followBehind(dt);
   if(cam.swing != null){                                                       // swing to face a world heading
     const d = new V3(Math.sin(cam.swing), 0, Math.cos(cam.swing)).applyQuaternion(camQ.clone().invert()), sw = Math.atan2(d.x, d.z);
@@ -155,7 +184,9 @@ function updateCamera(dt){
   // under a leaf the view stays level and looks up at her from below: your whole pitch range maps onto the angles
   // below the blade (steeply under her … nearly edge-on), eased in and out as she goes under or comes back over
   cam.under = (cam.under || 0) + ((under && cam.pov === false ? 1 : 0) - (cam.under || 0))*(1 - Math.exp(-4*dt));
-  const pu = -1.25 + (cam.pitch - CAM_PITCH_MIN)/(CAM_PITCH_MAX - CAM_PITCH_MIN)*1.17, pw = cam.pitch + (pu - cam.pitch)*cam.under;
+  const pu = -1.25 + (cam.pitch - CAM_PITCH_MIN)/(CAM_PITCH_MAX - CAM_PITCH_MIN)*1.17;
+  let pw = cam.pitch + (pu - cam.pitch)*cam.under;
+  if(lockPitch !== null) pw += (lockPitch - pw)*cam.lockW;                     // locked onto a web's spider (webLock)
   cam.pitchEff += (pw - cam.pitchEff)*(1 - Math.exp(-12*dt));
   // the point the camera orbits must itself be clear of solids (at a root/trunk join it can fall inside the
   // neighbour): walk it back toward her body until it is
@@ -234,6 +265,7 @@ function updateCamera(dt){
     if(inSolid(P)){ const from = P.clone(), q = new V3();
       for(let f = .9; f >= 0; f -= .1){ q.copy(T).lerp(from, f); if(!inSolid(q)){ P.copy(q); break; } if(f < .05) P.copy(T); } } }
   const cf = camFwd(), look = T.clone().addScaledVector(cf, cam.ahead).addScaledVector(camUp, .16*cam.ahead);
+  if(cam.lockW > 0 && cam.lockAt) look.lerp(cam.lockAt, cam.lockW);           // the locked-on spider sits square in the view
   // when the view is squeezed in against her (zoomed right in, or the orbit pushed in by the ground or bark as you
   // look up), the camera ducks into her eyes instead of into her body: it slides to the top of her head and looks
   // where the pitch points, so looking up from the floor or a trunk becomes looking up through her eyes
