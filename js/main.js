@@ -8,11 +8,11 @@ toast('You are Portia labiata — a jumping spider that hunts other spiders.');
 function tick(dt, realDt = dt){   // realDt: wall-clock step, for the camera and its controls, which don't slow with slow motion
   time += dt; SU.uTime.value = time; updateJungle(dt); updateLife(dt, time);
   pollPad(); padActions(realDt);
-  updateFlies(dt, time); updateMale(dt); if(!(DOOM.t >= 0 && !DOOM.reset)) updateSpider(dt); updatePredators(dt); updatePrey(dt, time);
+  updateFlies(dt, time); updateMale(dt); if(!(DOOM.t >= 0 && !DOOM.reset)) updateSpider(dt); updatePredators(dt); updatePrey(dt, time); updateTutorial(dt);
   updateSenses(dt, time); updateCamera(realDt); updateHud(dt); AUDIO.update(dt);
   render(dt);
 }
 window.__dbg.audio = AUDIO; window.__dbg.preds = PREDS; window.__dbg.doom = DOOM; window.__dbg.render = render; window.__dbg.aux = {AUX_MRT, AUX_STAT, get auxRT(){ return auxRT; }, get mrtRT(){ return mrtRT; }, get imgRT(){ return imgRT; }};
 window.__dbg.step =(secs, dt = 1/30) => { for(let t = 0; t < secs; t += dt) tick(dt); };   // drive the sim when frames are paused (testing)
 renderer.setAnimationLoop(() => { const d = Math.min(clock.getDelta(), 1/30); tick(d*slowmoScale(d), d); updateSlowTip(); });   // slowmoScale: the debug slow-motion leap (input.js)
-window.__dbg.slowmo = SLOWMO;
+window.__dbg.slowmo = SLOWMO; window.__dbg.tut = TUT; window.__dbg.tutGo = tutGo;

@@ -491,6 +491,7 @@ function doomReset(){
   if(DOOM.killer) DOOM.killer.m.userData.parts.body.rotation.x = 0;
   DOOM.killer = null;
   PRED.grace = 4; SEEN.last.copy(sp.pos); SEEN.speed = 0;
+  if(typeof tutAfterDoom === 'function') tutAfterDoom();   // in the lessons: back on the tutorial leaf (tutorial.js)
 }
 // bitten to death by a spider (no predator holds her): she convulses where she stands, her legs draw in, and on
 // level ground she rolls belly-up like the husks she leaves

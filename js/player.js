@@ -342,7 +342,7 @@ function flyLook(f, d){
   m.scale.setScalar(1 - .15*d);
 }
 function flyAway(f, from){
-  const choices = HUNT.filter(p => p !== f.plat);
+  const choices = (f.homes || HUNT).filter(p => p !== f.plat);   // a fly with homes (the tutorial's) keeps to them
   const to = choices[Math.floor(rnd()*choices.length)];
   f.state = 'fly'; f.from = from ? from.clone() : f.pos.clone(); f.to = randomIn(to); f.toPlat = to; f.t = 0;
   f.dur = 1.3 + f.from.distanceTo(f.to)*.22;
@@ -897,7 +897,8 @@ function updateFlies(dt, t){
     f.vib = 0; f.hear = 0; f.motion = 0;
     if(f.gone){
       f.respawn -= dt;
-      if(f.respawn <= 0){ f.gone = false; f.m.visible = true; const a = rnd()*6.28; f.plat = null; flyAway(f, new V3(Math.cos(a)*14, 6, Math.sin(a)*14)); f.pos.copy(f.from); }
+      if(f.respawn <= 0){ f.gone = false; f.m.visible = true; const a = rnd()*6.28, H = f.homes && f.homes[0]; f.plat = null;
+        flyAway(f, H ? new V3(H.x + Math.cos(a)*5, H.y + 2, H.z + Math.sin(a)*5) : new V3(Math.cos(a)*14, 6, Math.sin(a)*14)); f.pos.copy(f.from); }
       continue;
     }
     f.t += dt;
@@ -916,13 +917,13 @@ function updateFlies(dt, t){
       const d = f.pos.clone().sub(prev); if(d.lengthSq() > 1e-8) f.m.rotation.y = Math.atan2(d.x, d.z);
       w.forEach((p, i) => p.rotation.z = (i ? 1 : -1)*(.2 + Math.sin(t*90)*.7));
       f.motion = 1; f.hear = 1; tTarget = .95;                         // flight muscles run hot
-      if(k >= 1){ f.state = 'walk'; f.plat = f.toPlat; f.pos.y = f.plat.y; f.t = 0; f.dir = rnd()*6.28; }
+      if(k >= 1){ f.state = 'walk'; f.plat = f.toPlat; f.pos.y = f.homes ? surfY(f.plat, f.pos.x, f.pos.z) : f.plat.y; f.t = 0; f.dir = rnd()*6.28; }
     } else {
       w.forEach((p, i) => p.rotation.z = (i ? 1 : -1)*.05);
       if(f.state === 'walk'){
         f.dir += (rnd() - .5)*dt*6;
         const nx = f.pos.x + Math.sin(f.dir)*.3*dt, nz = f.pos.z + Math.cos(f.dir)*.3*dt;
-        if(inPlat(f.plat, nx, nz, .12)){ f.pos.x = nx; f.pos.z = nz; } else f.dir += 2.2;
+        if(inPlat(f.plat, nx, nz, .12)){ f.pos.x = nx; f.pos.z = nz; if(f.homes) f.pos.y = surfY(f.plat, nx, nz); } else f.dir += 2.2;
         f.m.rotation.y = f.dir;
         f.motion = .55; f.vib = Math.sin(t*26 + f.dir) > -.2 ? .9 : .35; tTarget = .72;
         if(f.t > 2.5 + rnd()*3){ f.state = 'groom'; f.t = 0; f.groom = ['front', 'head', 'hind', 'front'][Math.floor(rnd()*4)]; }

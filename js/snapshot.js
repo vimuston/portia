@@ -46,6 +46,7 @@ function snapLoad(s, opt = {}){
   cam.target.copy(sp.pos); cam.swingDir = null; cam.swing = null; cam.swingT = 0;
   if(opt.predsHome){ for(const pr of PREDS) predHome(pr); PRED.grace = 4; }
   SEEN.last.copy(sp.pos); SEEN.speed = 0;
+  if(typeof tutSnapLoaded === 'function') tutSnapLoaded();             // restored off the tutorial plant: the lessons end
   return sp;
 }
 
