@@ -86,7 +86,9 @@ function camFrame(dt){
   // on an orb web the view's up is always the sheet's normal on her face, POV or not: the view stands behind her as
   // she stands, so her left and right are the screen's (locked onto its spider, A/D step her along them)
   const onSurf = sp.mode === 'climb' && sp.plat && (sp.plat.web || (pov ? true : sp.plat.tree));
-  let tu = onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
+  // feeding on an orb, she still stands on its face (the meal's F.up): the view stays tilted to her through the meal
+  const webFeed = sp.mode === 'feed' && sp.feed && sp.feed.p.orb && !sp.feed.midair && sp.feed.up;
+  let tu = webFeed ? sp.feed.up.clone() : onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
   tu.normalize();
   if(onSurf){
     const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), lo = pov && !sp.plat.tree ? .04 : .25, span = pov && !sp.plat.tree ? .25 : .55;
