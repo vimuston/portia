@@ -189,7 +189,10 @@ const sp = {
 sp.m.userData.owner = sp;
 // the male displays out in the jungle, on a big herb leaf (L74) high on its stalk; home is the spot he dances around
 const MALE_HOME = new V3(-35.38, 0, 2.14);
-const MALE_LEAF = PLAT.filter(p => p.herb && inPlat(p, MALE_HOME.x, MALE_HOME.z, 0)).sort((a, b) => Math.abs(a.y - 9.6) - Math.abs(b.y - 9.6))[0];
+let MALE_LEAF = PLAT.filter(p => p.herb && inPlat(p, MALE_HOME.x, MALE_HOME.z, 0)).sort((a, b) => Math.abs(a.y - 9.6) - Math.abs(b.y - 9.6))[0];
+// if the jungle grows differently and no blade covers that spot, the nearest high herb blade, danced on at its middle
+if(!MALE_LEAF){ MALE_LEAF = PLAT.filter(p => p.herb && p.y - hAt(p.x, p.z) > 5).sort((a, b) => Math.hypot(a.x - MALE_HOME.x, a.z - MALE_HOME.z) - Math.hypot(b.x - MALE_HOME.x, b.z - MALE_HOME.z))[0];
+  MALE_HOME.set(MALE_LEAF.x, 0, MALE_LEAF.z); }
 MALE_HOME.y = MALE_LEAF.y;
 const male = {m: makeSpider(true), plat: MALE_LEAF, home: MALE_HOME, pos: MALE_HOME.clone(), t: 0, motion: 0, vib: 0, temp: .64};
 male.m.userData.owner = male;
