@@ -80,7 +80,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #hud.pad-in .kbonly{display:none;} #hud:not(.pad-in) .padonly{display:none;}
 #flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:22px;font-weight:800;letter-spacing:.12em;color:var(--fg);text-shadow:0 0 12px rgba(255,180,80,.6);opacity:0;pointer-events:none;text-align:center;}
 #flash small{display:block;font-family:var(--font);font-size:14px;font-weight:500;letter-spacing:.06em;color:var(--dim);}
-/* intro: one screen — title, then the three moves of a hunt (G reopens it) — same souls-style card language as the boss encounters */
+/* intro: one screen — title and lede, shown once per page load (the tutorial teaches the controls) — same souls-style card language as the boss encounters */
 #intro{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px 16px 18px;box-sizing:border-box;overflow-y:auto;
   background:radial-gradient(ellipse at 50% 42%,rgba(70,14,10,.5),rgba(3,2,10,.95) 66%);backdrop-filter:blur(3px);pointer-events:auto;cursor:pointer;}
 .in-scene{width:min(820px,100%);text-align:center;animation:inRise .55s cubic-bezier(.2,.7,.2,1) both;}
@@ -94,14 +94,8 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 .in-tag{margin:10px -.42em 0 0;font-family:var(--cz);font-size:clamp(11px,1.6vw,14px);letter-spacing:.42em;color:var(--gold);}
 .in-scale{width:min(460px,80%);margin:16px auto 0;height:1px;border-radius:0;background:linear-gradient(90deg,transparent,var(--gold),transparent);}
 .in-lede{margin:20px auto 0;max-width:480px;color:var(--ink);font-size:17px;line-height:1.55;font-weight:400;}
-.in-moves{list-style:none;margin:28px auto 0;padding:0;max-width:720px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-.in-moves li{border-top:1px solid var(--gold);padding:10px 4px 0;display:grid;gap:6px;justify-items:center;align-content:start;color:var(--ink);font-size:14px;line-height:1.45;}
-.in-moves li:nth-child(2){border-color:#d8463a;} .in-moves li:nth-child(3){border-color:#8c1414;}
-.in-moves b{font-family:var(--cz);font-size:13px;letter-spacing:.28em;margin-right:-.28em;color:var(--parch);}
-#intro kbd{font:inherit;font-family:var(--cz);font-size:.8em;font-weight:700;letter-spacing:.04em;color:var(--parch);border:1px solid #6a5636;border-bottom-color:#3a2e1c;border-radius:2px;padding:0 6px;background:linear-gradient(rgba(234,220,192,.08),rgba(10,4,4,.6));box-shadow:0 0 0 1px #000;white-space:nowrap;}
 .in-go{font-family:var(--cz);font-weight:700;font-size:12px;letter-spacing:.2em;color:var(--parch);background:rgba(10,4,4,.6);border:1px solid #6a5636;border-radius:2px;padding:6px 18px;cursor:pointer;box-shadow:0 0 0 1px #000;}
 .in-hint{font-family:var(--cz);color:#6a5636;font-size:10.5px;letter-spacing:.2em;margin-top:-14px;}
-@media (max-width:560px){ .in-moves{grid-template-columns:1fr;} }
 /* toast: a souls-style message band — parchment text on a dark strip that fades at the ends, gold hairlines above and below */
 #toast{position:absolute;left:50%;bottom:52px;transform:translate(-50%,8px);box-sizing:border-box;width:max-content;max-width:min(760px,calc(100% - 32px));
   padding:11px 56px;text-align:center;font-size:17px;line-height:1.45;letter-spacing:.015em;color:var(--ink);text-shadow:0 1px 3px #000,0 0 10px #000;
@@ -235,7 +229,6 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
       <span><kbd>R</kbd>signal</span>
       <span><kbd>X</kbd>dragline</span>
       <i class="sep"></i>
-      <span><kbd>G</kbd>intro</span>
       <span><kbd>T</kbd>tutorial</span>
       <span><kbd>H</kbd>hide</span>
       <span><kbd>M</kbd>sound</span>
@@ -252,7 +245,6 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
       <span><kbd>B</kbd>dragline</span>
       <span><kbd class="w">D-pad</kbd>zoom</span>
       <i class="sep"></i>
-      <span><kbd class="w">Back</kbd>intro</span>
       <span><kbd>Y</kbd>tutorial</span>
       <span><kbd class="w">Start</kbd>hide</span>
     </div>
@@ -270,14 +262,9 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
       <div class="in-tag">A JUMPING SPIDER THAT HUNTS SPIDERS</div>
       <div class="scale in-scale"></div>
       <p class="in-lede">You are a few millimetres of patience. Other spiders are your prey, and most of them can kill you.</p>
-      <ul class="in-moves">
-        <li><b>STALK</b><span class="kbonly"><kbd>WASD</kbd> <kbd>C</kbd></span><span class="padonly"><kbd>L-stick</kbd> <kbd>RT</kbd></span><span>Sneak up from behind. If it turns, freeze.</span></li>
-        <li><b>JUMP / STRIKE</b><span class="kbonly"><kbd>hold Space</kbd></span><span class="padonly"><kbd>hold A</kbd></span><span>Aim at a spider, release to leap on it.</span></li>
-        <li><b>LURE</b><span class="kbonly"><kbd>Q</kbd> <kbd>R</kbd></span><span class="padonly"><kbd>RB</kbd> <kbd>LB</kbd></span><span>Pluck a web to draw its owner out.</span></li>
-      </ul>
     </section>
     <button type="button" class="in-go">begin ▸</button>
-    <div class="in-hint"><span class="kbonly">Enter to begin · G shows this again</span><span class="padonly">A to begin · Back shows this again</span></div>
+    <div class="in-hint"><span class="kbonly">Enter to begin</span><span class="padonly">A to begin</span></div>
   </div>
   <div id="tut" hidden aria-live="polite">   <!-- the tutorial's field notes (tutorial.js) -->
     <div class="tu-pre"></div><div class="tu-name"></div><p class="tu-text"></p><ul class="tu-goals"></ul>
