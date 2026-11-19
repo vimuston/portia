@@ -51,7 +51,7 @@ The first time you play, Portia wakes on a broad leaf high above the forest floo
 
 Each prey spider needs its own approach:
 
-- **Scytodes** feels you on its leaf, turns and watches you, then lunges and bites. Get off its leaf or drop on it from behind; one carrying its egg sac can't bite.
+- **Scytodes** spits venomous glue at whatever comes onto its leaf in front of it, or leaps at its face. Once glued you can't get free: it walks round to your back and bites. Approach from behind or drop from above.
 - **Badumna** hides in a tube. Stand on its sheet, pluck with Q and try signals with R until it comes out. Move when the breeze gusts.
 - **Argiope** waits at the hub of its orb web. Sneak along the silk or drop in from above. If it pumps the web, freeze.
 
