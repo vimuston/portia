@@ -50,17 +50,20 @@ function encCard(pre, name, epi, todo, win){
 }
 function bossWin(name, epi){ encCard('', name, epi, '', true); ENC.won = true; if(name === 'MATED') AUDIO.sfx.mated(); }
 // ---- the kill orbs along the top (see #orbs): one per spider there is to eat (the suitor counts as prey too), lit in
-// order as each is eaten; the rose diamond set apart at the end is for mating. The dead never come back, so it only fills
-const KILLS = {n: -1, mated: null};
+// order as each is eaten, each in the colours of the kind that was eaten (data-kind, see #orbs i.lit[data-kind]); the
+// rose diamond set apart at the end is for mating. The dead never come back, so it only fills
+const KILLS = {n: -1, mated: null, order: []};
 function updateOrbs(){
   const E = $('#orbs'), prey = PREY.filter(p => !p.practice);   // (the tutorial's orb-weaver is practice: it doesn't count)
   if(!E.childElementCount) E.innerHTML = '<i></i>'.repeat(prey.length + 1) + '<span class="sep"></span><b></b>';
-  const n = prey.filter(p => p.dead).length + (male.dead ? 1 : 0), mated = !!sp.mated;
+  const dead = prey.filter(p => p.dead).concat(male.dead ? [male] : []), n = dead.length, mated = !!sp.mated;
   if(n === KILLS.n && mated === KILLS.mated) return;
+  KILLS.order = KILLS.order.filter(p => p.dead).concat(dead.filter(p => !KILLS.order.includes(p)));   // in the order they were eaten
   const flare = (o, on) => { if(on && !o.classList.contains('lit') && KILLS.n >= 0){ o.classList.add('new'); o.addEventListener('animationend', () => o.classList.remove('new'), {once: true}); } o.classList.toggle('lit', on); };
-  E.querySelectorAll('i').forEach((o, k) => flare(o, k < n)); flare(E.querySelector('b'), mated);
+  E.querySelectorAll('i').forEach((o, k) => { const p = KILLS.order[k]; if(p) o.dataset.kind = p === male ? 'male' : p.kind; else delete o.dataset.kind; flare(o, !!p); });
+  flare(E.querySelector('b'), mated);
   KILLS.n = n; KILLS.mated = mated;
-  E.setAttribute('aria-label', `Spiders eaten: ${n} of ${prey.length + 1}. ${mated ? 'Mated.' : 'Not yet mated.'}`);
+  E.setAttribute('aria-label', `Spiders eaten: ${n} of ${prey.length + 1}${n ? ' (' + KILLS.order.map(p => BOSS[p === male ? 'male' : p.kind].name.toLowerCase()).join(', ') + ')' : ''}. ${mated ? 'Mated.' : 'Not yet mated.'}`);
 }
 function updateEncounter(dt){
   updateOrbs();
