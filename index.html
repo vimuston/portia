@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;800&display=swap">
 <style>
-/* Prototype 2: locked style — braille glyphs. Top right: status, then the control legend (controller section only when a pad is connected).
+/* Prototype 2: locked style — braille glyphs. The control legend runs along the bottom (only the last-used device's keys).
    Spider cards appear over the spider you look at; signal changes flash mid-screen; G opens the field guide. */
 :root{
   color-scheme: dark;
@@ -31,7 +31,6 @@ h1,h2,h3,.sub,.label,kbd,.status,#flash,#look .lk-h b,.con .v{font-family:var(--
 .hud{position:fixed;inset:0;pointer-events:none;}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px;pointer-events:auto;}
 .tl{position:absolute;top:12px;left:16px;width:290px;display:grid;gap:8px;}
-.tr{position:absolute;top:12px;right:16px;width:250px;display:grid;gap:8px;}
 .status{display:grid;gap:4px;font-variant-numeric:tabular-nums;}
 .bot{position:absolute;bottom:10px;left:16px;right:16px;display:flex;flex-wrap:wrap;gap:4px 14px;justify-content:center;color:var(--dim);font-size:11px;}
 .bot b{color:var(--fg);font-weight:600;}
@@ -60,36 +59,31 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 .opts button[aria-pressed="true"]{color:var(--fg);border-color:var(--fg);}
 .opts button:focus-visible{outline:1px solid var(--fg);outline-offset:1px;}
 [hidden]{display:none !important;}
-/* control legend: boss-card styling — Cinzel, parchment on near-black, gold hairlines */
-.legend{position:relative;background:linear-gradient(180deg,rgba(10,5,4,.78),rgba(3,2,10,.72));backdrop-filter:blur(4px);border:1px solid rgba(106,86,54,.55);border-radius:2px;padding:11px 13px 10px;display:grid;gap:8px;pointer-events:auto;box-shadow:0 0 0 1px #000,0 10px 26px -12px rgba(0,0,0,.9),inset 0 0 18px rgba(0,0,0,.6);}
-.legend::before{content:"";position:absolute;top:-12px;right:22px;width:1px;height:12px;background:linear-gradient(rgba(201,162,90,0),rgba(201,162,90,.6));}  /* the dragline it hangs from */
-.lg-h{display:flex;align-items:center;gap:9px;}
-.lg-t{font-family:var(--cz);font-weight:700;font-size:10.5px;letter-spacing:.32em;text-transform:uppercase;color:var(--bronze);}
-.lg-silk{flex:1;height:1px;background:linear-gradient(90deg,rgba(201,162,90,.7),rgba(201,162,90,.2) 60%,transparent);}
-.lg{display:grid;gap:5px;font-size:12.5px;}
-.lg > div{display:grid;grid-template-columns:78px 1fr;gap:10px;align-items:center;}
-.lg > div b{display:flex;gap:2px;justify-content:flex-end;font-weight:600;}
-.lg span{color:var(--ink);line-height:1.3;} .lg span.on{color:var(--ember);font-weight:600;text-shadow:0 0 8px rgba(216,70,58,.5);} .lg em{display:block;font-style:normal;color:var(--bronze);font-size:10.5px;letter-spacing:.02em;}
-.legend kbd{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;font-family:var(--cz);font-size:10.5px;font-weight:700;color:var(--parch);background:linear-gradient(rgba(234,220,192,.08),rgba(10,4,4,.6));border:1px solid #6a5636;border-bottom-color:#3a2e1c;border-radius:2px;box-shadow:0 0 0 1px #000;text-shadow:0 1px 2px #000;}
-.legend kbd.w{padding:0 6px;letter-spacing:.06em;}
-.lg-f{display:flex;justify-content:space-between;gap:6px;padding-top:8px;border-top:1px solid transparent;border-image:linear-gradient(90deg,transparent,rgba(201,162,90,.45),transparent) 1;font-family:var(--cz);font-size:11px;letter-spacing:.08em;color:var(--bronze);}
-.lg-f span{display:flex;align-items:center;gap:5px;} .lg-f kbd{min-width:16px;height:16px;font-size:9.5px;}
-/* while Space is held the legend's Shift row reads "slow motion" instead of dash; armed, it lights up like an active toggle */
-.legend .mv-slow{display:none;} .legend.aiming .mv-dash{display:none;} .legend.aiming .mv-slow{display:inline;}
+/* control legend: one row of keys along the bottom edge, no box — Cinzel on a soft shadow so it reads over the world */
+#legend{position:absolute;left:0;right:0;bottom:0;padding:22px 16px 10px;background:linear-gradient(rgba(3,2,10,0),rgba(3,2,10,.5));display:flex;justify-content:center;pointer-events:none;font-family:var(--cz);font-size:11.5px;letter-spacing:.06em;color:var(--ink);text-shadow:0 1px 2px #000,0 0 8px #000,0 0 14px rgba(0,0,0,.8);}
+.kr{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 13px;}
+.kr > span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.kr .sep{width:1px;height:12px;background:linear-gradient(transparent,rgba(201,162,90,.6),transparent);}
+#legend .on{color:var(--ember);font-weight:700;text-shadow:0 0 8px rgba(216,70,58,.6),0 1px 2px #000;}
+/* #slowtip: the slow-motion prompt that hangs under Portia while she aims (boss-card box with a dragline) */
+.legend{position:relative;background:linear-gradient(180deg,rgba(10,5,4,.78),rgba(3,2,10,.72));backdrop-filter:blur(4px);border:1px solid rgba(106,86,54,.55);border-radius:2px;box-shadow:0 0 0 1px #000,0 10px 26px -12px rgba(0,0,0,.9),inset 0 0 18px rgba(0,0,0,.6);}
+.legend::before{content:"";position:absolute;top:-12px;width:1px;height:12px;background:linear-gradient(rgba(201,162,90,0),rgba(201,162,90,.6));}
+.legend kbd,#legend kbd{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;font-family:var(--cz);font-size:10.5px;font-weight:700;color:var(--parch);background:linear-gradient(rgba(234,220,192,.08),rgba(10,4,4,.6));border:1px solid #6a5636;border-bottom-color:#3a2e1c;border-radius:2px;box-shadow:0 0 0 1px #000;text-shadow:0 1px 2px #000;}
+.legend kbd.w,#legend kbd.w{padding:0 6px;letter-spacing:.06em;}
+/* while Space is held the legend's Shift key reads "slow motion" instead of dash; armed, it lights up like an active toggle */
+#legend .mv-slow{display:none;} #legend.aiming .mv-dash{display:none;} #legend.aiming .mv-slow{display:inline;}
 .legend .mv-slow.on{color:var(--ember);font-weight:600;text-shadow:0 0 8px rgba(216,70,58,.5);}
 #slowtip{position:fixed;left:0;top:0;display:flex;align-items:center;gap:7px;padding:5px 9px;font-family:var(--cz);font-size:11.5px;letter-spacing:.06em;color:var(--ink);pointer-events:none;transform:translate(-50%,0);z-index:3;}
-#slowtip[hidden]{display:none;} #slowtip .mv-slow{display:inline;} #slowtip::before{left:50%;right:auto;}
+#slowtip[hidden]{display:none;} #slowtip::before{left:50%;}
 .hidehud #slowtip{display:none;}
 /* only the scheme of the last device used shows: keyboard until a pad button or stick moves, back on any key (input.js inputDev) */
 #hud.pad-in .kbonly{display:none;} #hud:not(.pad-in) .padonly{display:none;}
-.lg.pd{padding-top:2px;}
 #flash{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);font-size:22px;font-weight:800;letter-spacing:.12em;color:var(--fg);text-shadow:0 0 12px rgba(255,180,80,.6);opacity:0;pointer-events:none;text-align:center;}
 #flash small{display:block;font-family:var(--font);font-size:14px;font-weight:500;letter-spacing:.06em;color:var(--dim);}
-/* intro: title → controls → hunting (G reopens it) — same souls-style card language as the boss encounters */
-#intro{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px 16px 18px;box-sizing:border-box;
+/* intro: one screen — title, then the three moves of a hunt (G reopens it) — same souls-style card language as the boss encounters */
+#intro{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:24px 16px 18px;box-sizing:border-box;overflow-y:auto;
   background:radial-gradient(ellipse at 50% 42%,rgba(70,14,10,.5),rgba(3,2,10,.95) 66%);backdrop-filter:blur(3px);pointer-events:auto;cursor:pointer;}
-.in-scene{display:none;width:min(820px,100%);max-height:calc(100% - 110px);overflow-x:hidden;overflow-y:auto;text-align:center;scrollbar-width:thin;}
-.in-scene.on{display:block;animation:inRise .55s cubic-bezier(.2,.7,.2,1) both;}
+.in-scene{width:min(820px,100%);text-align:center;animation:inRise .55s cubic-bezier(.2,.7,.2,1) both;}
 @keyframes inRise{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
 .logo{font-family:var(--cz);font-size:clamp(48px,12vw,118px);font-weight:900;letter-spacing:.16em;margin-right:-.16em;line-height:1.05;white-space:nowrap;
   color:var(--parch);text-shadow:0 0 28px rgba(200,40,30,.6),0 0 60px rgba(160,30,20,.35),0 3px 0 #000;}
@@ -99,28 +93,15 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 @keyframes blink{0%,46%,50%,100%{transform:scaleY(1);}48%{transform:scaleY(.1);}}
 .in-tag{margin:10px -.42em 0 0;font-family:var(--cz);font-size:clamp(11px,1.6vw,14px);letter-spacing:.42em;color:var(--gold);}
 .in-scale{width:min(460px,80%);margin:16px auto 0;height:1px;border-radius:0;background:linear-gradient(90deg,transparent,var(--gold),transparent);}
-.in-lede{margin:22px auto 0;max-width:480px;color:var(--ink);font-size:17px;line-height:1.55;font-weight:400;}
-#intro h2{font-family:var(--cz);font-size:clamp(20px,3.2vw,30px);letter-spacing:.24em;margin:0 -.24em 20px 0;font-weight:700;color:var(--parch);text-shadow:0 0 18px rgba(200,40,30,.5),0 2px 0 #000;
-  padding-bottom:12px;background:linear-gradient(90deg,transparent,var(--gold),transparent) bottom/60% 1px no-repeat;}
-#intro h3{font-family:var(--cz);font-size:11.5px;letter-spacing:.3em;color:var(--bronze);margin:0 0 8px;font-weight:700;}
-.in-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;text-align:left;}
-.in-box{border:1px solid rgba(106,86,54,.6);border-radius:2px;padding:11px 13px;background:rgba(10,4,4,.6);box-shadow:0 0 0 1px #000,inset 0 0 14px rgba(0,0,0,.6);display:grid;gap:8px;color:var(--ink);font-size:14px;line-height:1.45;}
-.in-box i{color:var(--bronze);font-style:normal;}
+.in-lede{margin:20px auto 0;max-width:480px;color:var(--ink);font-size:17px;line-height:1.55;font-weight:400;}
+.in-moves{list-style:none;margin:28px auto 0;padding:0;max-width:720px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.in-moves li{border-top:1px solid var(--gold);padding:10px 4px 0;display:grid;gap:6px;justify-items:center;align-content:start;color:var(--ink);font-size:14px;line-height:1.45;}
+.in-moves li:nth-child(2){border-color:#d8463a;} .in-moves li:nth-child(3){border-color:#8c1414;}
+.in-moves b{font-family:var(--cz);font-size:13px;letter-spacing:.28em;margin-right:-.28em;color:var(--parch);}
 #intro kbd{font:inherit;font-family:var(--cz);font-size:.8em;font-weight:700;letter-spacing:.04em;color:var(--parch);border:1px solid #6a5636;border-bottom-color:#3a2e1c;border-radius:2px;padding:0 6px;background:linear-gradient(rgba(234,220,192,.08),rgba(10,4,4,.6));box-shadow:0 0 0 1px #000;white-space:nowrap;}
-.in-steps{list-style:none;margin:0 0 16px;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;counter-reset:st;text-align:left;}
-.in-steps li{counter-increment:st;border-top:1px solid var(--gold);padding:10px 4px 0;color:var(--ink);font-size:14px;line-height:1.55;}
-.in-steps li:nth-child(2){border-color:#d8463a;} .in-steps li:nth-child(3){border-color:#8c1414;}
-.in-steps b{display:block;font-family:var(--cz);font-size:13px;letter-spacing:.28em;color:var(--parch);margin-bottom:4px;} .in-steps b::before{content:counter(st, upper-roman) "\2002";color:var(--gold);}
-.in-prey{display:grid;gap:6px;text-align:left;border:1px solid rgba(106,86,54,.6);border-radius:2px;padding:10px 13px;background:rgba(10,4,4,.6);box-shadow:0 0 0 1px #000,inset 0 0 14px rgba(0,0,0,.6);}
-.in-prey div{display:grid;grid-template-columns:104px 1fr;gap:10px;font-size:14px;line-height:1.5;color:var(--ink);} .in-prey b{font-family:var(--cz);font-weight:700;color:var(--parch);font-size:13px;letter-spacing:.08em;}
-.in-note{margin:14px 0 0;color:var(--gold);font-size:13.5px;line-height:1.5;font-style:italic;}
-.in-nav{display:flex;align-items:center;gap:16px;}
-.in-nav button{font-family:var(--cz);font-weight:700;font-size:12px;letter-spacing:.2em;color:var(--parch);background:rgba(10,4,4,.6);border:1px solid #6a5636;border-radius:2px;padding:6px 14px;cursor:pointer;box-shadow:0 0 0 1px #000;}
-.in-nav button:disabled{opacity:.25;cursor:default;}
-.in-dots{display:flex;gap:10px;} .in-dots button{width:7px;height:7px;padding:0;border-radius:0;transform:rotate(45deg);border:1px solid #6a5636;background:transparent;cursor:pointer;}
-.in-dots button[aria-current="true"]{background:var(--gold);border-color:var(--gold);box-shadow:0 0 8px rgba(216,70,58,.8);}
-.in-hint{font-family:var(--cz);color:#6a5636;font-size:10.5px;letter-spacing:.2em;}
-@media (max-width:560px){ .in-prey div{grid-template-columns:1fr;gap:0;} }
+.in-go{font-family:var(--cz);font-weight:700;font-size:12px;letter-spacing:.2em;color:var(--parch);background:rgba(10,4,4,.6);border:1px solid #6a5636;border-radius:2px;padding:6px 18px;cursor:pointer;box-shadow:0 0 0 1px #000;}
+.in-hint{font-family:var(--cz);color:#6a5636;font-size:10.5px;letter-spacing:.2em;margin-top:-14px;}
+@media (max-width:560px){ .in-moves{grid-template-columns:1fr;} }
 /* toast: a souls-style message band — parchment text on a dark strip that fades at the ends, gold hairlines above and below */
 #toast{position:absolute;left:50%;bottom:52px;transform:translate(-50%,8px);box-sizing:border-box;width:max-content;max-width:min(760px,calc(100% - 32px));
   padding:11px 56px;text-align:center;font-size:17px;line-height:1.45;letter-spacing:.015em;color:var(--ink);text-shadow:0 1px 3px #000,0 0 10px #000;
@@ -136,7 +117,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #loader.done{opacity:0;pointer-events:none;}
 #loader .ld-bar{width:min(240px,100%);height:2px;background:rgba(201,162,90,.15);overflow:hidden;}
 #loader .ld-bar i{display:block;height:100%;width:100%;transform:scaleX(0);transform-origin:0 50%;will-change:transform;background:var(--gold);}
-.hidehud .tl,.hidehud .tr,.hidehud .bot,.hidehud #look,.hidehud #bossbar{display:none;}
+.hidehud .tl,.hidehud #legend,.hidehud .bot,.hidehud #look,.hidehud #bossbar{display:none;}
 /* encounters: a spider you close in on gets a souls-style title card, then a boss bar with one plain instruction */
 #doom{position:absolute;inset:0;z-index:30;pointer-events:none;}
 #doom .dm-bg{position:absolute;inset:0;background:#000;opacity:0;}
@@ -184,7 +165,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #look .row2{display:flex;gap:4px;flex-wrap:wrap;}
 #look .row2 button{font:inherit;font-size:11px;color:var(--fg);background:rgba(255,242,160,.06);border:1px solid var(--line);border-radius:3px;padding:3px 7px;cursor:pointer;}
 @media (max-width:820px){ #look{width:220px;} }
-@media (max-width:820px){ .tl .sense .t span{display:none;} .status{display:none;} .tl{width:180px;} .tr{width:160px;} }
+@media (max-width:820px){ .tl .sense .t span{display:none;} .status{display:none;} .tl{width:180px;} }
 </style>
 <canvas id="view" aria-label="A jumping spider's world drawn as braille glyphs coloured by temperature"></canvas>
 <div class="hud" id="hud">
@@ -194,34 +175,35 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
     <div id="senses"></div>
     <div><div class="scale"></div><div class="row tiny"><span class="l">cold · dead</span><span class="l">warm · alive</span></div></div>
   </div>
-  <div class="tr">
-    <div class="legend" id="legend">
-      <div class="lg-h"><span class="lg-t">controls</span><i class="lg-silk"></i></div>
-      <div class="lg kb kbonly">
-        <div><b><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></b><span>walk</span></div>
-        <div><b><kbd>C</kbd></b><span class="mv-sneak">sneak</span></div>
-        <div><b><kbd class="w">Shift</kbd></b><span class="mv-dash">dash</span><span class="mv-slow">slow motion</span></div>
-        <div><b><kbd class="w">Space</kbd></b><span>jump <em>hold mid-air to balloon</em></span></div>
-        <div><b><kbd>F</kbd></b><span>gesture</span></div>
-        <div><b><kbd>Q</kbd></b><span>pluck web</span></div>
-        <div><b><kbd>R</kbd></b><span>change pluck signal</span></div>
-        <div><b><kbd>X</kbd></b><span>tie dragline <em>again to hang · again to cut</em></span></div>
-      </div>
-      <div class="lg-f kbonly"><span><kbd>G</kbd>intro</span><span><kbd>H</kbd>hide</span><span><kbd>M</kbd>sound</span></div>
-      <div class="lg pd padonly">
-        <div><b><kbd class="w">L-stick</kbd></b><span>walk <em>tilt sets pace</em></span></div>
-        <div><b><kbd class="w">R-stick</kbd></b><span>look</span></div>
-        <div><b><kbd class="w">RT</kbd></b><span class="mv-sneak">sneak</span></div>
-        <div><b><kbd class="w">LT</kbd></b><span class="mv-dash">dash</span><span class="mv-slow">slow motion</span></div>
-        <div><b><kbd>A</kbd></b><span>jump <em>L-stick aims while held · hold mid-air to balloon</em></span></div>
-        <div><b><kbd>X</kbd></b><span>gesture</span></div>
-        <div><b><kbd class="w">RB</kbd></b><span>pluck web</span></div>
-        <div><b><kbd class="w">LB</kbd></b><span>change signal</span></div>
-        <div><b><kbd>B</kbd></b><span>tie dragline <em>again to hang · again to cut</em></span></div>
-        <div><b><kbd class="w">D-pad</kbd></b><span>zoom</span></div>
-        <div><b><kbd class="w">Back</kbd></b><span>intro</span></div>
-        <div><b><kbd class="w">Start</kbd></b><span>hide HUD</span></div>
-      </div>
+  <div id="legend">   <!-- one row along the bottom; only the last-used device's keys show -->
+    <div class="kr kbonly">
+      <span><kbd class="w">WASD</kbd>walk</span>
+      <span><kbd>C</kbd><span class="mv-sneak">sneak</span></span>
+      <span><kbd class="w">Shift</kbd><span class="mv-dash">dash</span><span class="mv-slow">slow-mo</span></span>
+      <span><kbd class="w">Space</kbd>jump</span>
+      <span><kbd>F</kbd>gesture</span>
+      <span><kbd>Q</kbd>pluck</span>
+      <span><kbd>R</kbd>signal</span>
+      <span><kbd>X</kbd>dragline</span>
+      <i class="sep"></i>
+      <span><kbd>G</kbd>intro</span>
+      <span><kbd>H</kbd>hide</span>
+      <span><kbd>M</kbd>sound</span>
+    </div>
+    <div class="kr padonly">
+      <span><kbd class="w">L-stick</kbd>walk</span>
+      <span><kbd class="w">R-stick</kbd>look</span>
+      <span><kbd class="w">RT</kbd><span class="mv-sneak">sneak</span></span>
+      <span><kbd class="w">LT</kbd><span class="mv-dash">dash</span><span class="mv-slow">slow-mo</span></span>
+      <span><kbd>A</kbd>jump</span>
+      <span><kbd>X</kbd>gesture</span>
+      <span><kbd class="w">RB</kbd>pluck</span>
+      <span><kbd class="w">LB</kbd>signal</span>
+      <span><kbd>B</kbd>dragline</span>
+      <span><kbd class="w">D-pad</kbd>zoom</span>
+      <i class="sep"></i>
+      <span><kbd class="w">Back</kbd>intro</span>
+      <span><kbd class="w">Start</kbd>hide</span>
     </div>
   </div>
   <div id="look" class="card" hidden></div>
@@ -230,53 +212,20 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
   <div id="doom" hidden><div class="dm-bg"></div><div class="dm-txt dm-a">It is the end for you..</div><div class="dm-txt dm-b">...but your sisters continue the hunt.</div></div>
   <div id="bossbar"><div class="bb-top"><span class="bb-name"></span><span class="bb-lab"></span></div><div class="bb-bar"><u></u><i></i></div><div class="bb-do"></div></div>
   <div id="intro" hidden>
-    <section class="in-scene" data-k="0">
+    <section class="in-scene">
       <div class="in-eyes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <div class="logo" id="logo" aria-label="Portia">PORTIA</div>
-      <div class="in-tag">PORTIA LABIATA · THE SPIDER THAT HUNTS SPIDERS</div>
+      <div class="in-tag">A JUMPING SPIDER THAT HUNTS SPIDERS</div>
       <div class="scale in-scale"></div>
-      <p class="in-lede">You are a few millimetres of patience. Watch what moves, feel what trembles in the silk, follow what smells. Most of it can kill you.</p>
+      <p class="in-lede">You are a few millimetres of patience. Other spiders are your prey, and most of them can kill you.</p>
+      <ul class="in-moves">
+        <li><b>STALK</b><span class="kbonly"><kbd>WASD</kbd> <kbd>C</kbd></span><span class="padonly"><kbd>L-stick</kbd> <kbd>RT</kbd></span><span>Sneak up from behind. If it turns, freeze.</span></li>
+        <li><b>STRIKE</b><span class="kbonly"><kbd>hold Space</kbd></span><span class="padonly"><kbd>hold A</kbd></span><span>Aim at a spider, release to leap on it.</span></li>
+        <li><b>LURE</b><span class="kbonly"><kbd>Q</kbd> <kbd>R</kbd></span><span class="padonly"><kbd>RB</kbd> <kbd>LB</kbd></span><span>Pluck a web to draw its owner out.</span></li>
+      </ul>
     </section>
-    <section class="in-scene" data-k="1">
-      <h2>CONTROLS</h2>
-      <div class="in-grid">
-        <div class="in-box"><h3>MOVE</h3>
-          <div><kbd>WASD</kbd> walk — up bark, stone, under leaves</div>
-          <div><kbd>C</kbd> toggle sneak</div>
-          <div><kbd>Shift</kbd> toggle dash: snap, dart, freeze</div></div>
-        <div class="in-box"><h3>LEAP</h3>
-          <div><kbd>hold Space</kbd> aim with the mouse</div>
-          <div><i>release</i> leap to the ring</div>
-          <div><kbd>Space</kbd> <i>in air</i> balloon on silk</div></div>
-        <div class="in-box"><h3>SILK</h3>
-          <div><kbd>X</kbd> tie dragline · again to hang · again to cut</div>
-          <div><kbd>hold Q</kbd> pluck · <kbd>R</kbd> change signal</div></div>
-        <div class="in-box"><h3>POSE</h3>
-          <div><kbd>hold F</kbd> raise front legs</div>
-          <div><kbd>H</kbd> hide HUD · <kbd>M</kbd> sound</div>
-          <div><kbd>G</kbd> this intro again</div></div>
-      </div>
-    </section>
-    <section class="in-scene" data-k="2">
-      <h2>HOW TO HUNT</h2>
-      <ol class="in-steps">
-        <li><b>READ</b><span>Point at or look at a spider to see its state and how alert it is.</span></li>
-        <li><b>STALK</b><span>Sneak with <kbd>C</kbd>. Come from behind or above. If it turns, freeze.</span></li>
-        <li><b>STRIKE</b><span>Hold <kbd>Space</kbd>, target an enemy, then release to jump and attack.</span></li>
-      </ol>
-      <div class="in-prey">
-        <div><b>Scytodes</b><span>Spits glue at whatever is in front of it. Never approach from the front, unless it's carrying its egg sac.</span></div>
-        <div><b>Badumna</b><span>Hides in a tube. Stand on its sheet, pluck with <kbd>Q</kbd>, try signals with <kbd>R</kbd> until it comes out. Move when the breeze gusts.</span></div>
-        <div><b>Argiope</b><span>Waits at the hub of its orb web. Sneak along the silk or drop in from above. If it pumps the web, freeze.</span></div>
-      </div>
-      <p class="in-note">A dark male dancing on a heart-shaped leaf? Go there and keep still.</p>
-    </section>
-    <nav class="in-nav">
-      <button type="button" data-go="-1">◂ back</button>
-      <span class="in-dots"><button type="button" data-to="0" aria-label="title"></button><button type="button" data-to="1" aria-label="controls"></button><button type="button" data-to="2" aria-label="hunting"></button></span>
-      <button type="button" data-go="1" id="in-next">next ▸</button>
-    </nav>
-    <div class="in-hint">→ / Enter next · ← back · Esc skip</div>
+    <button type="button" class="in-go">begin ▸</button>
+    <div class="in-hint"><span class="kbonly">Enter to begin · G shows this again</span><span class="padonly">A to begin · Back shows this again</span></div>
   </div>
   <div id="toast"></div>
 </div>
