@@ -1024,7 +1024,7 @@ const surfY = (p, x, z) => p.ground ? floorAt(x, z) : surfAt(p, x, z);   // the 
 const leafWd = (type, t) => type === 'heart' ? Math.pow(Math.sin(Math.PI*(.12 + .88*Math.pow(t, .8))), .7)*1.05
   : type === 'round' ? Math.sqrt(Math.max(0, 1 - (2*t - 1)**2)) : Math.pow(Math.sin(Math.PI*Math.pow(t, .85)), .8);
 // a leaf's walkable outline: the ellipse it always had (rx = .82w, rz = .78l), joined by the blade's own shape inset to
-// .8 of its half-width. The ellipse alone stopped 22% short of the tip, and on the big herb leaves that is a drooping
+// LEAF_INSET of its half-width (it was .8, and she rolled under a fifth of the way short of the drawn edge). The ellipse alone stopped 22% short of the tip, and on the big herb leaves that is a drooping
 // tongue of blade metres long, drawn but not there: she walked under or into it and could never get onto it. The base
 // half was kept to the ellipse at first, but a heart's lobes (and a round or lance blade's flanks) reach well past it:
 // walking toward the stalk she rolled under while half a metre of blade still lay ahead. So the blade is traced there
@@ -1032,14 +1032,15 @@ const leafWd = (type, t) => type === 'heart' ? Math.pow(Math.sin(Math.PI*(.12 + 
 // centre, so it is tabled as the outline's radius per direction, in units of (w, l), and the "how far out" measure is
 // radius over that. Placing leaves apart (leavesCrowd) keeps the old outline: the world is seeded, and a wider one
 // would reject other leaves and so change everything generated after them
-const LEAF_EDGE = {}, LEAF_EDGE_N = 720;
-function leafBladePoly(type){                  // the blade's outline at .8 of its half-width, (X, Z) in units of (w, l)
+const LEAF_EDGE = {}, LEAF_EDGE_N = 720, LEAF_INSET = .95;
+function leafBladePoly(type){                  // the blade's outline at LEAF_INSET of its half-width, (X, Z) in units of (w, l)
   const pt = (u, t) => { let yy = t*2 - 1; if(type === 'heart') yy += .32*(1 - Math.abs(u))*Math.pow(Math.max(0, 1 - t/.28), 2);
     return [u*leafWd(type, t), -yy]; };
   const P = [], N = 120;
-  for(let i = 0; i <= N; i++) P.push(pt(.8, i/N));                 // one flank, base to tip
-  for(let i = N; i >= 0; i--) P.push(pt(-.8, i/N));                // the other, back to the base
-  for(let i = 1; i < 40; i++) P.push(pt(-.8 + 1.6*i/40, 0));       // the base edge (a heart's notch)
+  const k = LEAF_INSET;
+  for(let i = 0; i <= N; i++) P.push(pt(k, i/N));                  // one flank, base to tip
+  for(let i = N; i >= 0; i--) P.push(pt(-k, i/N));                 // the other, back to the base
+  for(let i = 1; i < 40; i++) P.push(pt(-k + 2*k*i/40, 0));        // the base edge (a heart's notch)
   return P;
 }
 const inPoly = (P, x, z) => { let c = false;
