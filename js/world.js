@@ -272,12 +272,14 @@ function rawH(x, z){
 }
 function broadH(x, z){ return (vnoise(x*.022 + 50, z*.022 - 20) - .5)*5; }            // the forest's broad rolls, metres across
 const ANT_HILLS = [[-5.2, 4.6], [6.8, 4.4]], ANT_HILL_R = 2.2, ANT_HILL_H = .9;     // ~13 cm across, ~3 cm high
-// trees at spider scale (1 unit ≈ 3 cm): rainforest giants 0.5–1.5 m thick looming at the edge of the floor and fading
-// into the haze, plus two young trees (15–20 cm thick) close by to climb. [x, z, radius]
+// trees at spider scale (1 unit ≈ 3 cm, Portia ≈ 1 cm): rainforest giants 0.5–1.5 m thick looming at the edge of the
+// floor and fading into the haze, plus two big trees (about 80 cm thick) a short walk out to climb: their crowns start
+// a metre or so up and are the walkable ones. [x, z, radius, climb]
 const TREE_LIST = [
   ...[[-24, -21, 11], [33, -4, 13], [5, -40, 16], [-9, 41, 12.5], [-47, 11, 18], [48, -24, 15], [35, 45, 12], [-42, -49, 20]].map(([x, z, r]) => [x*AK, z*AK, r]),
   ...[[86, 18, 22], [-22, -88, 25], [-88, -14, 21], [42, 92, 19], [96, -64, 26], [-70, 70, 24], [12, 110, 20]].map(([x, z, r]) => [x*1.3, z*1.3, r]),
-  [-4.8, 13.2, 2.6], [14, 3, 3.2]];
+  [-12, 30, 12, 1], [28, 10, 13, 1]];
+const CLIMB_TREES = TREE_LIST.filter(t => t[3]);
 const inTrunk = (x, z, m = 0) => TREE_LIST.some(([tx, tz, r]) => Math.hypot(x - tx, z - tz) < r*1.15 + m);
 const LOG = {x:-1.2, z:6.2, ang:1.35, r:.62, len:9, sink:.45};   // sink: axis height above the soil in radii (half-buried in litter, so the overhang underneath is shallow)
 const ROCKS = [{x:-6.2, z:-4.0, r:1.3, h:1.1}, {x:1.6, z:-1.6, r:.7, h:.45}];
@@ -1000,7 +1002,7 @@ const MUSH_SPOTS = [], MUSH_GLOW_M = new THREE.MeshStandardMaterial({color:0xd8e
 const barkM = antiTile(new THREE.MeshStandardMaterial({vertexColors:true, map: BARK_TEX, bumpMap: BARK_TEX, bumpScale: 2, roughness:.95}));
 const barkStumpM = antiTile(new THREE.MeshStandardMaterial({vertexColors:true, map: BARK_TEX_S, bumpMap: BARK_TEX_S, bumpScale: 2, roughness:.95}));
 {
-  // TREE_LIST (declared with the terrain): giants rise ~20 m (they vanish into the haze long before), the young trees ~8 m
+  // TREE_LIST (declared with the terrain): every trunk rises ~20 m (they vanish into the haze long before)
   for(const [x, z, r] of TREE_LIST){
     const big = r > 5, rb = r*1.1, rt = r*(big ? .82 : .75), H = big ? 700 : 260, amt = .05, T = big ? 6 : 3;
     let y0 = 1e9; for(let k = 0; k < 16; k++){ const a = k/16*6.283; y0 = Math.min(y0, hAt(x + Math.cos(a)*rb*1.15, z + Math.sin(a)*rb*1.15)); }
@@ -1249,7 +1251,7 @@ addLeaf(2.2, 1.3, 3.0, 'round', .9, 1.0, .9);
 addLeaf(-2.8, 2.8, 1.8, 'lance', .8, 1.5, -.8);
 addLeaf(-1.4, 2.2, -3.2, 'heart', .9, 1.3, .5);
 addLeaf(3.6, 1.6, -4.2, 'lance', .7, 1.3, -1.2);
-addLeaf(21.5, 3.6, 4.6, 'heart', 1.1, 1.6, .6);   // (the male's old leaf; he now displays out in the jungle, see actors.js)
+addLeaf(46, 3.6, 17.5, 'heart', 1.1, 1.6, .6);   // (the male's old leaf, moved clear of the big tree at (28, 10); he now displays out in the jungle, see actors.js)
 addLeaf(-5.2, 1.7, -.6, 'round', .9, 1.1, 1.4);
 addLeaf(6.3, 4.4, -3.6, 'lance', .8, 1.3, .2);
 addLeaf(-4.6, 3.8, 3.6, 'heart', 1.0, 1.5, 2.0);
@@ -1263,7 +1265,7 @@ STUMPS.forEach(addStump);
 addLeaf(5.45, (PLAT[2].y + 1.45) - hAt(5.45, 1.05), 1.05, 'round', .5, .6, .4);
 // Argiope's orb: vertical, with a frame-anchored leaf beside it and a leaf above it
 // every orb-weaver's web: {C, n, u, R, edge, g (its swaying group), S (walkable sheet), spider}. Argiope's leaf-slung
-// orb comes first; hunt.js adds the one in the young tree's fork
+// orb comes first; hunt.js adds the one in the big tree's fork
 const ORBS = [];
 const ARG = (() => {
   const x = -7.4, z = 1.2, gy = hAt(x, z), R = 4.2;                 // an orb ~25 cm across, as real Argiope webs are

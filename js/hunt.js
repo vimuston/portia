@@ -3,7 +3,13 @@
 
 const PREY = [];
 function addPrey(p){ p.m.userData.owner = p; PREY.push(Object.assign(p, {alert:0, motion:0, vib:0, temp:.56, temp0:.56, dead:false, deadT:0, phase:0, t:rr(2, 6), close:0, idleT:0})); return p; }
-const SCY = [PLAT[2], PLAT[6]].map((pl, i) => {
+// the spitting spiders spread out over the floor: one by the start (with a leaf above it to drop from), the rest each on
+// the understory herb blade nearest a spot further out, every one in its own direction
+const SCY_USED = new Set();
+const herbLeafNear = (a, d) => { const x = Math.cos(a)*d, z = Math.sin(a)*d; let best = null, bd = 1e9;
+  for(const p of PLAT){ if(!p.herb || SCY_USED.has(p) || p.y - hAt(p.x, p.z) > 14) continue; const e = Math.hypot(p.x - x, p.z - z); if(e < bd){ bd = e; best = p; } }
+  SCY_USED.add(best); return best; };
+const SCY = [PLAT[2], herbLeafNear(3.6, 18)].map((pl, i) => {
   scytodesWeb(pl);
   const home = randomIn(pl, .4);
   const p = addPrey({kind:'scytodes', name:'Scytodes pallida · spitting spider', m: makeScytodes(), plat: pl, home, pos: home.clone(), yaw: rnd()*6.28, state:'idle'});
@@ -16,16 +22,16 @@ const ARGI = addPrey({kind:'argiope', name:'Argiope · St Andrew’s Cross spide
 ARG.side.silk = ARGI; ARG.above.silk = ARGI;
 const WEB = webSurface(ARG); WEB.silk = ARGI;
 Object.assign(ARG, {S: WEB, spider: ARGI}); ORBS.push(ARG);
-// ---- a second Argiope, up in a young tree: a quarter orb slung in the angle under one of its limbs, its frame laid
-// on the bark of the trunk and the limb's underside. Hung where the limb leaves the trunk, about 26 up, and shaped from
+// ---- a second Argiope, up in a big tree: a quarter orb slung in the angle under its lowest limb, its frame laid
+// on the bark of the trunk and the limb's underside. Hung where the limb leaves the trunk, and shaped from
 // the limb as it actually grew. It draws on its own random stream, so the seeded world after it is unchanged.
 const ARG2 = (() => {
   let seed = 90917; const rn = () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0)/4294967296; };
   const rr2 = (a, b) => a + rn()*(b - a);
-  const tr = TREE_LIST.find(([x, z]) => Math.hypot(x + 4.8, z - 13.2) < .01); if(!tr) return null;
+  const tr = CLIMB_TREES[0]; if(!tr) return null;
   const ctr = new V3(tr[0], 0, tr[1]), trunk = CLIMBS.find(S => S.tree && !S._pts && S.cx === tr[0] && S.cz === tr[1]);
   const limb = CLIMBS.filter(S => S.tree && S._pts && Math.hypot(S._pts[0].x - ctr.x, S._pts[0].z - ctr.z) < tr[2]*1.1)
-    .sort((a, b) => Math.abs(a._pts[0].y - 26) - Math.abs(b._pts[0].y - 26))[0];
+    .sort((a, b) => a._pts[0].y - b._pts[0].y)[0];                                  // the lowest limb
   if(!trunk || !limb) return null;
   const LP = limb._pts, LR = limb._R, up = new V3(0, 1, 0);
   const u = new V3(LP[4].x - ctr.x, 0, LP[4].z - ctr.z).normalize(), n = new V3().crossVectors(u, up).normalize();
@@ -53,17 +59,17 @@ if(ARG2){ WEB2.silk = ARGI2; Object.assign(ARG2, {S: WEB2, spider: ARGI2}); ORBS
 // the spiders added later each draw on their own random stream (both the world's and the textures'), so the seeded
 // world generated after them is unchanged
 function ownStream(s, f){ const s0 = seed, t0 = texSeed; seed = s; texSeed = s + 7; try { return f(); } finally { seed = s0; texSeed = t0; } }
-// ---- more spitting spiders, up on the higher leaves
-const SCY2 = ownStream(51511, () => [PLAT[9], PLAT[10], PLAT[11]].map(pl => {
+// ---- more spitting spiders, further out
+const SCY2 = ownStream(51511, () => [herbLeafNear(1.2, 26), herbLeafNear(5.2, 32), herbLeafNear(2.4, 40)].map(pl => {
   scytodesWeb(pl);
   const home = randomIn(pl, .4);
   const p = addPrey({kind:'scytodes', name:'Scytodes pallida · spitting spider', m: makeScytodes(), plat: pl, home, pos: home.clone(), yaw: rnd()*6.28, state:'idle'});
   p.want = p.yaw; pl.silk = p; return p;
 }));
-// ---- a second house spider, up a young tree: its retreat in a crack in the bark about 9 up, the lacy sheet slung
+// ---- a second house spider, up a big tree: its retreat in a crack in the bark about 9 up, the lacy sheet slung
 // out from the trunk toward the clearing and tied to the bark above
 const BAD2 = ownStream(72733, () => {
-  const tr = TREE_LIST.find(([x, z]) => Math.hypot(x - 14, z - 3) < .01); if(!tr) return null;
+  const tr = CLIMB_TREES[1]; if(!tr) return null;
   const trunk = CLIMBS.find(S => S.tree && !S._pts && S.cx === tr[0] && S.cz === tr[1]); if(!trunk) return null;
   const ctr = new V3(tr[0], 0, tr[1]), out = new V3(-tr[0], 0, -tr[1]).normalize(), y = hAt(tr[0], tr[1]) + 9;
   const q = ctr.clone().addScaledVector(out, tr[2]*2); q.y = y; trunk.project(q);

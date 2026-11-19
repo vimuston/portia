@@ -255,8 +255,8 @@ const MOSS_SPOTS = [];
   // surface), top and underside both, and the stalk is a climbable tube, so she can walk up from the soil or leap across
   const shapes = ['heart', 'heart', 'lance', 'round'], before = PLAT.slice();
   const nearOld = (x, z, m) => before.some(p => !p.ground && Math.hypot(x - p.x, z - p.z) < Math.max(p.rx, p.rz) + m);   // spacing as before: plants don't dodge each other's blades
-  // past the first 75, a staircase of taller herbs ringed round each young tree: blade above blade up to its lowest limbs
-  const YOUNG = TREE_LIST.filter(([, , r]) => r <= 5), NSTAIR = 9;
+  // past the first 75, taller herbs ringed round each big climbing tree: blade above blade, a leap from the bark
+  const YOUNG = CLIMB_TREES, NSTAIR = 9;
   for(let i = 0; i < 75 + YOUNG.length*NSTAIR; i++){                                // herbs 15–45 cm tall (the stair ones to 80), leaves the size of her whole world
     const stair = i >= 75, yt = stair && YOUNG[Math.floor((i - 75)/NSTAIR)], k9 = (i - 75) % NSTAIR;
     const [x, z] = stair ? (() => { const a = k9/NSTAIR*6.28 + rr(-.3, .3), d = yt[2] + rr(2.5, 9); return [yt[0] + Math.cos(a)*d, yt[1] + Math.sin(a)*d]; })() : scatter(26*AK, 3);

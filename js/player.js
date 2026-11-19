@@ -657,7 +657,7 @@ function updateSpider(dt){
           if(ax.lengthSq() > 1e-8){ ax.normalize(); const c = ax.dot(sp.climbHead); if(Math.abs(c) > .3) sp.climbHead.copy(ax).multiplyScalar(Math.sign(c)); } }
         // off a trunk onto a limb (or back): the view levels or tilts, which would turn what W means and walk her straight
         // back where she came from. Swing the camera to look along her new heading so held keys keep carrying her on.
-        // The young trees' crown limbs are 'tree' too (the view turns with them), so trunk <-> limb is told apart by 'tube'
+        // The big climbing trees' crown limbs are 'tree' too (the view turns with them), so trunk <-> limb is told apart by 'tube'
         // there the view's up turns over with her, so the swing has to keep re-aiming along her heading as it does (swingDir)
         if(S.tree && S2.tree && !!S.tube !== !!S2.tube){ cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null; sp.handT = 1; }
         else if(!!S.tree !== !!S2.tree){ const hz = Math.hypot(sp.climbHead.x, sp.climbHead.z); if(hz > .3){ cam.swing = Math.atan2(sp.climbHead.x, sp.climbHead.z); cam.swingDir = null; } sp.handT = 1; }

@@ -89,14 +89,14 @@ function updateSeedlings(dt, t){
     const end = start.clone().addScaledVector(dir, len), mid = start.clone().lerp(end, .5).add(new V3(rr(-.15, .15)*len, (depth ? rr(-.05, .12) : rr(-.15, .05))*len, rr(-.15, .15)*len));
     const curve = new THREE.CatmullRomCurve3([start, mid, end]);
     const cAt = t => rad*(1 - .4*t);
-    geos.push(taperedTube(curve, cAt, {seg: depth < 2 ? 12 : 6, radial: depth < 2 ? 10 : 6}));
+    geos.push(taperedTube(curve, cAt, {seg: depth < 2 ? 16 : 8, radial: depth < 1 ? 16 : depth < 3 ? 10 : 6}));
     if(rad > .05){ const cp = curve.getPoints(10); tubeSurface(cp, cp.map((_, k) => cAt(k/10))).tree = true; }   // tree: the camera turns with the limb as with the trunk
-    if(depth >= maxD || rad < .07){
-      for(let k = 0; k < 8; k++) leafSpots.push(curve.getPoint(rr(.3, 1)).add(new V3(rr(-2.5, 2.5), rr(-1, 2), rr(-2.5, 2.5))));
-      if(rnd() < .4) pads.push({at: end.clone(), dir: dir.clone(), rad: cAt(1)});
+    if(depth >= maxD || rad < .3){
+      for(let k = 0; k < 16; k++) leafSpots.push(curve.getPoint(rr(.3, 1)).add(new V3(rr(-5, 5), rr(-1.5, 3.5), rr(-5, 5))));
+      if(rnd() < .45) pads.push({at: end.clone(), dir: dir.clone(), rad: cAt(1)});
       return;
     }
-    const nk = depth === 0 ? 3 : 2 + (rnd() < .5 ? 1 : 0);
+    const nk = depth === 0 ? 3 : depth >= 3 ? 2 : 2 + (rnd() < .5 ? 1 : 0);
     for(let k = 0; k < nk; k++){                                   // forks: the last at the tip, the rest along the branch
       const t = k === nk - 1 ? 1 : rr(.35, .85), at = curve.getPoint(t), d = dir.clone().applyAxisAngle(UP, rr(-.9, .9)).add(new V3(0, rr(-.05, .35), 0)).normalize();
       const side = new V3().crossVectors(d, UP).normalize(); d.applyAxisAngle(side.lengthSq() > .01 ? side : new V3(1, 0, 0), rr(-.35, .35)).normalize();
@@ -107,16 +107,15 @@ function updateSeedlings(dt, t){
       grow(geos, at, d, len*rr(.35, .5), cAt(t)*rr(.45, .6), depth + 2, maxD);
     }
   };
-  for(const [x, z, r] of TREE_LIST){
-    if(r > 5) continue;                                // the giants carry their crowns 20 m up, far out of sight in the haze
-    const y0 = hAt(x, z), nLimbs = r > 3 ? 17 : 16, a0 = rnd()*6.28;
-    // limbs spiralling up the trunk from 0.4 m to about 5 m: the lowest two within a hop of the tallest herbs at the
-    // foot, the third about 26 up (the Argiope's web hangs under it)
+  for(const [x, z, r] of CLIMB_TREES){                 // (the giants carry their crowns 20 m up, far out of sight in the haze)
+    const y0 = hAt(x, z), nLimbs = 18, a0 = rnd()*6.28;
+    // big limbs spiralling up the trunk from about 1.3 m to 12 m, each 1.5–2.5 m long and 15–20 cm thick at the bark,
+    // forking down to twigs a few centimetres thick
     for(let i = 0; i < nLimbs; i++){
-      const f = Math.max(0, i - 3)/(nLimbs - 4), a = a0 + i*2.4 + rr(-.3, .3), h = [rr(13, 15), rr(19, 21), rr(25, 27)][i] ?? 33 + f*137 + rr(-5, 5), out = new V3(Math.cos(a), 0, Math.sin(a));
-      const start = new V3(x, y0 + h, z).addScaledVector(out, r*.85), dir = out.clone().add(new V3(0, rr(.15, .5), 0)).normalize();
+      const f = i/(nLimbs - 1), a = a0 + i*2.4 + rr(-.3, .3), h = 42 + f*360 + rr(-6, 6), out = new V3(Math.cos(a), 0, Math.sin(a));
+      const start = new V3(x, y0 + h, z).addScaledVector(out, r*.85), dir = out.clone().add(new V3(0, rr(.1, .45), 0)).normalize();
       const geos = [];
-      grow(geos, start, dir, rr(14, 24)*(1 - f*.4), r*rr(.18, .26)*(1 - f*.3), 0, f > .5 ? 2 : 3);
+      grow(geos, start, dir, rr(50, 80)*(1 - f*.35), r*rr(.2, .26)*(1 - f*.3), 0, 3);
       // a mesh per limb: its bounding sphere stays tight, so the camera's sight rays only test the limbs they pass near
       const m = hot(new THREE.Mesh(mergeGeos(geos), crownM), TEMP.wood); m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
     }
@@ -127,7 +126,7 @@ function updateSeedlings(dt, t){
   // the landing pads: a broad blade held level on a short stalk at the twig's tip, pointing on out along it (no sway,
   // so her feet match the surface); left off where it would cut into bark or crowd another leaf
   const padM = [0x4f8a3a, 0x5f9a42, 0x467a30].map(col => glowLeaf(new THREE.MeshStandardMaterial({color: col, map: LEAF_TEX, roughness:.55, side:THREE.DoubleSide})));
-  const pq = new V3();
+  const pq = new V3(), placed = [];
   for(const P of pads){
     const hd = new V3(P.dir.x, 0, P.dir.z); if(hd.lengthSq() < .01) continue; hd.normalize();
     const type = rnd() < .5 ? 'lance' : 'heart', w = rr(1.4, 2.4), l = w*(type === 'lance' ? rr(1.7, 2.1) : rr(1.3, 1.5)), droop = rr(.15, .3), fold = rr(.06, .12);
@@ -145,8 +144,9 @@ function updateSeedlings(dt, t){
     leaf.add(new THREE.LineSegments(veinGeo(type, w, l, droop, fold), new THREE.LineBasicMaterial({color: mat.color.clone().lerp(new THREE.Color(0xe8f0b0), .45)})));
     const base = leaf.localToWorld(new V3(0, -.02, l*1.02)), stalk = new THREE.CatmullRomCurve3([P.at.clone(), P.at.clone().lerp(base, .5).add(new V3(0, .12, 0)), base]);
     scene.add(hot(new THREE.Mesh(new THREE.TubeGeometry(stalk, 6, .035, 5), crownM), TEMP.stem));
-    PLAT.push(p); p.under = leafUnder(p);
+    PLAT.push(p); placed.push(p);
   }
+  for(const p of placed) p.under = leafUnder(p);     // after: each new climb surface makes climbsNear rebuild its grid
 }
 
 // ---- life up high: garden orb-weavers building their webs. Here only their silk and bodies are made; hunt.js makes
