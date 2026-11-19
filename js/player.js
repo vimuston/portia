@@ -292,6 +292,14 @@ function rollPlace(r, v){
   if(rollOnFrom(r, v) === (r.up0.y > 0)){ placeOn(top, v); return UP.clone(); }
   under.project(v); return under.normal(v);
 }
+// room to hang under a leaf: a blade low over the ground (soil or litter, at the rim and a little in under it) is
+// no shelter, and there is no room under it for the view, so she steps off its rim and drops to the ground instead
+const UNDER_CLEAR = 1;                                // ≈ 3 cm, three of her body lengths
+function underRoom(S, x, z){
+  const [q, o] = S.rimPoint(x, z);
+  let fl = -Infinity; for(const d of [0, .15, .3]) fl = Math.max(fl, floorAt(q.x - o.x*d, q.z - o.z*d));
+  return q.y - fl >= UNDER_CLEAR;
+}
 function wrapUnder(S, x, z){
   const [q, o] = S.rimPoint(x, z), inw = o.clone().negate();
   startRoll(q, o, () => { enterClimb(S, q.clone().addScaledVector(inw, ROLL_IN), inw); sp.climbHead.copy(inw); }, {top: S.top, under: S});
@@ -576,7 +584,7 @@ function updateSpider(dt){
     else if(inPlat(sp.plat, nx, nz)){ sp.pos.set(nx, surfAt(sp.plat, nx, nz), nz); }   // her height rides the blade's droop and fold, or the camera and the next step start inside it
     else if(spd > 0 && sp.plat.climb && sp.plat.climb.canEnter(new V3(nx, 0, nz))){ enterClimb(sp.plat.climb, new V3(nx, surfAt(sp.plat, nx, nz) - .05, nz), dir); return; }   // over the rim, down the side
     else if(spd > 0 && sp.plat.under && dropToBelow(dir, spd)) return;            // a leaf just below the rim: step down onto it
-    else if(spd > 0 && sp.plat.under){ wrapUnder(sp.plat.under, nx, nz); return; }
+    else if(spd > 0 && sp.plat.under && underRoom(sp.plat.under, nx, nz)){ wrapUnder(sp.plat.under, nx, nz); return; }
     else if(spd > 0){ startAir(); sp.vel.set(dir.x*spd, 0, dir.z*spd); sp.charging = false; toast(sp.line ? 'You step off the edge — the dragline holds.' : 'You step off the edge — no dragline tied.'); }
     // on a leaf top she stands on the blade, not at its base level: out on a big leaf's drooping tip the two are a body
     // length or more apart, and the camera's orbit and her leaps start from here
