@@ -112,8 +112,9 @@ function updateSeedlings(dt, t){
   scene.add(lm);                                     // (the canopy's shade comes from the sun's gap map, not from these)
 }
 
-// ---- life up high: orb-weavers building their webs. Radii go up first; then the spiral is laid turn by turn with the
-// builder walking it; it rests at the hub for a while, then takes the web down (it fades) and starts again.
+// ---- life up high: garden orb-weavers building their webs. Here only their silk and bodies are made; hunt.js makes
+// each a prey with a walkable web, and spins it: radii first, then the spiral laid turn by turn with the builder walking
+// it, a rest at the hub, then the web taken down (it fades) and started again.
 const BUILDERS = [];
 {
   const silk = (op) => new THREE.LineBasicMaterial({color:0xf2f0e6, transparent:true, opacity:op});
@@ -127,31 +128,14 @@ const BUILDERS = [];
     const turns = 34, N = turns*NR, path = [];
     for(let i = 0; i <= N; i++){ const a = i/NR*6.283, r = .12 + (R*.95 - .12)*i/N; path.push(P(r, a)); }
     for(let i = 0; i < N; i++) spiral.push(path[i], path[i + 1]);
-    const g = new THREE.Group(); scene.add(g);
+    const g = new THREE.Group(); scene.add(g);                   // the web's swaying group (its lines are laid in world space)
     const fm = silk(.55), rm = silk(.45), sm = silk(.4);
     const fL = new THREE.LineSegments(segsFrom(frame), fm), rL = new THREE.LineSegments(segsFrom(radii), rm), sL = new THREE.LineSegments(segsFrom(spiral), sm);
     [fL, rL, sL].forEach(o => o.userData.temp = SILK_T); g.add(fL, rL, sL);
     const m = makeArach({s:.85, cara:[.04, .028, .05], abd:[.065, .055, .075], legLen:[.36, .33, .24, .3], legTh:.006, hairs:[60, 120], spines:3,
       col:{cara:0x6a4a2a, abd:0x9a7440, leg:0x5a4024, hair:0xe0d0a8, band:0x2e2014, under:0x3a2a18}, eyes:[[.01, .022, .085], [.02, .02, .08]], bands:(k, j) => j === 1 ? [.2, .7] : j === 2 ? [.5] : []});
-    const owner = {temp:.58, motion:.3, self:false}; m.userData.owner = owner;
-    BUILDERS.push({C, u, v, n, R, path, sL, rL, fL, mats: [fm, rm, sm], m, owner, t: rr(0, 40), N, NR});
-  }
-}
-function updateBuilders(dt){
-  for(const B of BUILDERS){
-    B.t += dt; const T = B.t % 70, build = 40, rest = 22;      // radii 0–4 s, spiral 4–40 s, rest at hub, take down 62–70 s
-    const fr = Math.min(1, T/4), sp = Math.max(0, Math.min(1, (T - 4)/(build - 4))), fade = T > build + rest ? 1 - (T - build - rest)/8 : 1;
-    B.rL.geometry.setDrawRange(0, Math.floor(B.NR*2*fr)); B.sL.geometry.setDrawRange(0, Math.floor(B.N*2*sp));
-    B.mats.forEach((mt, k) => mt.opacity = [.55, .45, .4][k]*fade);
-    let pos, fwd;
-    if(T < 4){ const k = Math.floor(fr*B.NR*.999), a = k/B.NR*6.283, ph = (fr*B.NR) % 1; pos = B.C.clone().addScaledVector(B.u, Math.cos(a)*B.R*Math.abs(Math.sin(ph*Math.PI))).addScaledVector(B.v, Math.sin(a)*B.R*Math.abs(Math.sin(ph*Math.PI))); fwd = new V3(Math.cos(a), Math.sin(a), 0); }
-    else if(sp < 1){ const i = Math.floor(sp*B.N); pos = B.path[i]; fwd = B.path[Math.min(B.N, i + 1)].clone().sub(pos); }
-    else { pos = B.C; fwd = new V3(0, -1, 0); }
-    const z = fwd.lengthSq() > 1e-8 ? (fwd.z === 0 && Math.abs(fwd.x) + Math.abs(fwd.y) <= 1.01 && T < 4 ? B.u.clone().multiplyScalar(fwd.x).addScaledVector(B.v, fwd.y) : fwd.clone()).normalize() : new V3(0, -1, 0);
-    M4.makeBasis(new V3().crossVectors(B.n, z), B.n, z); B.m.quaternion.setFromRotationMatrix(M4); B.m.position.copy(pos).addScaledVector(B.n, .01);
-    const moving = T < build; B.owner.motion = moving ? .35 : 0;
-    poseArach(B.m, {walk: moving ? 1 : 0, phase: B.t*14, cross: !moving});
-    B.m.visible = fade > .05;
+    rr(0, 40);                                                   // (a draw the old start-time took: the seeded world after it stays put)
+    BUILDERS.push({C, u, v, n, R, path, sL, rL, fL, mats: [fm, rm, sm], m, g, N, NR});
   }
 }
 
@@ -344,4 +328,4 @@ function updateAnts(dt, t){
     [C.head, C.thor, C.gas, C.load].forEach(m => m.instanceMatrix.needsUpdate = true); C.legG.attributes.position.needsUpdate = true;
   }
 }
-function updateLife(dt, t){ updateBuilders(dt); updateBirds(dt, t); updateSeedlings(dt, t); updateCats(dt, t); updateAnts(dt, t); }
+function updateLife(dt, t){ updateBirds(dt, t); updateSeedlings(dt, t); updateCats(dt, t); updateAnts(dt, t); }
