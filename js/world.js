@@ -1236,7 +1236,9 @@ addLeaf(2.2, 1.3, 3.0, 'round', .9, 1.0, .9);
 addLeaf(-2.8, 2.8, 1.8, 'lance', .8, 1.5, -.8);
 addLeaf(-1.4, 2.2, -3.2, 'heart', .9, 1.3, .5);
 addLeaf(3.6, 1.6, -4.2, 'lance', .7, 1.3, -1.2);
-const MALE_LEAF = addLeaf(8.8, 3.6, -1.8, 'heart', 1.1, 1.6, .6);
+// the male displays on a leaf hidden behind the young tree at (14, 3), out of sight from the start: climb its trunk and
+// look out past it to spot him
+const MALE_LEAF = addLeaf(21.5, 3.6, 4.6, 'heart', 1.1, 1.6, .6);
 addLeaf(-5.2, 1.7, -.6, 'round', .9, 1.1, 1.4);
 addLeaf(6.3, 4.4, -3.6, 'lance', .8, 1.3, .2);
 addLeaf(-4.6, 3.8, 3.6, 'heart', 1.0, 1.5, 2.0);
