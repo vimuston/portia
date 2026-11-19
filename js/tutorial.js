@@ -28,7 +28,8 @@ const TUT = (() => {
     const curve = new THREE.CatmullRomCurve3([base.clone().setY(gy - .05), base.clone().addScaledVector(lean, .15).setY(gy + (tip.y - gy)*.55),
       base.clone().addScaledVector(lean, .7).setY(gy + (tip.y - gy)*.93), tip]);
     add(hot(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, sr, 8), stemM), TEMP.stem)).castShadow = true;
-    const p = {id, kind: 'leaf', tut: true, x: c.x, y: c.y, z: c.z, rx: w*.82, rz: l*.78, rot, leaf: {type, w, l, droop, fold}, stalk: curve};
+    const p = {id, kind: 'leaf', tut: true, x: c.x, y: c.y, z: c.z, rx: w*.82, rz: l*.78, rot, leaf: {type, w, l, droop, fold}, stalk: curve,
+      mesh: m, glow0: mat.emissive.clone()};   // (glow0: its own faint glow, which the lesson highlight pulses up from)
     PLAT.push(p); p.under = leafUnder(p);
     return p;
   }
@@ -82,8 +83,8 @@ const TUT_STEPS = [
   {name: 'The Dash', text: 'When nothing is watching she crosses open ground in bursts: a dart, a dead stop, a look. Each freeze lets her eyes settle, for a jumping spider sees best when it is still. But running feet drum on a leaf, and that drumming carries.',
     goals: [{t: `${K('Shift', 'LT')} Dash, and cover some ground`, need: 3, tick: e => e.surf && sp.sprinting ? e.moved : 0}]},
   {name: 'The Leap', text: 'Her legs have no muscles to straighten them. To jump, she drives up the pressure of her blood in an instant; the hind legs snap straight and throw her many times her own length, to a spot her great forward eyes have already measured.',
-    goals: [{t: `Hold ${K('Space', 'A')} to gauge the leap, let go to jump to the small round leaf`, need: 1, tick: e => e.landed && (e.landed === TUT.L2 || e.landed === TUT.L2.under) ? 1 : 0},
-            {t: 'Leap back to the broad leaf', need: 1, tick: e => e.landed && (e.landed === TUT.L1 || e.landed === TUT.L1.under) ? 1 : 0}]},
+    goals: [{t: `Hold ${K('Space', 'A')} to gauge the leap, let go to jump to the small round leaf`, need: 1, glow: () => TUT.L2, tick: e => e.landed && (e.landed === TUT.L2 || e.landed === TUT.L2.under) ? 1 : 0},
+            {t: 'Leap back to the broad leaf', need: 1, glow: () => TUT.L1, tick: e => e.landed && (e.landed === TUT.L1 || e.landed === TUT.L1.under) ? 1 : 0}]},
   {name: 'Ballooning', text: 'Spiders fly without wings. Raising her abdomen, she lets fine strands of silk stream out until the moving air, and even the faint electric charge of the sky, takes her weight. It is called ballooning. Spiders have been caught this way kilometres up, and far out over the sea.',
     goals: [{t: `Leap off the leaf, then hold ${K('Space', 'A')} in mid-air. ${K('WASD', 'Left stick')} steers`, need: 2.5, tick: (e, dt) => sp.balloon && sp.mode === 'air' ? dt : 0}]},
   {name: 'The Slow Leap', text: 'A leap is over in a fraction of a second, far too fast for our eyes. Slowed down, it is an exact thing: legs drawn in, the front pair reaching forward, and she comes down where she looked.',
@@ -170,10 +171,23 @@ function tutAfterDoom(){ if(TUT.on){ tutPlace(); TUT.g = TUT_STEPS[TUT.i].goals.
 // a debug snapshot somewhere else ends the lessons (no fade: it is a teleport on purpose)
 function tutSnapLoaded(){ if(TUT.on && !TUT.surfs.has(sp.plat)){ TUT.on = false; document.getElementById('tut').hidden = true; } }
 
+/* ---------- a goal can light up the leaf it sends her to: a slow, warm pulse of light ---------- */
+const TUT_GLOW_C = new THREE.Color(0xffe6a0);
+function tutGlow(){
+  const st = TUT_STEPS[TUT.i], k = TUT.on && TUT.doneT < 0 ? st.goals.findIndex((g, j) => (TUT.g[j] || 0) < g.need) : -1;
+  const want = k >= 0 && st.goals[k].glow ? st.goals[k].glow() : null, pulse = .5 - .5*Math.cos(performance.now()/1000*Math.PI*1.4);
+  for(const L of [TUT.L1, TUT.L2, TUT.L3]){
+    const m = L.mesh.material, on = L === want;
+    L.glowW = (L.glowW || 0) + ((on ? 1 : 0) - (L.glowW || 0))*.08;            // eases in and out between lessons
+    const a = L.glowW*pulse;
+    m.emissive.copy(L.glow0).lerp(TUT_GLOW_C, .22*a); m.emissiveIntensity = 1 + 1.1*a;
+  }
+}
+
 /* ---------- every frame ---------- */
 const TUT_FAR = 16;
 function updateTutorial(dt){
-  tutFadeTick();
+  tutFadeTick(); tutGlow();
   const el = TUT.el || (TUT.el = $('#tut'));
   if(!TUT.on){ TUT.prevMode = sp.mode; return; }
   el.classList.toggle('veiled', introOpen());
