@@ -80,36 +80,73 @@ function updateSeedlings(dt, t){
   scene.add(chips, lich, grit);
 }
 
-// ---- tree crowns: limbs that fork into branches that fork again, ending in sprays of leaves. Thick limbs are walkable.
+// ---- tree crowns: limbs that fork into branches that fork again, with side shoots along the way, ending in sprays of
+// leaves. Every limb and branch thick enough to stand on is walkable, and broad leaves held level at the twig tips are
+// landing pads: from the herbs round the foot she can leap blade to bark to limb to leaf, all the way up the crown.
 {
-  const leafSpots = [], crownM = antiTile(new THREE.MeshStandardMaterial({color:0x8a7258, map: BARK_TEX_S, bumpMap: BARK_TEX_S, bumpScale: 1.5, roughness:.95}));
-  const grow = (geos, start, dir, len, rad, depth) => {
+  const leafSpots = [], pads = [], crownM = antiTile(new THREE.MeshStandardMaterial({color:0x8a7258, map: BARK_TEX_S, bumpMap: BARK_TEX_S, bumpScale: 1.5, roughness:.95}));
+  const grow = (geos, start, dir, len, rad, depth, maxD) => {
     const end = start.clone().addScaledVector(dir, len), mid = start.clone().lerp(end, .5).add(new V3(rr(-.15, .15)*len, (depth ? rr(-.05, .12) : rr(-.15, .05))*len, rr(-.15, .15)*len));
     const curve = new THREE.CatmullRomCurve3([start, mid, end]);
     const cAt = t => rad*(1 - .4*t);
     geos.push(taperedTube(curve, cAt, {seg: depth < 2 ? 12 : 6, radial: depth < 2 ? 10 : 6}));
     if(rad > .05){ const cp = curve.getPoints(10); tubeSurface(cp, cp.map((_, k) => cAt(k/10))).tree = true; }   // tree: the camera turns with the limb as with the trunk
-    if(depth >= 3){ for(let k = 0; k < 14; k++) leafSpots.push(curve.getPoint(rr(.3, 1)).add(new V3(rr(-2.5, 2.5), rr(-1, 2), rr(-2.5, 2.5)))); return; }
+    if(depth >= maxD || rad < .07){
+      for(let k = 0; k < 8; k++) leafSpots.push(curve.getPoint(rr(.3, 1)).add(new V3(rr(-2.5, 2.5), rr(-1, 2), rr(-2.5, 2.5))));
+      if(rnd() < .4) pads.push({at: end.clone(), dir: dir.clone(), rad: cAt(1)});
+      return;
+    }
     const nk = depth === 0 ? 3 : 2 + (rnd() < .5 ? 1 : 0);
-    for(let k = 0; k < nk; k++){
-      const t = k === nk - 1 ? 1 : rr(.45, .85), at = curve.getPoint(t), d = dir.clone().applyAxisAngle(UP, rr(-.9, .9)).add(new V3(0, rr(-.05, .35), 0)).normalize();
+    for(let k = 0; k < nk; k++){                                   // forks: the last at the tip, the rest along the branch
+      const t = k === nk - 1 ? 1 : rr(.35, .85), at = curve.getPoint(t), d = dir.clone().applyAxisAngle(UP, rr(-.9, .9)).add(new V3(0, rr(-.05, .35), 0)).normalize();
       const side = new V3().crossVectors(d, UP).normalize(); d.applyAxisAngle(side.lengthSq() > .01 ? side : new V3(1, 0, 0), rr(-.35, .35)).normalize();
-      grow(geos, at, d, len*rr(.55, .75), rad*rr(.55, .68), depth + 1);
+      grow(geos, at, d, len*rr(.55, .75), rad*rr(.55, .68), depth + 1, maxD);
+    }
+    if(depth < 2) for(let k = 0, ns = 1 + Math.floor(rnd()*2); k < ns; k++){   // short side shoots: branches of branches
+      const t = rr(.2, .7), at = curve.getPoint(t), sgn = rnd() < .5 ? -1 : 1, d = dir.clone().applyAxisAngle(UP, sgn*rr(.9, 1.6)).add(new V3(0, rr(.1, .4), 0)).normalize();
+      grow(geos, at, d, len*rr(.35, .5), cAt(t)*rr(.45, .6), depth + 2, maxD);
     }
   };
   for(const [x, z, r] of TREE_LIST){
     if(r > 5) continue;                                // the giants carry their crowns 20 m up, far out of sight in the haze
-    const geos = [], y0 = hAt(x, z), nLimbs = r > 3 ? 5 : 4;
-    for(let i = 0; i < nLimbs; i++){                   // the young trees' lowest limbs, 0.7–2 m up
-      const a = i/nLimbs*6.28 + rr(-.4, .4), h = rr(24, 66), out = new V3(Math.cos(a), 0, Math.sin(a));
-      const start = new V3(x, y0 + h, z).addScaledVector(out, r*.85), dir = out.clone().add(new V3(0, rr(.15, .55), 0)).normalize();
-      grow(geos, start, dir, rr(12, 22), r*rr(.18, .26), 0);
+    const y0 = hAt(x, z), nLimbs = r > 3 ? 17 : 16, a0 = rnd()*6.28;
+    // limbs spiralling up the trunk from 0.4 m to about 5 m: the lowest two within a hop of the tallest herbs at the
+    // foot, the third about 26 up (the Argiope's web hangs under it)
+    for(let i = 0; i < nLimbs; i++){
+      const f = Math.max(0, i - 3)/(nLimbs - 4), a = a0 + i*2.4 + rr(-.3, .3), h = [rr(13, 15), rr(19, 21), rr(25, 27)][i] ?? 33 + f*137 + rr(-5, 5), out = new V3(Math.cos(a), 0, Math.sin(a));
+      const start = new V3(x, y0 + h, z).addScaledVector(out, r*.85), dir = out.clone().add(new V3(0, rr(.15, .5), 0)).normalize();
+      const geos = [];
+      grow(geos, start, dir, rr(14, 24)*(1 - f*.4), r*rr(.18, .26)*(1 - f*.3), 0, f > .5 ? 2 : 3);
+      // a mesh per limb: its bounding sphere stays tight, so the camera's sight rays only test the limbs they pass near
+      const m = hot(new THREE.Mesh(mergeGeos(geos), crownM), TEMP.wood); m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
     }
-    const m = hot(new THREE.Mesh(mergeGeos(geos), crownM), TEMP.wood); m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
   }
   const lg = leafGeo('lance', .18, .38, .35, .12, 6, 12), lm = hot(new THREE.InstancedMesh(lg, leafMat(0x4f8a3a, {amp: .06}), leafSpots.length), TEMP.leaf), c = new THREE.Color();
   leafSpots.forEach((p, i) => { const s = rr(.7, 1.7)*6; M4.compose(p, Q.setFromEuler(E.set(rr(-.5, .9), rnd()*6.3, rr(-.4, .4), 'YXZ')), new V3(s, s, s)); lm.setMatrixAt(i, M4); c.setHSL(rr(.22, .32), rr(.45, .7), rr(.2, .36)); lm.setColorAt(i, c); });
   scene.add(lm);                                     // (the canopy's shade comes from the sun's gap map, not from these)
+  // the landing pads: a broad blade held level on a short stalk at the twig's tip, pointing on out along it (no sway,
+  // so her feet match the surface); left off where it would cut into bark or crowd another leaf
+  const padM = [0x4f8a3a, 0x5f9a42, 0x467a30].map(col => glowLeaf(new THREE.MeshStandardMaterial({color: col, map: LEAF_TEX, roughness:.55, side:THREE.DoubleSide})));
+  const pq = new V3();
+  for(const P of pads){
+    const hd = new V3(P.dir.x, 0, P.dir.z); if(hd.lengthSq() < .01) continue; hd.normalize();
+    const type = rnd() < .5 ? 'lance' : 'heart', w = rr(1.4, 2.4), l = w*(type === 'lance' ? rr(1.7, 2.1) : rr(1.3, 1.5)), droop = rr(.15, .3), fold = rr(.06, .12);
+    const rot = Math.atan2(-hd.x, -hd.z), x = P.at.x + hd.x*l*.95, z = P.at.z + hd.z*l*.95, y = P.at.y + P.rad + .25;
+    const p = {id:'L' + PLAT.length, kind:'leaf', pad:true, x, y, z, rx: w*.82, rz: l*.78, rot, leaf:{type, w, l, droop, fold}};
+    if(inTrunk(x, z, platR(p))) continue;
+    let hit = false;                                   // no twig or limb through the blade
+    for(const [u, v] of [[0, 0], [0, -.6], [0, .6], [.6, 0], [-.6, 0]]){ const lx = u*w, lz = v*l;
+      pq.set(x + lx*Math.cos(rot) + lz*Math.sin(rot), 0, z - lx*Math.sin(rot) + lz*Math.cos(rot)); pq.y = surfAt(p, pq.x, pq.z);
+      if(climbsNear(pq.x, pq.z, .5).some(S => S.tube && S.inside(pq, .25))){ hit = true; break; } }
+    if(hit || PLAT.some(o => o.leaf && leavesCrowd(p, o))) continue;
+    const mat = padM[Math.floor(rnd()*padM.length)];
+    const leaf = hot(new THREE.Mesh(leafGeo(type, w, l, droop, fold), mat), TEMP.leaf); leaf.position.set(x, y, z); leaf.rotation.set(0, rot, 0);
+    leaf.castShadow = leaf.receiveShadow = true; scene.add(leaf); OCCLUDERS.push(leaf);
+    leaf.add(new THREE.LineSegments(veinGeo(type, w, l, droop, fold), new THREE.LineBasicMaterial({color: mat.color.clone().lerp(new THREE.Color(0xe8f0b0), .45)})));
+    const base = leaf.localToWorld(new V3(0, -.02, l*1.02)), stalk = new THREE.CatmullRomCurve3([P.at.clone(), P.at.clone().lerp(base, .5).add(new V3(0, .12, 0)), base]);
+    scene.add(hot(new THREE.Mesh(new THREE.TubeGeometry(stalk, 6, .035, 5), crownM), TEMP.stem));
+    PLAT.push(p); p.under = leafUnder(p);
+  }
 }
 
 // ---- life up high: garden orb-weavers building their webs. Here only their silk and bodies are made; hunt.js makes

@@ -255,8 +255,12 @@ const MOSS_SPOTS = [];
   // surface), top and underside both, and the stalk is a climbable tube, so she can walk up from the soil or leap across
   const shapes = ['heart', 'heart', 'lance', 'round'], before = PLAT.slice();
   const nearOld = (x, z, m) => before.some(p => !p.ground && Math.hypot(x - p.x, z - p.z) < Math.max(p.rx, p.rz) + m);   // spacing as before: plants don't dodge each other's blades
-  for(let i = 0; i < 75; i++){                                                     // herbs 15–45 cm tall, leaves the size of her whole world
-    const [x, z] = scatter(26*AK, 3), tall = rr(5, 15); if(nearOld(x, z, tall*.75)) continue;
+  // past the first 75, a staircase of taller herbs ringed round each young tree: blade above blade up to its lowest limbs
+  const YOUNG = TREE_LIST.filter(([, , r]) => r <= 5), NSTAIR = 9;
+  for(let i = 0; i < 75 + YOUNG.length*NSTAIR; i++){                                // herbs 15–45 cm tall (the stair ones to 80), leaves the size of her whole world
+    const stair = i >= 75, yt = stair && YOUNG[Math.floor((i - 75)/NSTAIR)], k9 = (i - 75) % NSTAIR;
+    const [x, z] = stair ? (() => { const a = k9/NSTAIR*6.28 + rr(-.3, .3), d = yt[2] + rr(2.5, 9); return [yt[0] + Math.cos(a)*d, yt[1] + Math.sin(a)*d]; })() : scatter(26*AK, 3);
+    const tall = stair ? 8 + k9*2.2 + rr(-1, 1) : rr(5, 15); if(nearOld(x, z, Math.min(tall, 15)*.75)) continue;
     const gy = hAt(x, z), nLeaves = 3 + Math.floor(rnd()*3), hue = rr(.22, .32), varieg = rnd() < .2;
     const mat = glowLeaf(new THREE.MeshStandardMaterial({color: new THREE.Color().setHSL(hue, rr(.45, .7), rr(.22, .36)), map: LEAF_TEX, roughness:.55, side:THREE.DoubleSide}));
     if(varieg) mat.emissive.multiplyScalar(1.6);
@@ -264,8 +268,8 @@ const MOSS_SPOTS = [];
     // every draw first, in the old order, so whichever blades fit the rest of the jungle stays put
     const blades = [];
     for(let j = 0; j < nLeaves; j++){
-      const a = j/nLeaves*6.28 + rr(-.4, .4), reach = tall*rr(.4, .8), h = tall*rr(.6, 1);
-      const type = shapes[Math.floor(rnd()*shapes.length)], w = rr(.25, .55)*tall, l = w*rr(1.4, 2.1), droop = rr(.25, .6), fold = rr(.08, .2);
+      const a = j/nLeaves*6.28 + rr(-.4, .4), reach = Math.min(tall, 15)*rr(.4, .8), h = tall*rr(.6, 1);
+      const type = shapes[Math.floor(rnd()*shapes.length)], w = rr(.25, .55)*Math.min(tall, 14), l = w*rr(1.4, 2.1), droop = rr(.25, .6), fold = rr(.08, .2);
       const rot = -a + Math.PI/2 + rr(-.3, .3); rr(-.35, .15);                     // (the old tilt's draw, kept so the rest of the jungle stays put)
       blades.push({a, reach, h, type, w, l, droop, fold, rot});
     }
@@ -278,7 +282,7 @@ const MOSS_SPOTS = [];
       // a blade that would interleave with a leaf already there is raised or lowered on its stalk to clear it, or left off
       let p = null;
       for(const k of [0, 1, -1, 2, -2, 3]){ const h = b.h + k*tall*.22; if(h < tall*.35 || h > tall*1.5) continue;
-        const q = bladeAt(b, h); if(!PLAT.some(o => o.leaf && leavesCrowd(q, o))){ p = q; b.h = h; break; } }
+        const q = bladeAt(b, h); if(!inTrunk(q.x, q.z, platR(q)) && !PLAT.some(o => o.leaf && leavesCrowd(q, o))){ p = q; b.h = h; break; } }
       if(!p) continue;
       const {a, reach, h, type, w, l, droop, fold, rot} = b;
       const tip = new V3(x + Math.cos(a)*reach, gy + h, z + Math.sin(a)*reach);
@@ -304,14 +308,14 @@ const FLOWER_SPOTS = [];
 {
   const petal = leafGeo('round', .028, .045, 0, .25, 4, 8); petal.translate(0, 0, -.045);
   const COLS = [0xff4f9a, 0xff7a1a, 0xffd23a, 0xb35cff, 0xf6f2ff, 0xff3355, 0xff9ad0];
-  const N = 300, P = 5, pm = hot(new THREE.InstancedMesh(petal, sway(new THREE.MeshStandardMaterial({roughness:.5, side:THREE.DoubleSide}), .2), N*P), .3);
+  const N = 70, P = 5, pm = hot(new THREE.InstancedMesh(petal, sway(new THREE.MeshStandardMaterial({roughness:.5, side:THREE.DoubleSide}), .2), N*P), .3);
   const ctr = hot(new THREE.InstancedMesh(new THREE.SphereGeometry(.012, 6, 4), new THREE.MeshStandardMaterial({color:0xffe066, roughness:.6, emissive:0x332200}), N), .3);
   const stl = hot(new THREE.InstancedMesh(new THREE.CylinderGeometry(.004, .006, 1, 5).translate(0, .5, 0), new THREE.MeshStandardMaterial({color:0x4f7a2a}), N), TEMP.stem);
   const c = new THREE.Color(); let k = 0;
   for(let i = 0; i < N; i++){                                                     // blooms 4–10 cm across on stems 5–25 cm tall
     let x, z, h, t = 0;
-    do { const [cx, cz] = i % 3 ? scatter(22*AK, 2) : FLOWER_SPOTS.length ? FLOWER_SPOTS[Math.floor(rnd()*FLOWER_SPOTS.length)].slice(0, 2) : scatter(22*AK, 2);
-      x = cx + rr(-1.5, 1.5); z = cz + rr(-1.5, 1.5); h = rr(1.5, 8); } while(nearPlat(x, z, 1.2) && ++t < 30);
+    do { const [cx, cz] = scatter(22*AK, 2);                                       // single blooms, spaced apart
+      x = cx + rr(-1.5, 1.5); z = cz + rr(-1.5, 1.5); h = rr(1.5, 8); } while((nearPlat(x, z, 1.2) || FLOWER_SPOTS.some(([fx, fz]) => Math.hypot(x - fx, z - fz) < 6)) && ++t < 30);
     const y = hAt(x, z), col = COLS[Math.floor(rnd()*COLS.length)], s = rr(.7, 1.6)*12, tilt = rr(.1, .6);
     FLOWER_SPOTS.push([x, z, y + h]);
     // every bloom is a landing pad: a shallow cup (the petals' tilt) with the round yellow centre domed in the middle
@@ -323,7 +327,7 @@ const FLOWER_SPOTS = [];
   }
   scene.add(pm, ctr, stl);
   // heliconia-like spikes: red boat-shaped bracts tipped gold, zig-zagging up a stalk
-  const bract = new THREE.ConeGeometry(.035, .16, 6).rotateZ(Math.PI/2).translate(.07, 0, 0), HN = 18, BN = HN*7;
+  const bract = new THREE.ConeGeometry(.035, .16, 6).rotateZ(Math.PI/2).translate(.07, 0, 0), HN = 8, BN = HN*7;
   const bm = hot(new THREE.InstancedMesh(bract, new THREE.MeshStandardMaterial({roughness:.45, vertexColors:false}), BN), .32);
   const sk = hot(new THREE.InstancedMesh(new THREE.CylinderGeometry(.01, .014, 1, 5).translate(0, .5, 0), new THREE.MeshStandardMaterial({color:0x3f6a2a}), HN), TEMP.stem);
   k = 0;
@@ -333,7 +337,7 @@ const FLOWER_SPOTS = [];
       c.setHSL(j > 4 ? .1 : rr(0, .02), .9, j > 4 ? .5 : .42); bm.setColorAt(k, c); k++; } }
   bm.castShadow = sk.castShadow = true; scene.add(bm, sk);
   // fallen petals in the litter
-  const fp = hot(new THREE.InstancedMesh(petal, new THREE.MeshStandardMaterial({roughness:.7, side:THREE.DoubleSide}), 260), .3);
+  const fp = hot(new THREE.InstancedMesh(petal, new THREE.MeshStandardMaterial({roughness:.7, side:THREE.DoubleSide}), 60), .3);
   for(let i = 0; i < fp.count; i++){ const [fx, fz, fy] = FLOWER_SPOTS[Math.floor(rnd()*FLOWER_SPOTS.length)], x = fx + rr(-3, 3), z = fz + rr(-3, 3), ps = rr(8, 16);
     fp.setMatrixAt(i, onGround(x, z, .01, rnd()*6.3, new V3(ps, ps, ps), .2)); c.set(COLS[Math.floor(rnd()*COLS.length)]).offsetHSL(0, -.2, -.12); fp.setColorAt(i, c); }
   scene.add(fp);

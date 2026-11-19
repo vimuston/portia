@@ -257,7 +257,7 @@ function vnoise(x, z){
 const ridge = (x, z) => 1 - Math.abs(vnoise(x, z)*2 - 1);
 // AK: how much wider the play area is than it first was (the floor everyone walks is AREA units in radius); the near
 // ring of giants is pushed out with it, the far ring a little less
-const AK = 1.5, AREA = 30*AK;
+const AK = 1.8, AREA = 30*AK;
 const MOUNDS = Array.from({length:70}, (_, i) => [(hash2(i, 1.7) - .5)*40, (hash2(i, 9.3) - .5)*40, .35 + hash2(i, 4.4)*1.1, (hash2(i, 7.7) - .45)*.6]);
 // the same hummocks out over the widened floor (only beyond the old one, so nothing near the middle moves)
 for(let i = 0; i < 130; i++){ const x = (hash2(i, 31.7) - .5)*2*(AREA + 4), z = (hash2(i, 47.3) - .5)*2*(AREA + 4); if(Math.max(Math.abs(x), Math.abs(z)) > 21) MOUNDS.push([x, z, .35 + hash2(i, 14.4)*1.1, (hash2(i, 17.7) - .45)*.6]); }
