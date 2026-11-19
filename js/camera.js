@@ -65,14 +65,22 @@ function camFrame(dt){
   // leaf), so when she hangs upside down the view does too. Off: the view stays level everywhere except the big trees.
   // Either way, near the floor the roll is eased out so the ground doesn't tilt as she steps onto a surface.
   const pov = cam.pov !== false;
-  // rounding a leaf's rim she rolls 180° about it as she walks over: the view turns with her by exactly the same
+  // rounding a leaf's rim she rolls over it as she walks round: the view turns with her by exactly the same
   // rotation, frame by frame, so it stays behind her the whole way over instead of trailing and catching up afterwards
   if(pov && sp.roll){
-    const r = sp.roll, a = r.a || 0;
-    if(cam.rollRef !== r){ cam.rollRef = r; cam.rollA = 0; }
-    const axis = new V3().crossVectors(r.up0, r.out); if(axis.lengthSq() < 1e-6) axis.set(1, 0, 0); axis.normalize();
-    camQ.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, a - cam.rollA)).normalize(); cam.rollA = a;
-    camUp.copy(UP).applyQuaternion(camQ); cam.nSm = camUp.clone();
+    const r = sp.roll, axis = r.axis, ph = (r.a || 0)/Math.PI;
+    if(cam.rollRef !== r){ cam.rollRef = r; cam.rollA = 0; cam.rollU0 = camUp.clone(); }
+    const turn = ph*(r.leaf ? r.A : Math.PI);
+    camQ.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, turn - cam.rollA)).normalize(); cam.rollA = turn;
+    camUp.copy(UP).applyQuaternion(camQ);
+    if(r.leaf){
+      // the view may not lean quite as her body does as she sets off (it smooths the blade's tilt toward the rim), and
+      // not always in the plane she rolls in: as it turns with her it closes that gap, so it ends level on the far
+      // face with nothing left to catch up
+      const body = r.up0.clone().applyAxisAngle(axis, turn), want = cam.rollU0.clone().applyAxisAngle(axis, turn).lerp(body, ph).normalize();
+      camQ.premultiply(new THREE.Quaternion().setFromUnitVectors(camUp, want)).normalize(); camUp.copy(UP).applyQuaternion(camQ);
+    }
+    cam.nSm = camUp.clone();
     return;
   }
   const onSurf = sp.mode === 'climb' && sp.plat && (pov ? !sp.plat.web : sp.plat.tree);
@@ -133,7 +141,9 @@ function updateCamera(dt){
   // well clear of the floor), but never downward under the log or a stone overhang, where that is into the soil
   const climbing = sp.mode === 'climb' && sp.plat && !sp.plat.web, sn = climbing ? sp.plat.normal(sp.pos) : camUp;
   const under = climbing && sp.plat.thin && sn.y < -.3 && sp.pos.y - floorAt(sp.pos.x, sp.pos.z) > .5;
-  const tDir = climbing && (under || sn.y > -.2) ? sn : camUp;
+  // rounding a leaf's rim the point turns over with her (the view's up turns with her body): left below the blade
+  // until she lands on top, it would have to pass up through it, and the view would collapse into her eyes
+  const tDir = climbing && !sp.roll && (under || sn.y > -.2) ? sn : camUp;
   // on a leaf top her logical height is the blade's base level, but the blade folds up toward its edges and its
   // surface can sit well above that: orbit from the surface her feet are on, or the pivot sits inside the leaf,
   // every line of sight is blocked at once, and the view collapses into her eyes

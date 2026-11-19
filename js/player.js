@@ -234,10 +234,20 @@ function climbOver(at = null){
 // thread has no such faces: there the legs paddle through a quicker roll)
 // the body travels about its own length round the rim, a little slower than her walk
 const ROLL_V = .45, ROLL_R = .06, ROLL_IN = .2;      // pace round the rim; the bend of the body's path over it; how far in she ends
+// the turn about axis that takes u onto v, always the forward way (her up rolls toward the rim's out direction)
+function rollAngle(u, v, axis){
+  const pu = u.clone().addScaledVector(axis, -u.dot(axis)), pv = v.clone().addScaledVector(axis, -v.dot(axis));
+  let a = Math.atan2(axis.dot(new V3().crossVectors(pu, pv)), pu.dot(pv)); if(a < -.5) a += 2*Math.PI;
+  return a;
+}
 function startRoll(pivot, out, done, leaf){
   const P = sp.m.userData.parts;
   const d0 = Math.max(0, pivot.clone().sub(sp.pos).dot(out)), len = d0 + ROLL_IN + Math.PI*ROLL_R;
-  sp.roll = {d0, t: 0, a: 0, dur: leaf ? Math.max(.9, len/ROLL_V) : .55, q0: sp.m.quaternion.clone(), up0: (P.up || UP).clone().normalize(), pivot, out, done, leaf};
+  const up0 = (P.up || UP).clone().normalize(), axis = new V3().crossVectors(up0, out); if(axis.lengthSq() < 1e-6) axis.set(1, 0, 0); axis.normalize();
+  // round a leaf she turns from wherever her body is now to level on the far face. That is less than 180° coming up
+  // from underneath: there the blade's normal already leans out toward the rim, so she is tilted before she starts
+  const upEnd = leaf ? (up0.y > 0 ? UP.clone().negate() : UP.clone()) : up0.clone().negate();
+  sp.roll = {d0, t: 0, a: 0, A: leaf ? rollAngle(up0, upEnd, axis) : Math.PI, axis, upEnd, dur: leaf ? Math.max(.9, len/ROLL_V) : .55, q0: sp.m.quaternion.clone(), up0, pivot, out, done, leaf};
   if(!leaf) gaitRelease(sp.m);
   const inw = out.clone().negate(); sp.charging = false;
   if(cam.pov === false){ cam.swing = Math.atan2(inw.x, inw.z); sp.holdIn = true; }   // POV: the view rolls over the rim with her instead, so forward stays forward
@@ -441,15 +451,15 @@ function updateSpider(dt){
     // round the leaf she carries straight on at her pace, the body pitching over a little gently at first and last;
     // the web's quick roll stays a smoothstep
     const a = r.a = r.leaf ? Math.PI*(e - .6*Math.sin(2*Math.PI*e)/(2*Math.PI)) : Math.PI*e*e*(3 - 2*e);
-    const axis = new V3().crossVectors(r.up0, r.out); if(axis.lengthSq() < 1e-6) axis.set(1, 0, 0); axis.normalize();
-    const up = r.up0.clone().applyAxisAngle(axis, a), prev = sp.pos.clone();
+    const axis = r.axis, turn = a*r.A/Math.PI;                         // a: the phase (0..π); turn: how far the body has rolled
+    const up = r.up0.clone().applyAxisAngle(axis, turn), prev = sp.pos.clone();
     if(r.leaf){
       // the body's path: in to the rim, round it a body's breadth out, and back in under the blade at the same pace
       const u = e, f = r.d0/(r.d0 + ROLL_IN);
       const din = u < f ? r.d0*(1 - u/f) : ROLL_IN*(u - f)/(1 - f);
       sp.pos.copy(r.pivot).addScaledVector(r.out, -din).addScaledVector(up, LEAF_TH*.5).addScaledVector(r.out, ROLL_R*Math.sin(a)*.5);   // (the pivot is mid-blade: her feet's level is half its thickness off it)
     } else sp.pos.copy(r.pivot).addScaledVector(r.out, -(a < Math.PI/2 ? r.d0*Math.cos(a) : -.12*Math.cos(a))).addScaledVector(up, .012);
-    sp.m.quaternion.copy(new THREE.Quaternion().setFromAxisAngle(axis, a).multiply(r.q0)); sp.m.position.copy(sp.pos);
+    sp.m.quaternion.copy(new THREE.Quaternion().setFromAxisAngle(axis, turn).multiply(r.q0)); sp.m.position.copy(sp.pos);
     if(r.leaf){
       // the feet stay planted and step over onto the far face as the body turns, as in any walk
       P.up = up.clone(); P.body.rotation.set(0, 0, 0); P.head.rotation.x = 0; P.body.position.z = 0;
