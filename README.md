@@ -35,7 +35,6 @@ The in-game legend shows whichever scheme you used last.
 | Hold F | X | Raise front legs |
 | H | Start | Hide the HUD |
 | M | | Sound on/off |
-| G | Back | Show the intro again |
 | T | Y | Field notes: the tutorial on its own leaf; press again to leave it |
 | | D-pad | Zoom |
 

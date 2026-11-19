@@ -59,7 +59,7 @@ function cyclePluck(d){ pluckIdx = (pluckIdx + d + PLUCKS.length) % PLUCKS.lengt
 // a big word in the middle of the screen that fades away
 let flashT = 0;
 function flash(big, small){ $('#flash').innerHTML = `<small>${small}</small>${big}`; flashT = 1.6; }
-// intro: a single screen — title and the three moves of a hunt. Open on every page load and with G; it swallows game keys while open.
+// intro: a single title screen, opened once on page load (the tutorial teaches the controls). It swallows game keys while open.
 const intro = {el: $('#intro'), logoRaf: 0};
 const introOpen = () => !intro.el.hidden;
 function decodeLogo(){   // each letter flickers through braille glyphs, then settles
@@ -114,7 +114,6 @@ function padActions(dt){
   if(released('sprint')){ if(padSprintSolo) toggleMove('dash'); padSprintSolo = false; SLOWMO.armed = false; SLOWMO.on = false; }
   if(pressed('up')) cam.dist = Math.max(.12, cam.dist*.85);
   if(pressed('down')) cam.dist = Math.min(7, cam.dist*1.15);
-  if(pressed('back')) toggleGuide();
   if(pressed('y')) tutToggle();   // the field notes (tutorial.js)
   if(pressed('start')) $('#hud').classList.toggle('hidehud');
   const flick = Math.hypot(pad.lx, pad.ly) > .7 && Math.hypot(padPrev.lx || 0, padPrev.ly || 0) <= .7;
@@ -280,7 +279,7 @@ addEventListener('keydown', e => {
   if(introOpen()){   // the intro owns the keyboard while it's up
     if(e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
     if(e.repeat) return;
-    if(['Enter', 'Space', 'Escape', 'KeyG'].includes(e.code)) toggleGuide(false);
+    if(['Enter', 'Space', 'Escape'].includes(e.code)) toggleGuide(false);
     return;
   }
   if(e.repeat){ if(e.code === 'Space') e.preventDefault(); return; }
@@ -293,7 +292,6 @@ addEventListener('keydown', e => {
   if(e.code === 'KeyX') dropLine();
   if(e.code === 'KeyR') cyclePluck(e.shiftKey ? -1 : 1);
   // senses are always on (no 1-4 toggles)
-  if(e.code === 'KeyG') toggleGuide(true);
   if(e.code === 'KeyH') $('#hud').classList.toggle('hidehud');
   if(e.code === 'KeyP'){ cam.pov = cam.pov === false; toast(cam.pov ? 'camera: follows her roll' : 'camera: stays level'); }
   if(e.code === 'KeyV' && e.ctrlKey && e.shiftKey){ e.preventDefault(); toggleLook(); }
