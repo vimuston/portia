@@ -882,3 +882,9 @@ const aimRingM = new THREE.MeshBasicMaterial({color:0xffe0a0, transparent:true, 
 const aimOuter = new THREE.Mesh(new THREE.RingGeometry(.8, 1, 48), aimRingM), aimInner = new THREE.Mesh(new THREE.RingGeometry(0, .03, 16), aimRingM);
 const aimFill = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({color:0xffe0a0, transparent:true, opacity:.12, side:THREE.DoubleSide, depthWrite:false}));
 aimRing.add(aimOuter, aimInner, aimFill);
+// the prey in her sights, ringed where the eye is on it (facing the camera, drawn over everything): the landing ring
+// lies on the surface and goes edge-on or lost on a sheet of silk; this one reads from any angle
+const lockMark = new THREE.Group(); lockMark.visible = false; lockMark.userData.owner = aimOwner; lockMark.renderOrder = 10; scene.add(lockMark);
+const lockM = new THREE.MeshBasicMaterial({color:0xff5a20, transparent:true, opacity:.95, side:THREE.DoubleSide, depthTest:false, depthWrite:false});
+for(let i = 0; i < 4; i++){ const g = new THREE.Mesh(new THREE.RingGeometry(.82, 1, 10, 1, i*Math.PI/2 + .25, Math.PI/2 - .5), lockM); g.renderOrder = 10; lockMark.add(g); }
+const lockR = q => q._lockR || (q._lockR = Math.max(.05, new THREE.Box3().setFromObject(q.m).getBoundingSphere(new THREE.Sphere()).radius*.8));

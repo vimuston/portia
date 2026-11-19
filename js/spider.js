@@ -732,10 +732,11 @@ function fangTick(P, f, dt, snap = false){
   }
 }
 // the prey she is about to leap at burns brighter and flickers in her sight; the venom bite flares it too
-function hlTick(dt, target){
-  const e = 1 - Math.exp(-10*dt);
-  for(const q of PREY) if(!(sp.feed && sp.feed.p === q)) q.hl = (q.hl || 0) + ((q === target ? 1 : 0) - (q.hl || 0))*e;
-  for(const f of flies) if(!(sp.feed && sp.feed.p === f)) f.hl = (f.hl || 0) + ((f === target ? 1 : 0) - (f.hl || 0))*e;
+// in her sights it glows faintly; a sure hit makes it pulse bright
+function hlTick(dt, target, sure = false){
+  const e = 1 - Math.exp(-14*dt), on = sure ? .65 + .35*Math.sin(time*7) : .35;
+  for(const q of PREY) if(!(sp.feed && sp.feed.p === q)) q.hl = (q.hl || 0) + ((q === target ? on : 0) - (q.hl || 0))*e;
+  for(const f of flies) if(!(sp.feed && sp.feed.p === f)) f.hl = (f.hl || 0) + ((f === target ? on : 0) - (f.hl || 0))*e;
 }
 function scentNear(pos){ let c = 0; for(const v of SU.uChem.value){ if(v.w < .002) continue; c += v.w*Math.exp(-pos.distanceTo(new V3(v.x, v.y, v.z))*.3); } return Math.min(1, c); }
 // leg poses through a leap (joint angles femur..tarsus, + bends down; yaw 0 = straight ahead, PI = straight back).

@@ -29,7 +29,7 @@ function simulate(pos, vel, maxT, out){
 const aimPt = {x: null, y: null, pad: false};
 addEventListener('pointermove', e => { aimPt.x = e.clientX; aimPt.y = e.clientY; aimPt.pad = false; });
 // march the pointer's ray through the world until it meets something she could land on
-function pickTarget(px, py){
+function pickSurface(px, py){
   const W = innerWidth || 1280, H = innerHeight || 800;
   const ndc = new V3(px/W*2 - 1, -(py/H*2 - 1), .5).unproject(camera), o = camera.position.clone(), d = ndc.sub(o).normalize();
   if(!isFinite(d.x + d.y + d.z + o.x + o.y + o.z)) return {pos: sp.pos.clone().add(new V3(Math.sin(sp.yaw), 0, Math.cos(sp.yaw))), hit: false};
@@ -57,6 +57,32 @@ function pickTarget(px, py){
     t += .02 + t*.012;
   }
   return {pos: o.addScaledVector(d, 3), hit: false};
+}
+// pointing at (or just past) a prey snaps the aim to the ground under its feet: the ray through its body would
+// otherwise land on whatever lies behind it, a hop too far. A little screen slack makes it easy to hold on a small bug.
+const aimables = () => { const L = []; for(const q of PREY) if(!q.dead && q.kind !== 'argiope' && !q.held) L.push(q);   // (Argiope: her orb has its own pick)
+  if(maleIsPrey()) L.push(male); for(const f of flies) if(!f.gone && !f.held && f.state !== 'fly') L.push(f); return L; };
+const LOCK_C = new THREE.Color(0xff5a20);
+const preyBody = q => q.m.userData.parts && q.m.userData.parts.body ? q.m.userData.parts.body.getWorldPosition(new V3()) : q.pos.clone();
+let snapPrey = null;   // the prey the aim last snapped to: held on to over a wider margin, so the aim doesn't hop off and on at the edge
+function pickTarget(px, py){
+  const raw = pickSurface(px, py), W = innerWidth || 1280, H = innerHeight || 800;
+  const o = camera.position.clone(), d = new V3(px/W*2 - 1, -(py/H*2 - 1), .5).unproject(camera).sub(o).normalize();
+  if(!isFinite(d.x + d.y + d.z)) return raw;
+  const tRaw = raw.hit ? raw.pos.distanceTo(o) : 1e9;
+  let best = null, bs = 1;
+  for(const q of aimables()){
+    const b = preyBody(q), tb = b.clone().sub(o).dot(d);
+    if(tb <= 0 || (tb > tRaw + .3 && raw.pos.distanceTo(q.pos) > .6)) continue;   // hidden behind what the ray meets first (not just its own leaf, grazed)
+    const s = o.clone().addScaledVector(d, tb).distanceTo(b)/(.07 + tb*.02)/(q === snapPrey ? 1.8 : 1); if(s < bs){ bs = s; best = q; } }
+  snapPrey = best; if(!best) return raw;
+  // the point under its feet on the surface it stands on (its own reckoning of where it stands can sit a hair off a curved leaf)
+  const P = best.plat, at = best.pos.clone();
+  if(P && P.ground) at.y = floorAt(at.x, at.z);
+  else if(P && P.project) P.project(at);
+  else if(P) at.y = surfAt(P, at.x, at.z);
+  if(!P || at.distanceTo(best.pos) > .2){ snapPrey = null; return raw; }
+  return {pos: at, hit: true, plat: P, prey: best};
 }
 // the launch that lands on target: an arc that rises a little above the straight line, steeper for short hops;
 // beyond her reach she gives it everything along the same heading
@@ -99,7 +125,7 @@ function bestLeap(T, plat){
 }
 // the aim only changes when the pointer, the camera or the spider does: skip the ray march and arc search otherwise
 const aimArc = {aim: null, plat: null, pos: new V3(NaN, NaN, NaN), pts: [], hit: null};
-const aimKey = {x: NaN, y: NaN, px: NaN, py: NaN, pz: NaN, mode: null, plat: null, cam: new Float32Array(16)};
+const aimKey = {x: NaN, y: NaN, px: NaN, py: NaN, pz: NaN, mode: null, plat: null, cam: new Float32Array(16), at: 0};
 function updateAim(force = false){
   if(aimPt.x == null){ aimPt.x = (innerWidth || 1280)/2; aimPt.y = (innerHeight || 800)*.62; }
   camera.updateMatrixWorld();
@@ -107,11 +133,12 @@ function updateAim(force = false){
   let same = !force && sp.aim && K.x === aimPt.x && K.y === aimPt.y && K.mode === sp.mode && K.plat === sp.plat
     && Math.abs(K.px - sp.pos.x) < 1e-4 && Math.abs(K.py - sp.pos.y) < 1e-4 && Math.abs(K.pz - sp.pos.z) < 1e-4;
   for(let i = 0; i < 16 && same; i++) if(Math.abs(K.cam[i] - ce[i]) > 1e-5) same = false;
-  if(same) return;
+  const now = performance.now(); if(same && now - K.at > 100) same = false;   // prey walk into and out of the sights on their own
+  if(same) return; K.at = now;
   K.x = aimPt.x; K.y = aimPt.y; K.mode = sp.mode; K.plat = sp.plat; K.px = sp.pos.x; K.py = sp.pos.y; K.pz = sp.pos.z; K.cam.set(ce);
   if(sp.mode === 'ground' || sp.mode === 'climb') sp.launchSet = new Set(climbsNear(sp.pos.x, sp.pos.z, .4).filter(S => S.inside(sp.pos, .07)));   // as jump() will reckon it, not the last leap's
   const pick = pickTarget(aimPt.x, aimPt.y), sol = pick.hit ? bestLeap(pick.pos, pick.plat) : solveLeap(pick.pos);
-  sp.aim = {target: pick.pos, vel: sol.v, ok: sol.ok && pick.hit, yaw: sol.yaw, plat: pick.plat || null};
+  sp.aim = {target: pick.pos, vel: sol.v, ok: sol.ok && pick.hit, yaw: sol.yaw, plat: pick.plat || null, prey: pick.prey || null};
   sp.charge = sol.frac;                                                    // drives the crouch and the effort it costs
 }
 function leapVel(dyaw = 0, dpitch = 0, ks = 1){
@@ -924,7 +951,7 @@ function updateSpider(dt){
   // aim steadiness: swinging the aim around shakes the estimate; it settles within a few tenths of a second
   { const tg = sp.aim ? sp.aim.target : sp.pos, mv = sp.aimLast ? tg.distanceTo(sp.aimLast)/Math.max(.3, tg.distanceTo(sp.pos)) : 0;
     sp.aimLast = tg.clone(); sp.aimShake = Math.min(1, (sp.aimShake || 0)*Math.exp(-dt/.3) + (sp.charging ? mv*1.5 : 0)); }
-  dots.visible = sp.charging; aimRing.visible = false; sp.aimPrey = null;
+  dots.visible = sp.charging; aimRing.visible = false; sp.aimPrey = null; sp.aimSure = false; lockMark.visible = false;
   if(sp.charging){
     // the arc only changes with the aim (or where she stands): reuse last frame's flight otherwise
     const PC = aimArc; if(PC.aim !== sp.aim || PC.plat !== sp.plat || !PC.pos.equals(sp.pos)){ PC.pts = []; PC.hit = predictLeap(leapVel(), PC.pts); PC.aim = sp.aim; PC.plat = sp.plat; PC.pos.copy(sp.pos); }
@@ -939,17 +966,38 @@ function updateSpider(dt){
       const r = Math.min(1.5, .09 + dist*leapSpread()*1.8)*(1 + .04*Math.sin(time*9));
       aimRing.visible = true; aimRing.position.copy(hit.pos).addScaledVector(hit.n, .012);
       aimRing.quaternion.setFromUnitVectors(new V3(0, 0, 1), hit.n); aimOuter.scale.set(r, r, 1); aimFill.scale.set(r, r, 1);
-      // the prey inside the landing estimate, nearest its centre (spiders by where their body stands, as the bite reckons it)
-      let preyIn = null, bd = 1e9;
-      for(const q of [...PREY, male]){ if(q.dead || (q === male && !maleIsPrey())) continue; const d = q.m.userData.parts.body.getWorldPosition(new V3()).distanceTo(hit.pos); if(d < r + .12 && d < bd){ bd = d; preyIn = q; } }
-      for(const f of flies){ if(f.gone || f.held || f.state === 'fly') continue; const d = f.pos.distanceTo(hit.pos); if(d < r + .1 && d < bd){ bd = d; preyIn = f; } }
+      // the prey inside the landing estimate, nearest its centre (spiders by where their body stands, as the bite reckons it).
+      // Measured along the surface: a spider in an orb hangs a body's depth off the sheet, which doesn't put her out of the ring
+      let preyIn = null, bd = 1e9, bp = 0;
+      const sights = (b, slack) => { const v = b.sub(hit.pos), perp = Math.abs(v.dot(hit.n)), along = Math.sqrt(Math.max(0, v.lengthSq() - perp*perp));
+        return along < r + slack && perp < .42 && along < bd ? (bd = along, bp = perp, true) : false; };
+      for(const q of [...PREY, male]){ if(q.dead || (q === male && !maleIsPrey())) continue; if(sights(q.m.userData.parts.body.getWorldPosition(new V3()), .12)) preyIn = q; }
+      for(const f of flies){ if(f.gone || f.held || f.state === 'fly') continue; if(sights(f.pos.clone(), .1)) preyIn = f; }
       if(!sp.aim.ok) preyIn = null;
-      sp.aimPrey = preyIn;
-      aimRingM.color.set(!sp.aim.ok ? 0x9a9488 : preyIn ? 0xff7a30 : 0xffe0a0); aimFill.material.color.copy(aimRingM.color);
-      aimOwner.temp = preyIn ? .82 : TEMP.preview;
+      // a sure hit: wherever in the landing estimate she comes down, the prey is within her bite's reach (strike() on touchdown)
+      // Held steady against the jitter of a hand on the mouse and the ring's own breathing: it locks a little inside the
+      // reach and lets go a little outside it, and either way only once that has held for a moment (no flicker at the edge)
+      const r0 = r/(1 + .04*Math.sin(time*9)), L = sp.lock || (sp.lock = {prey: null, sure: false, t: 0, w: 0, lost: 0});
+      if(preyIn) L.lost = 0; else if(sp.aim.ok && L.prey && !L.prey.dead && (L.lost += dt) < .2) preyIn = L.prey;   // a frame or two out of the ring doesn't drop it
+      if(preyIn !== L.prey){ L.prey = preyIn; L.sure = false; L.t = 0; }
+      const reach = Math.hypot(bp, bd + r0*.85), want = !!preyIn && reach < (L.sure ? .46 : .4);
+      if(want !== L.sure){ if((L.t += dt) > (want ? .12 : .2)){ L.sure = want; L.t = 0; } } else L.t = 0;
+      sp.aimPrey = preyIn; sp.aimSure = L.sure; L.reach = preyIn ? reach : null;   // (L.reach: for inspection while tuning)
+      const w = L.w, lock = w*(.5 + .5*Math.sin(time*7));
+      const k = 1 + .12*lock; aimOuter.scale.multiplyScalar(k); aimFill.scale.multiplyScalar(k);
+      if(!sp.aim.ok) aimRingM.color.set(0x9a9488); else if(!preyIn) aimRingM.color.set(0xffe0a0); else aimRingM.color.set(0xffb060).lerp(LOCK_C, w);
+      aimFill.material.color.copy(aimRingM.color); aimFill.material.opacity = .12 + w*.1 + .2*lock;
+      aimOwner.temp = preyIn ? .7 + .12*w + .15*lock : TEMP.preview;
+      if(preyIn){                                       // the halo on the prey itself: dim and still while unsure, closing in, spinning and pulsing once it's a sure hit
+        const R = lockR(preyIn)*(1.35 - .2*w - .15*lock);
+        lockMark.visible = true; lockMark.position.copy(preyBody(preyIn)); lockMark.quaternion.copy(camera.quaternion);
+        L.spin = (L.spin || 0) + dt*1.5*w; lockMark.rotateZ(L.spin); lockMark.scale.setScalar(R);
+        lockM.color.copy(aimRingM.color); lockM.opacity = .7 + .1*w + .2*lock;
+      }
     }
   }
-  hlTick(dt, sp.aimPrey); fangTick(P, sp.aimPrey ? 1 : 0, dt);   // prey in her sights: fangs bared, prey burning bright
+  { const L = sp.lock; if(L){ if(!sp.aimPrey){ L.prey = null; L.sure = false; L.t = 0; } L.w += ((L.sure ? 1 : 0) - L.w)*(1 - Math.exp(-dt*12)); } }
+  hlTick(dt, sp.aimPrey, sp.aimSure); fangTick(P, sp.aimPrey ? 1 : 0, dt);   // prey in her sights: fangs bared, prey burning bright
   sp.hunger = Math.max(0, sp.hunger - dt*.006);
 }
 
