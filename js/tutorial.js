@@ -83,23 +83,25 @@ const TUT_STEPS = [
   {name: 'The Dash', text: 'When nothing is watching she crosses open ground in bursts: a dart, a dead stop, a look. Each freeze lets her eyes settle, for a jumping spider sees best when it is still. But running feet drum on a leaf, and that drumming carries.',
     goals: [{t: `${K('Shift', 'LT')} Dash, and cover some ground`, need: 3, tick: e => e.surf && sp.sprinting ? e.moved : 0}]},
   {name: 'The Leap', text: 'Her legs have no muscles to straighten them. To jump, she drives up the pressure of her blood in an instant; the hind legs snap straight and throw her many times her own length, to a spot her great forward eyes have already measured.',
-    goals: [{t: `Hold ${K('Space', 'A')} to gauge the leap, let go to jump to the small round leaf`, need: 1, glow: () => TUT.L2, tick: e => e.landed && (e.landed === TUT.L2 || e.landed === TUT.L2.under) ? 1 : 0},
-            {t: 'Leap back to the broad leaf', need: 1, glow: () => TUT.L1, tick: e => e.landed && (e.landed === TUT.L1 || e.landed === TUT.L1.under) ? 1 : 0}]},
+    goals: [{t: `Hold ${K('Space', 'A')} to gauge the leap, let go to jump to either small round leaf`, need: 1, glow: () => [TUT.L2, TUT.L3],
+              tick: e => e.landed && [TUT.L2, TUT.L2.under, TUT.L3, TUT.L3.under].includes(e.landed) ? 1 : 0},
+            {t: 'Leap back to the broad leaf', need: 1, glow: () => [TUT.L1], tick: e => e.landed && (e.landed === TUT.L1 || e.landed === TUT.L1.under) ? 1 : 0}]},
   {name: 'Ballooning', text: 'Spiders fly without wings. Raising her abdomen, she lets fine strands of silk stream out until the moving air, and even the faint electric charge of the sky, takes her weight. It is called ballooning. Spiders have been caught this way kilometres up, and far out over the sea.',
     goals: [{t: `Leap off the leaf, then hold ${K('Space', 'A')} in mid-air. ${K('WASD', 'Left stick')} steers`, need: 2.5, tick: (e, dt) => sp.balloon && sp.mode === 'air' ? dt : 0}]},
   {name: 'The Slow Leap', text: 'A leap is over in a fraction of a second, far too fast for our eyes. Slowed down, it is an exact thing: legs drawn in, the front pair reaching forward, and she comes down where she looked.',
     goals: [{t: `Hold ${K('Space', 'A')} to gauge, hold ${K('Shift', 'LT')} as well, then let go of ${K('Space', 'A')}`, need: 1, tick: e => e.landed && e.leap && e.leap.slow ? 1 : 0}]},
-  {name: 'The Dragline', text: 'Wherever she goes, a jumping spider can fix a safety line of silk behind her. If a leap goes wrong it catches her, and she climbs back up it. She can also let go on purpose and hang beneath the leaf, out of reach of anything that walks on it.',
-    goals: [{t: `${K('X', 'B')} Tie a dragline`, need: 1, tick: () => sp.line ? 1 : 0},
-            {t: `${K('X', 'B')} again: let go, and hang for a while`, need: 2, tick: (e, dt) => sp.mode === 'hang' ? dt : 0},
-            {t: `${K('W', 'Left stick up')} Climb back up the line`, need: 1, tick: e => e.surf ? 1 : 0}]},
+  {name: 'The Dragline', text: 'Before she leaps, a jumping spider glues a thread of silk to the leaf, and it pays out behind her through the air: her dragline, a safety line. If a leap goes wrong she brakes on it in mid-flight, hangs, and reels herself back up. Portia also uses it to come at a web from above, letting herself down on silk where its owner is not watching.',
+    lost: 'She fell without braking. Tie a line, and press X while still in the air.',
+    goals: [{t: `${K('X', 'B')} Fix a dragline to the leaf`, need: 1, tick: () => sp.line ? 1 : 0},
+            {t: `Leap out into the open air, and in mid-flight press ${K('X', 'B')} to brake on the line and hang`, need: 1.5, tick: (e, dt) => e.braked ? dt : 0},
+            {t: `${K('W', 'Left stick up')} Reel yourself back up to the leaf`, need: 1, tick: e => e.surf ? 1 : 0}]},
   {name: 'The Fly', text: 'Most jumping spiders live on insects, and Portia takes them too. A fly sees fast movement superbly and is gone at the first hint of it. So she stalks: slow, then still, then one leap.',
     start: () => { const f = TUT.fly; if(f.gone){ f.respawn = .3; } },
     goals: [{t: `Stalk ${K('C', 'RT')} to within a leap of the fly, without startling it`, need: 1, tick: () => { const f = TUT.fly; return !f.gone && f.state !== 'fly' && f.pos.distanceTo(sp.pos) < 1.6 ? 1 : 0; }},
             {t: `Leap onto it ${K('Space', 'A')}`, need: 1, tick: () => sp.feed && sp.feed.p === TUT.fly ? 1 : 0}]},
   {name: 'The Orb-Weaver', text: 'This is what makes Portia famous. She hunts other spiders in their own webs by speaking their language: plucking the silk, she plays the struggle of a small insect caught in the threads, and the owner comes out to take it. If one signal fails she tries another, a flexibility biologists hardly expected from so small a brain. If the weaver starts to pump its web, freeze.',
     start: () => { if(TUT.spider.dead) respawnPrey(TUT.spider); },
-    goals: [{t: 'Leap to the narrow leaf with the web hanging from its tip, and land softly', need: 1, tick: () => sp.mode === 'ground' && sp.plat === TUT.L3 ? 1 : 0},
+    goals: [{t: 'Leap to the small leaf with the web hanging from its tip, and land softly', need: 1, tick: () => sp.mode === 'ground' && sp.plat === TUT.L3 ? 1 : 0},
             {t: `Hold ${K('Q', 'RB')} by its tip to pluck the silk. ${K('R', 'LB')} changes the signal`, need: 2, tick: (e, dt) => sp.plucking ? dt : 0},
             {t: `When it comes close, leap on it ${K('Space', 'A')}`, need: 1, tick: () => TUT.spider.dead ? 1 : 0}]},
   {name: 'Into the Forest', text: 'Below, in the leaf litter, the real hunt waits: spitting spiders, house spiders lurking in their tubes, orb-weavers, and a mantis that hunts her in turn. Portia goes down to meet them.',
@@ -175,9 +177,9 @@ function tutSnapLoaded(){ if(TUT.on && !TUT.surfs.has(sp.plat)){ TUT.on = false;
 const TUT_GLOW_C = new THREE.Color(0xffe6a0);
 function tutGlow(){
   const st = TUT_STEPS[TUT.i], k = TUT.on && TUT.doneT < 0 ? st.goals.findIndex((g, j) => (TUT.g[j] || 0) < g.need) : -1;
-  const want = k >= 0 && st.goals[k].glow ? st.goals[k].glow() : null, pulse = .5 - .5*Math.cos(performance.now()/1000*Math.PI*1.4);
+  const want = k >= 0 && st.goals[k].glow ? st.goals[k].glow() : [], pulse = .5 - .5*Math.cos(performance.now()/1000*Math.PI*1.4);
   for(const L of [TUT.L1, TUT.L2, TUT.L3]){
-    const m = L.mesh.material, on = L === want;
+    const m = L.mesh.material, on = want.includes(L);
     L.glowW = (L.glowW || 0) + ((on ? 1 : 0) - (L.glowW || 0))*.08;            // eases in and out between lessons
     const a = L.glowW*pulse;
     m.emissive.copy(L.glow0).lerp(TUT_GLOW_C, .22*a); m.emissiveIntensity = 1 + 1.1*a;
@@ -203,6 +205,9 @@ function updateTutorial(dt){
   if(sp.mode === 'air' && (was === 'ground' || was === 'climb' || was === 'hang') && sp.leapTilt) TUT.leap = {slow: false};
   if(TUT.leap && SLOWMO.on) TUT.leap.slow = true;
   if((was === 'air' || was === 'hang') && onS){ e.landed = sp.plat; e.leap = TUT.leap; TUT.leap = null; }
+  if(was === 'air' && sp.mode === 'hang') TUT.braked = true;                 // caught on the line in flight (X, or a missed leap)
+  if(sp.mode !== 'hang') TUT.braked = false;
+  e.braked = TUT.braked;
   if(sp.mode !== 'air' && sp.mode !== 'hang' && !e.landed) TUT.leap = null;
   TUT.prevMode = sp.mode; TUT.prevPos.copy(sp.pos);
   // the lesson: only the first unfinished goal moves on
@@ -220,8 +225,8 @@ function updateTutorial(dt){
   if(!lost) return;
   if(last){ TUT.g[0] = 1; tutFade(() => { tutStop(true); store.set(TUT_STORE + '.step', 0); }); return; }
   const drift = !!sp.balloon || st.name === 'Ballooning';
-  tutFade(() => { tutPlace(); toast(drift ?'The breeze carries her off. In time she finds her way back to the leaf.'
-    : 'A fall does little harm to something this small. She climbs back to her leaf.'); });
+  tutFade(() => { tutPlace(); toast(drift ? 'The breeze carries her off. In time she finds her way back to the leaf.'
+    : st.lost || 'A fall does little harm to something this small. She climbs back to her leaf.'); });
 }
 
 // first visit: the lessons start on the leaf (after the intro); afterwards they wait for T
