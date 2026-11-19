@@ -150,7 +150,14 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 #orbs{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;pointer-events:none;}
 #orbs i{display:block;width:14px;height:14px;border-radius:50%;box-sizing:border-box;border:1px solid #6a5636;box-shadow:0 0 0 1px #000;
   background:radial-gradient(circle at 38% 35%,rgba(234,220,192,.14),rgba(10,4,4,.85) 70%);transition:border-color .4s;}
-#orbs i.lit{border-color:#e8c070;background:radial-gradient(circle at 38% 35%,#fff6e0 0 12%,#e8c070 13% 34%,#8c1414 72%,#1a0606);box-shadow:0 0 0 1px #000,0 0 10px #d8463a;}
+#orbs i.lit{--hi:#e8c070;--deep:#8c1414;--glow:#d8463a;
+  border-color:var(--hi);background:radial-gradient(circle at 38% 35%,#fff6e0 0 12%,var(--hi) 13% 34%,var(--deep) 72%,#1a0606);box-shadow:0 0 0 1px #000,0 0 10px var(--glow);}
+/* each lit orb takes the colours of the kind that was eaten there (encounter.js updateOrbs sets data-kind) */
+#orbs i.lit[data-kind=scytodes]{--hi:#f2e2b4;--deep:#94643a;--glow:#e8c890;}   /* pale straw, the spitter */
+#orbs i.lit[data-kind=badumna]{--hi:#c4ccd8;--deep:#36435e;--glow:#86a0d4;}    /* slate grey, the house spider */
+#orbs i.lit[data-kind=argiope]{--hi:#f8d830;--deep:#2c2408;--glow:#f0d040;}    /* wasp yellow and black, the cross */
+#orbs i.lit[data-kind=araneus]{--hi:#f0a050;--deep:#8a3810;--glow:#f07830;}    /* orange-brown, the garden orb-weaver */
+#orbs i.lit[data-kind=male]{--hi:#8ad8c0;--deep:#1a5a50;--glow:#50d0b0;}       /* jade, the suitor */
 #orbs i.new{animation:orbFlare 1.4s cubic-bezier(.2,.7,.2,1);}
 #orbs .sep{width:1px;height:20px;margin:0 3px;background:linear-gradient(transparent,var(--gold),transparent);}
 #orbs b{display:block;width:13px;height:13px;margin:0 3px;box-sizing:border-box;transform:rotate(45deg);border:1px solid #7a4a5a;box-shadow:0 0 0 1px #000;
