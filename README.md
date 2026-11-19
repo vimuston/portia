@@ -46,7 +46,7 @@ The in-game legend shows whichever scheme you used last.
 
 Each prey spider needs its own approach:
 
-- **Scytodes** spits glue at whatever is in front of it. Never approach from the front, unless it's carrying its egg sac.
+- **Scytodes** feels you on its leaf, turns and watches you, then lunges and bites. Get off its leaf or drop on it from behind; one carrying its egg sac can't bite.
 - **Badumna** hides in a tube. Stand on its sheet, pluck with Q and try signals with R until it comes out. Move when the breeze gusts.
 - **Argiope** waits at the hub of its orb web. Sneak along the silk or drop in from above. If it pumps the web, freeze.
 

@@ -24,9 +24,10 @@ function bossDo(p){
       approach: ['He is coming closer. Do not move.', false], mount: ['Mating. Do not move.', true], leave: ['He has left. Wait for him to return.', false]}[male.state] || ['', false];
   }
   if(p.kind === 'scytodes'){
-    if(p.egg) return ['It holds its eggs and cannot spit. Leap onto it.', false];
-    const facing = angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .7;
-    return facing ? ['It faces you and will spit. Get behind it, or drop from above.', true] : ['It is looking away. Leap onto its back.', false];
+    if(p.egg) return ['It holds its eggs in its fangs. Leap onto it.', false];
+    if(p.state === 'lunge') return ['It is lunging. Get off its leaf!', true];
+    if(p.state === 'watch') return ['It is watching you and will lunge. Get off its leaf, or drop on it from behind.', true];
+    return angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .7 ? ['It faces you. Get behind it, or drop from above.', false] : ['It is looking away. Leap onto its back.', false];
   }
   if(p.kind === 'badumna') return ({
     retreat: [p.known ? `Pluck its web with the ${PLUCKS.find(q => q.id === p.pref).name} signal to lure it out.` : 'Pluck its web to lure it out. Try different signals.', false],

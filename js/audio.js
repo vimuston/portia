@@ -138,7 +138,6 @@ const AUDIO = (() => {
       [62, 65, 69, 74].forEach((m, k) => ep(m, t + .08 + k*.09, 1.1, melOut(), 1.6)); },
     hurt(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .22, .25, 'lowpass', 2000, 200, 1); [50, 51, 56].forEach(m => ep(m, t, 1, sfxBus, 1.2)); },
     die(){ if(!ctx) return; const t = ctx.currentTime; [69, 65, 62, 58, 53, 50].forEach((m, k) => ep(m, t + k*.22, 1, sfxBus, 2)); },
-    spit(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .3, .3, 'lowpass', 2600, 300, 3); noise(t + .02, .16, .14, 'bandpass', 900, 400, 5); },
     stuck(){ if(!ctx) return; const t = ctx.currentTime; for(let k = 0; k < 5; k++) noise(t + k*.07, .09, .12, 'bandpass', 500 + k*60, 300, 8); },
     twang(){ if(!ctx) return; const t = ctx.currentTime; ep(74 + (Math.random()*3 | 0)*2, t, .7, sfxBus, .5); },
     // one pluck stroke, voiced by the signal: a midge is a faint high tick, a fly a low buzzing rattle, calm a soft thud
@@ -167,7 +166,6 @@ const AUDIO = (() => {
   die = wrap(die, () => AUDIO.sfx.die());
   killPrey = wrap(killPrey, () => AUDIO.sfx.bite());
   catchFly = after(catchFly, ok => { if(ok) AUDIO.sfx.bite(); });
-  spit = wrap(spit, () => AUDIO.sfx.spit());
   stickInWeb = wrap(stickInWeb, () => AUDIO.sfx.stuck());
   startBalloon = wrap(startBalloon, () => { if(!sp.balloon && sp.stuck <= 0) AUDIO.sfx.balloon(); });
   cutLine = wrap(cutLine, () => { if(sp.line) AUDIO.sfx.snip(); });
