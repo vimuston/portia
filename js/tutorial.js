@@ -134,7 +134,7 @@ function tutGo(i){
 function tutPlace(){
   endBalloon(); if(sp.feed) sp.feed = null;
   Object.assign(sp, {mode: 'ground', plat: TUT.L1, vigor: 1, stuck: 0, charging: false, braked: false, committed: false, plop: false, holdIn: false, roll: null,
-    line: false, lineFresh: false, anchorPlat: null, ropeL: 0, leapHit: null, aim: null, aimFixed: false, bounce: null});
+    line: false, lineFresh: false, pivot: null, anchorPlat: null, ropeL: 0, leapHit: null, aim: null, aimFixed: false, bounce: null});
   SLOWMO.on = SLOWMO.armed = false; SLOWMO.scale = 1;
   sp.pos.set(TUT.spawn.x, surfAt(TUT.L1, TUT.spawn.x, TUT.spawn.z), TUT.spawn.z); sp.vel.set(0, 0, 0); sp.yaw = TUT.spawnYaw;
   sp.m.visible = true; sp.m.scale.setScalar(1); sp.m.rotation.set(0, sp.yaw, 0); sp.m.position.copy(sp.pos); gaitRelease(sp.m);
