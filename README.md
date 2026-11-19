@@ -40,7 +40,7 @@ The in-game legend shows whichever scheme you used last.
 
 ## Field notes
 
-The first time you play, Portia wakes on a broad leaf high above the forest floor, and a narrated tutorial teaches one thing at a time: walking, the underside of a leaf, stalking, dashing, leaping, ballooning, the slow-motion leap, the dragline, catching a fly, and luring an orb-weaver out by plucking its web. Fall off and she is set back on her leaf. The last lesson drops her into the forest; T takes her back up any time.
+The first time you play, Portia wakes on a broad leaf high above the forest floor, and a narrated tutorial teaches one thing at a time: walking, the underside of a leaf, stalking, dashing, leaping, ballooning, the slow-motion leap, the dragline, catching a fly, why leaping straight at an orb-weaver fails, and luring one out by plucking its web from the safe rim. Fall off and she is set back on her leaf. The last lesson drops her into the forest; T takes her back up any time.
 
 ## How to hunt
 
@@ -52,7 +52,7 @@ Each prey spider needs its own approach:
 
 - **Scytodes** spits venomous glue at whatever comes onto its leaf in front of it, or leaps at its face. Once glued you can't get free: it walks round to your back and bites. Approach from behind or drop from above.
 - **Badumna** hides in a tube. Stand on its sheet, pluck with Q and try signals with R until it comes out. Move when the breeze gusts.
-- **Argiope** waits at the hub of its orb web. Sneak along the silk or drop in from above. If it pumps the web, freeze.
+- **Argiope** waits at the hub of its orb web. Leap at it while it rests and it drops away on its dragline, and a leap that comes down in the sticky spiral glues you fast. Land on the frame at the rim, pluck to draw it out, and strike while it hunts the signal. If it pumps the web, freeze.
 
 ## Code layout
 

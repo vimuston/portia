@@ -161,11 +161,25 @@ function argMove(p, target, speed, dt, dash){   // dash: a strike, not a walk; t
   return L;
 }
 const gums = [];
-function stickInWeb(pt){
-  sp.stuck = 4.5; sp.stuckKind = 'web'; sp.stuckPos = pt.clone(); sp.pos.copy(pt); sp.vel.set(0, 0, 0); sp.charging = false;
+function stickInWeb(pt, O = ARG){
+  sp.stuck = 4.5; sp.stuckKind = 'web'; sp.stuckPos = pt.clone(); sp.stuckOrb = O; sp.pos.copy(pt); sp.vel.set(0, 0, 0); sp.charging = false; sp.leapHit = null;
   pulses.push({pos: pt.clone(), amp: 1.3, decay: 2});
-  if(!ARGI.dead){ ARGI.state = 'wrap'; ARGI.wrapDelay = .9; }   // a moment to feel where the struggle is
+  const p = O.spider;   // a moment to feel where the struggle is (longer when it must first climb back up its dragline)
+  if(p && !p.dead){ p.wrapDelay = p.state === 'drop' ? 1.4 : .9; p.state = 'wrap'; }
   toast('Caught in the sticky spiral! Tap WASD to struggle free before it reaches you.');
+}
+// Argiope's orb is sticky between the hub and the frame: a leap that comes down in it, rather than onto the spider or the
+// frame threads at the rim, is glued fast. Leaps taken from on the web itself (she knows her footing) are spared.
+const STICKY_OUT = .7;   // the sticky spiral reaches this fraction of the way out to the frame
+function onOrbRim(O, q){   // is q out on the dry frame band, beyond the sticky spiral?
+  const C = O.C.clone().add(O.g.position), r = q.clone().sub(C); r.addScaledVector(O.n, -r.dot(O.n));
+  return r.length() > O.edge(Math.atan2(r.y, r.dot(O.u)))*STICKY_OUT;
+}
+// She takes hold of the sheet as on any landing (same face, same stance as walking on it), and there she is pinned
+function webGlue(O, pt, prev, vel){
+  const p = O.spider; if(!p || p.dead || p.kind !== 'argiope' || sp.leftFrom === O.S || onOrbRim(O, pt)) return false;
+  const W = O.S; enterClimb(W, pt.clone(), vel.clone(), W.sideFrom(prev, vel));
+  stickInWeb(sp.pos.clone(), O); return true;
 }
 function knockOff(){
   if(DOOM.t >= 0) return;                        // she is already dead where she fell
@@ -227,7 +241,12 @@ function wrapCorpsePose(){
   const baseQ = q0.clone().slerp(new THREE.Quaternion().setFromRotationMatrix(M4), k);
   const q = baseQ.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new V3(0, 0, 1), W.spin));
   sp.m.quaternion.copy(q);
-  pivot.addScaledVector(up, k*c.y*.6).addScaledVector(toK, -k*.06);   // lifted a little, and held out at the end of its legs
+  if(K && K.orb){
+    // an orb-weaver turns her in front of its face: drawn in off the silk to just beyond its fangs, at her own height off the sheet
+    const f = argFace(K), fw = new V3(0, 0, 1).applyQuaternion(K.m.quaternion); fw.addScaledVector(up, -fw.dot(up)).normalize();
+    const tgt = f.addScaledVector(fw, W.R*1.4); tgt.addScaledVector(up, pivot.clone().sub(tgt).dot(up));
+    pivot.lerp(tgt, k).addScaledVector(up, k*c.y*.6);
+  } else pivot.addScaledVector(up, k*c.y*.6).addScaledVector(toK, -k*.06);   // lifted a little, and held out at the end of its legs
   sp.m.position.copy(pivot).sub(c.applyQuaternion(q));
   W.pivot = pivot; W.baseQ = baseQ;   // her frame, unrolled
 }
@@ -288,15 +307,21 @@ function wrapClear(){
   if(DOOM.killer){ DOOM.killer.m.userData.parts.body.rotation.z = 0; if(WRAPPERS.has(DOOM.killer.kind)) wrapAbdomen(DOOM.killer, 0, 0); }
   DOOM.wrap = null;
 }
+// an orb-weaver's face: how far ahead of its origin the front of its carapace sits, and that point in the world
+function argFaceZ(p){ const A = p.m.userData.parts; if(A.faceZ == null){ A.cara.geometry.computeBoundingBox(); A.faceZ = A.cara.position.z + A.cara.geometry.boundingBox.max.z; } return A.faceZ; }
+function argFace(p){ const A = p.m.userData.parts; p.m.updateMatrixWorld(true); return A.body.localToWorld(new V3(0, 0, argFaceZ(p))); }
 // the killer walks up to the corpse, fangs to it, and feeds, head dipping as it chews
 const EAT_D = .13;
 const eatD = p => p.kind === 'badumna' ? .2 : EAT_D;   // the house spider is much bigger than her: its fangs reach further out
 function eatCorpse(p, dt){
   const at = DOOM.at, EAT_D = eatD(p);
   let d;
-  if(p.kind === 'argiope'){                         // along its own silk, to the point nearest her, a jaw's length short
-    const aim = webPoint(at.clone().add(p.pos.clone().sub(at).setLength(EAT_D)), p.orb.R, p.orb);
-    p.motion = argMove(p, aim, .5, dt, true) > .02 ? .4 : 0; d = p.pos.distanceTo(at);   // no gait limit: a leg at full stretch must not stall it a step short of her
+  if(p.kind === 'argiope'){                         // along its own silk, to the point nearest her, its face a jaw's length short
+    const reach = argFaceZ(p) + EAT_D, O = p.orb;
+    const aim = webPoint(at.clone().add(p.pos.clone().sub(at).setLength(reach)), O.R, O);
+    p.motion = argMove(p, aim, .5, dt, true) > .02 ? .4 : 0; d = p.pos.distanceTo(at) - argFaceZ(p);   // no gait limit: a leg at full stretch must not stall it a step short of her
+    const to = at.clone().sub(O.g.position).sub(p.pos); to.addScaledVector(O.n, -to.dot(O.n));   // and turned to face her
+    if(to.lengthSq() > 1e-6) p.fwd.lerp(to.normalize(), 1 - Math.exp(-6*dt));
   } else { d = Math.hypot(at.x - p.pos.x, at.z - p.pos.z);
     if(d > EAT_D){                                  // straight to her: the legs catch up (no gait limit, so it can't stall)
       const st = Math.min(d - EAT_D, .3*dt); p.pos.x += (at.x - p.pos.x)/d*st; p.pos.z += (at.z - p.pos.z)/d*st;
@@ -340,6 +365,7 @@ function pounce(p){
   if(sp.stuck > 0) return false;
   if(p.kind === 'scytodes' && angDiff(p.yaw, Math.atan2(sp.pos.x - p.pos.x, sp.pos.z - p.pos.z)) < .6){ spit(p); return false; }   // at its face: spat on
   if(p.kind === 'badumna' && (p.state === 'retreat' || p.state === 'peek')) return false;
+  if(p.kind === 'argiope' && p.state === 'drop') return false;   // already falling away on its dragline
   if(p.kind === 'argiope' && p.state === 'pump'){ toast('The web is bucking — you cannot get a grip.'); return false; }
   if(p.kind === 'argiope' && p.state === 'lunge'){ toast('It meets you fangs-first.'); die(p); return false; }
   if(p === male){                                  // the spent suitor: no defence but flight
@@ -748,6 +774,35 @@ function updBadumna(p, dt){
     p.motion = .3; p.vib = .4;
   }
 }
+// is she in the air and about to pass within reach of p? Her arc is followed for the next half second
+function leapComing(p){
+  if(sp.mode !== 'air' || sp.plop || sp.stuck > 0 || sp.webGrace > 0) return false;   // (webGrace: just torn free and falling)
+  const at = p.pos.clone().add(p.orb.g.position), q = new V3();
+  for(let k = 1; k <= 10; k++){ const t = k*.05;
+    q.copy(sp.pos).addScaledVector(sp.vel, t); if(!sp.balloon) q.y -= .5*G*t*t;
+    if(q.distanceTo(at) < .5) return true; }
+  return false;
+}
+// the drop: down its dragline fast, a wait hanging there, then hand over hand back up to the hub. Back home with her
+// still on its silk, it knows what she is and comes straight for her
+function argDrop(p, dt, onWeb){
+  const {C, n} = p.orb, hub = C.clone().addScaledVector(n, .01);
+  p.vib = 0; p.motion = 0;
+  if(p.dropT > 0){ argMove(p, p.dropTo, 7, dt, true); p.fwd.lerp(new V3(0, -1, 0), 1 - Math.exp(-6*dt)); p.dropT -= dt; return; }
+  p.motion = .3;
+  if(argMove(p, hub, .45, dt, true) > .03) return;
+  p.fwd.set(0, -1, 0); p.wary = 8;
+  if(onWeb && DOOM.t < 0){ p.state = 'lunge'; p.alert = 1; toast('Back at the hub, it feels you on its silk — it lunges!'); }
+  else { p.state = 'hub'; p.alert = .5; }
+}
+// the dragline it hangs from, hub to body, shown only while it is off its web
+function argDropLine(p){
+  const on = p.state === 'drop' || (p.state === 'wrap' && p.pos.distanceTo(p.orb.C) > .3 && Math.abs(p.pos.clone().sub(p.orb.C).dot(p.orb.n)) > .05);
+  if(!on){ if(p.dropLine) p.dropLine.visible = false; return; }
+  if(!p.dropLine){ p.dropLine = hot(new THREE.Line(segsFrom([new V3(), new V3()]), silkM(.8)), .3); p.dropLine.frustumCulled = false; scene.add(p.dropLine); drawables.push(p.dropLine); }
+  const g = p.orb.g.position, a = p.orb.C.clone().add(g), b = p.pos.clone().add(g), pos = p.dropLine.geometry.attributes.position;
+  pos.setXYZ(0, a.x, a.y, a.z); pos.setXYZ(1, b.x, b.y, b.z); pos.needsUpdate = true; p.dropLine.visible = true;
+}
 function updArgiope(p, dt, t){
   if(deadTick(p, dt)) return;
   const pk = preyPluck(p), O = p.orb, {C, n, R} = O;
@@ -759,18 +814,30 @@ function updArgiope(p, dt, t){
   // the pump is a test: it shakes the orb and feels for anything that moves against the shaking. Real prey is
   // already stuck and struggles in rhythm with it; a hunter creeping on the silk gives itself away. Hold still and
   // it settles back on the hub; move, and it lunges straight down the threads at you.
-  const onWeb = onSilkOf(p) || (sp.mode === 'hang' && nearWeb);
+  // resting at the hub (or on its way back there), it watches: a leap coming at it and it lets go, dropping on its
+  // dragline out of reach. Busy with a plucked "prey" (walk, rush) it has eyes for nothing else
+  if((p.state === 'hub' || p.state === 'return') && DOOM.t < 0 && leapComing(p)){
+    p.state = 'drop'; p.dropT = rr(4, 6); p.dropFrom = p.pos.clone();
+    const far = -Math.sign(sp.pos.clone().sub(C).dot(n)) || 1;   // behind the sheet, away from her
+    p.dropTo = p.pos.clone().add(new V3(0, -R*.6, 0)).addScaledVector(n, far*.35);
+    pulses.push({pos: p.pos.clone().add(O.g.position), amp: .5, decay: 5}); toast('It saw you coming — the orb-weaver drops from its web!');
+  }
+  // on the sheet itself (or hanging at it): the leaves its frame is tied to carry her steps and plucks to it, but only a
+  // hunter out on its threads draws the strike
+  const onSheet = (sp.mode === 'climb' && sp.plat === O.S) || (sp.mode === 'hang' && nearWeb);
+  if(p.state === 'drop'){ argDrop(p, dt, onSheet); argDropLine(p); return; }
+  argDropLine(p);
   if(p.state !== 'pump' && p.state !== 'wrap' && p.state !== 'rush' && p.state !== 'lunge' && pk !== 'male' && p.alert > 1 && DOOM.t < 0){ p.state = 'pump'; p.pumpT = 3; p.alert = .4; toast('The orb-weaver pumps its web — freeze, or it will strike!'); }
   if(p.state === 'pump'){
     p.pumpT -= dt; p.vib = 1.4; p.motion = .5;
     const moving = sp.speed > 0 || sp.plucking || (sp.mode === 'hang' && (keys.KeyW || keys.KeyS || keys.KeyA || keys.KeyD));
-    if(moving && onWeb && DOOM.t < 0){ p.state = 'lunge'; p.alert = 1; toast('It felt you move — the orb-weaver lunges!'); }
+    if(moving && onSheet && DOOM.t < 0){ p.state = 'lunge'; p.alert = 1; toast('It felt you move — the orb-weaver lunges!'); }
     else if(p.pumpT <= 0) p.state = 'hub';
   }
   if(p.state === 'lunge'){                                   // fast and fatal; only getting off its silk saves her
     p.motion = 1; p.vib = 1.3;
     if(DOOM.t >= 0) p.state = 'return';
-    else if(!onWeb){ p.state = 'return'; p.wary = 15; p.alert = .6; toast('You got off the web in time. It stays wary.'); }
+    else if(!onSheet){ p.state = 'return'; p.wary = 15; p.alert = .6; toast('You got off the web in time. It stays wary.'); }
     else if(argMove(p, webPoint(sp.pos, R, O), 3.5, dt, true) < .3){ toast('The orb-weaver drives its fangs into you.'); die(); p.state = 'return'; p.alert = 0; }
   }
   if(p.state === 'hub'){
@@ -790,9 +857,10 @@ function updArgiope(p, dt, t){
   }
   if(p.state === 'return'){ if(argMove(p, C.clone().addScaledVector(n, .01), .35, dt) < .03) p.state = 'hub'; p.motion = .3; }
   if(p.state === 'wrap'){
+    const far = p.pos.distanceTo(sp.stuckPos) > .6;   // from afar (back up its dragline) it hurries
     if(sp.stuck <= 0 || sp.stuckKind !== 'web') p.state = 'return';
     else if((p.wrapDelay -= dt) > 0){ p.vib = .6; }
-    else if(argMove(p, webPoint(sp.stuckPos, R, O), .7, dt) < .18){ hurt(.7, 'Wrapped in the sticky spiral, and bitten.'); sp.stuck = .01; p.state = 'return'; }
+    else if(argMove(p, webPoint(sp.stuckPos, R, O), far ? 1.3 : .7, dt, far) < .18){ toast('It reaches you in the sticky spiral, and bites.'); die(); p.state = 'return'; }   // held fast to the end
     p.motion = .8; p.vib = 1;
   }
 }
@@ -848,7 +916,7 @@ function updatePrey(dt, t){
     } else if(p.orb && !p.dropped){
       const O = p.orb, z = p.fwd.clone().normalize(), y = O.n.clone(), x = new V3().crossVectors(y, z);
       M4.makeBasis(x, y, z); p.m.quaternion.setFromRotationMatrix(M4); p.m.position.copy(p.pos).add(O.g.position);
-      if(!p.dead && p.state !== 'hub' && p.state !== 'pump' && p.state !== 'freeze' && p.state !== 'down'){
+      if(!p.dead && p.state !== 'hub' && p.state !== 'pump' && p.state !== 'freeze' && p.state !== 'down' && p.state !== 'drop'){
         // feet grip the silk: footholds lie on the (swaying) web plane, "up" is the web normal
         const c = O.C.clone().add(O.g.position);
         poseArach(p.m, {});
