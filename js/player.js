@@ -673,7 +673,7 @@ function updateSpider(dt){
         startRoll(piv, out, () => {
           S.side = face;
           const at = S.project(pivL.clone().add(S.orb.g.position).addScaledVector(inw, .12));   // on the sheet itself, so enterClimb keeps the face
-          enterClimb(S, at, inw); S.side = face;
+          enterClimb(S, at, inw, face);
           cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null;
           pulses.push({pos: sp.pos.clone(), amp: .3, decay: 6});
         });
@@ -736,7 +736,7 @@ function updateSpider(dt){
     const hw = sp.webGrace > 0 ? null : orbHit(prev, sp.pos, sp.planeLaunch, sp.orbGoal);
     if(hw){
       const W = hw.orb.S;
-      if(!(sp.climbGrace > 0 && sp.leftFrom === W)){ W.side = W.sideFrom(prev, sp.vel); enterClimb(W, hw, sp.vel.clone());
+      if(!(sp.climbGrace > 0 && sp.leftFrom === W)){ enterClimb(W, hw, sp.vel.clone(), W.sideFrom(prev, sp.vel));
         pulses.push({pos: hw.clone(), amp: .7, decay: 4}); hw.orb.spider.alert += .35; toast('You catch hold of the orb’s radii.'); return; }
     }
     if(sp.mode === 'air') sp.airT = (sp.airT || 0) + dt;
@@ -744,8 +744,8 @@ function updateSpider(dt){
     // rate: sampling the same arc at other instants could clip or miss a leaf rim the prediction didn't
     const LH = sp.mode === 'air' && !sp.braked && !sp.balloon && !sp.plop ? sp.leapHit : null;
     if(LH && sp.airT >= LH.t - 1e-6){
-      const P = LH.plat; if(P.web) P.side = P.sideFrom(prev, sp.vel); sp.pos.copy(LH.pos);
-      if(P.kind === 'climb'){ enterClimb(P, sp.pos.clone(), sp.vel.clone()); pulses.push({pos: sp.pos.clone(), amp: .6, decay: 4}); toast(P.thin ? 'You land upside-down under the leaf.' : 'You land on the ' + P.label + ' and grip.'); }
+      const P = LH.plat; sp.pos.copy(LH.pos);
+      if(P.kind === 'climb'){ enterClimb(P, sp.pos.clone(), sp.vel.clone(), P.web ? P.sideFrom(prev, sp.vel) : 0); pulses.push({pos: sp.pos.clone(), amp: .6, decay: 4}); toast(P.thin ? 'You land upside-down under the leaf.' : 'You land on the ' + P.label + ' and grip.'); }
       else land(P);
       return;
     }

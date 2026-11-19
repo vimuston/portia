@@ -445,8 +445,12 @@ function webSurface(O){             // the walkable sheet of an orb O (see ORBS)
   const Cw = () => C.clone().add(O.g.position);
   const loc = q => { const d = q.clone().sub(Cw()), a = d.dot(n); d.addScaledVector(n, -a); return [a, d, Math.atan2(d.dot(v), d.dot(u))]; };
   S.setSide = q => { const a = loc(q)[0]; if(Math.abs(a) > .02) S.side = Math.sign(a); };
-  // the face she comes at it from: where she was a frame ago, or (already at the plane) against the way she is moving
-  S.sideFrom = (prev, vel) => { const a = loc(prev)[0]; return Math.abs(a) > .004 ? Math.sign(a) : (vel && Math.abs(vel.dot(n)) > 1e-4 ? -Math.sign(vel.dot(n)) : S.side); };
+  // the face she comes at it from: against the way she is moving through it (in flight her motion across the vertical sheet
+  // never reverses, so this is the face toward where she leapt from). Where she was a frame ago is no guide: at a high frame
+  // rate, or with the orb pumping toward her, that point is already past the sheet. Only a leap running along the sheet
+  // (barely moving across it) falls back on it
+  S.sideFrom = (prev, vel) => { const vn = vel ? vel.dot(n) : 0; if(Math.abs(vn) > .3) return -Math.sign(vn);
+    const a = loc(prev)[0]; return Math.abs(a) > .004 ? Math.sign(a) : (Math.abs(vn) > 1e-4 ? -Math.sign(vn) : S.side); };
   S.project = q => { const [, d, ang] = loc(q), L = d.length(), lim = O.edge(ang)*.96; if(L > lim) d.multiplyScalar(lim/L); return q.copy(Cw()).add(d).addScaledVector(n, S.side*.006); };
   S.normal = () => n.clone().multiplyScalar(S.side);
   S.inside = (q, m = 0) => { const [a, d, ang] = loc(q); return Math.abs(a) < m + .006 && d.length() < O.edge(ang); };
