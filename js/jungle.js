@@ -359,8 +359,10 @@ const FLOWER_SPOTS = [];
       if(pts.length < 4) continue;
       const curve = new THREE.CatmullRomCurve3(pts);
       const R0 = r*.55, rAt = t => R0*Math.pow(1 - t, 1.25) + (big ? .1 : .025);        // thick at the trunk, a thin tip in the soil
-      const m = hot(new THREE.Mesh(taperedTube(curve, rAt, {seg: 30, radial: 16, w: .5, h: 1.55}), BARK_ROOT_M), TEMP.wood); m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
-      const sp = curve.getPoints(14); tubeSurface(sp, sp.map((_, k) => rAt(k/14)), 'bark', {w: .5, h: 1.55});
+      const m = hot(new THREE.Mesh(taperedTube(curve, rAt, {seg: 30, radial: big ? 28 : 16, w: .5, h: 1.55}), BARK_ROOT_M), TEMP.wood); m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
+      // the walkable solid on the mesh's own 30 rings: on these thick, steeply tapering roots a coarser axis bulged the
+      // solid out past the bark at every bend, and she walked on air
+      const sp = curve.getPoints(30); tubeSurface(sp, sp.map((_, k) => rAt(k/30)), 'bark', {w: .5, h: 1.55});
     }
   }
 }

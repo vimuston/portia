@@ -477,8 +477,12 @@ function tubeSurface(pts, rad, label = 'bark', ell = null){
     const t = Math.max(0, Math.min(1, av.dot(ab)/(ab.lengthSq() || 1e-9))), qx = a.x + ab.x*t, qy = a.y + ab.y*t, qz = a.z + ab.z*t;
     k.r = R[i] + (R[i + 1] - R[i])*t; k.q.set(qx, qy, qz); dv.set(v.x - qx, v.y - qy, v.z - qz);
     if(ell){ sd.crossVectors(ab, UPV); if(sd.lengthSq() < 1e-9) sd.set(1, 0, 0); sd.normalize(); uv.crossVectors(sd, ab).normalize();
-      const ds = dv.dot(sd), du = dv.dot(uv), da = dv.length()**2 - ds*ds - du*du; k.d = Math.sqrt((ds/ew)**2 + (du/eh)**2 + Math.max(0, da));
-      k.side.copy(sd); k.up.copy(uv); k.ds = ds; k.du = du; (k.ax || (k.ax = new V3())).copy(dv).addScaledVector(sd, -ds).addScaledVector(uv, -du); }   // ax: past a segment's end
+      // da: how far past the segment's end. At the tube's own two ends that rounds a full cap; at a joint inside it the
+      // cap is flattened to a fifth, or on a steeply tapering root (these elliptical ones) a thick segment's cap would
+      // reach units on over the thinner ones after it and stand clear of the bark
+      const inner = (t <= 0 && i > 0) || (t >= 1 && i + 2 < n), ds = dv.dot(sd), du = dv.dot(uv), da = (dv.length()**2 - ds*ds - du*du)*(inner ? 25 : 1);
+      k.d = Math.sqrt((ds/ew)**2 + (du/eh)**2 + Math.max(0, da));
+      k.aw = inner ? 25 : 1; k.side.copy(sd); k.up.copy(uv); k.ds = ds; k.du = du; (k.ax || (k.ax = new V3())).copy(dv).addScaledVector(sd, -ds).addScaledVector(uv, -du); }   // ax: past a segment's end
     else k.d = dv.length();
     return k; };
   const KS = Array.from({length: Math.max(1, n - 1)}, () => ({q: new V3(), d: 0, r: 0, side: new V3(), up: new V3(), ds: 0, du: 0, p: new V3(), e: 0}));
@@ -493,7 +497,7 @@ function tubeSurface(pts, rad, label = 'bark', ell = null){
     order.sort((a, b) => KS[a].e - KS[b].e);
     let pick = order[0];
     for(const i of order){ if(!insideAny(KS[i].p, -.003)){ pick = i; break; } }
-    const k = KS[pick]; K.q.copy(k.q); K.d = k.d; K.r = k.r; K.side.copy(k.side); K.up.copy(k.up); K.ds = k.ds; K.du = k.du; if(k.ax) (K.ax || (K.ax = new V3())).copy(k.ax);
+    const k = KS[pick]; K.q.copy(k.q); K.d = k.d; K.r = k.r; K.side.copy(k.side); K.up.copy(k.up); K.ds = k.ds; K.du = k.du; K.aw = k.aw; if(k.ax) (K.ax || (K.ax = new V3())).copy(k.ax);
     // in the crease on the inside of a bend every nearby segment's point is buried in its neighbour: push the nearest
     // one out of whatever segment it is buried in, a few times over; it settles in the crease right beside v
     if(pick !== order[0]){
@@ -502,15 +506,15 @@ function tubeSurface(pts, rad, label = 'bark', ell = null){
         for(let j = 0; j + 1 < n; j++){ segAt(j, cur, KT); const pen = KT.d - KT.r; if(pen < dd){ dd = pen; deep = j; } }
         if(deep < 0){ ok = true; break; }
         kk = segAt(deep, cur, KC); onSurface(cur, kk, 0); }
-      if(ok && cur.distanceToSquared(v) < KS[pick].e){ K.q.copy(kk.q); K.d = kk.d; K.r = kk.r; K.side.copy(kk.side); K.up.copy(kk.up); K.ds = kk.ds; K.du = kk.du; if(kk.ax) (K.ax || (K.ax = new V3())).copy(kk.ax); K.crease = cur.clone(); }
+      if(ok && cur.distanceToSquared(v) < KS[pick].e){ K.q.copy(kk.q); K.d = kk.d; K.r = kk.r; K.side.copy(kk.side); K.up.copy(kk.up); K.ds = kk.ds; K.du = kk.du; K.aw = kk.aw; if(kk.ax) (K.ax || (K.ax = new V3())).copy(kk.ax); K.crease = cur.clone(); }
       else K.crease = null;
     } else K.crease = null;
     return K; };
   const CP = new V3(), KC = {q: new V3(), d: 0, r: 0, side: new V3(), up: new V3(), ds: 0, du: 0};
-  const ellNormal = k => { const g = k.side.clone().multiplyScalar(k.ds/(ew*ew)).addScaledVector(k.up, k.du/(eh*eh)); return k.ax ? g.add(k.ax) : g; };
+  const ellNormal = k => { const g = k.side.clone().multiplyScalar(k.ds/(ew*ew)).addScaledVector(k.up, k.du/(eh*eh)); return k.ax ? g.addScaledVector(k.ax, k.aw || 1) : g; };
   S.normal = v => { const k = closest(v); const d = ell ? ellNormal(k) : v.clone().sub(k.q); return d.lengthSq() > 1e-12 ? d.normalize() : UP.clone(); };
   const onSurface = (v, k, off) => {
-    if(ell){ const axL = k.ax ? k.ax.lengthSq() : 0; let rho = Math.sqrt((k.ds/ew)**2 + (k.du/eh)**2 + axL); if(rho < 1e-6){ k.du = 1e-3; rho = 1e-3/eh; }
+    if(ell){ const axL = k.ax ? k.ax.lengthSq()*(k.aw || 1) : 0; let rho = Math.sqrt((k.ds/ew)**2 + (k.du/eh)**2 + axL); if(rho < 1e-6){ k.du = 1e-3; rho = 1e-3/eh; }
       const s = k.r/rho; v.copy(k.q).addScaledVector(k.side, k.ds*s).addScaledVector(k.up, k.du*s); if(k.ax) v.addScaledVector(k.ax, s); const nn = ellNormal(k).normalize(); return v.addScaledVector(nn, off); }
     const d = v.clone().sub(k.q); if(d.lengthSq() < 1e-10) d.set(0, 1, 0); d.normalize(); return v.copy(k.q).addScaledVector(d, k.r + off); };
   S.project = v => { const k = closest(v); if(k.crease){ const cp = k.crease, nn = S.normal(cp); v.copy(cp).addScaledVector(nn, .002); } else onSurface(v, k, .002); const g = hAt(v.x, v.z) + .004; if(v.y < g) v.y = g; return v; };
