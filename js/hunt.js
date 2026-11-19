@@ -555,11 +555,10 @@ function doPluck(dt){
   if(amp > 0){ pulses.push({pos: sp.pos.clone(), amp, decay: 7}); sp.tap = .12; sp.pluckSide = -(sp.pluckSide || 1); }
   return amp;   // > 0 when a stroke landed this frame (the sound hooks on this)
 }
-const PREY_RESPAWN = 120;   // seconds from a spider's death (feeding included) until a fresh one takes its place
+// the dead stay dead: every spider in the forest can be eaten once (the kill orbs along the top count them)
 function deadTick(p, dt){
   if(!p.dead) return false;
   p.deadT += dt; p.temp = .3 + (p.temp0 - .3)*Math.exp(-p.deadT/12); p.motion = 0; p.vib = 0;
-  if(p.deadT > PREY_RESPAWN) respawnPrey(p);
   return true;
 }
 // the dead are unmistakable: colour drains to a dull grey-brown, the abdomen shrivels as she feeds, and once she
@@ -581,14 +580,6 @@ function deadLook(p, dt){
   if(flat && p.flip > .001){ const e = p.flip*p.flip*(3 - 2*p.flip), hb = P.body.position.y;
     p.m.rotation.z = Math.PI*e; p.m.position.y = p.pos.y + (2*hb + .02)*e; }
   else if(flat) p.m.rotation.z = 0;
-}
-function respawnPrey(p){
-  p.drain = 0; p.flip = 0; p.held = false; p.dropped = false; p.limp = 0; p.fallH = 0; p.hl = 0;
-  Object.assign(p, {dead: false, deadT: 0, alert: 0, temp: p.temp0, close: 0, idleT: 0});
-  if(p.kind === 'scytodes'){ p.pos.copy(p.home); p.egg = rnd() < .5; p.state = 'idle'; }
-  if(p.kind === 'badumna'){ p.pos.copy(p.site.mouth); Object.assign(p, {state:'retreat', interest: 0, known: false, sulk: 0}); }
-  if(p.kind === 'argiope'){ p.pos.copy(p.orb.C); p.state = 'hub'; p.wary = 0; p.fwd.set(0, -1, 0); }
-  if(p.kind === 'araneus'){ p.pos.copy(p.orb.C); p.plat = p.orb.S; p.state = 'hub'; p.fwd.set(0, -1, 0); }   // a newcomer takes over the web where it was left
 }
 
 function updScytodes(p, dt){
@@ -720,7 +711,7 @@ function updArgiope(p, dt, t){
   }
 }
 // the garden orb-weaver at work, on its clock p.bt (see SPIN). Footsteps or plucks on its silk make it freeze, feeling
-// the threads, until all is quiet again; it never takes its web down while she is on it. A dead one's web stays as it was
+// the threads, until all is quiet again; it never takes its web down while she is on it. A dead one's web stays as it was, for good
 function updAraneus(p, dt){
   if(deadTick(p, dt)) return;
   const O = p.orb, B = O.B, {C, u, v, R, N, NR, path} = B;
