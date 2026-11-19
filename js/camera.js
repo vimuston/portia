@@ -65,10 +65,10 @@ function camFrame(dt){
   // leaf), so when she hangs upside down the view does too. Off: the view stays level everywhere except the big trees.
   // Either way, near the floor the roll is eased out so the ground doesn't tilt as she steps onto a surface.
   const pov = cam.pov !== false;
-  // rounding a leaf's rim she rolls 180° about it in about half a second: the view turns with her by exactly the same
+  // rounding a leaf's rim she rolls 180° about it as she walks over: the view turns with her by exactly the same
   // rotation, frame by frame, so it stays behind her the whole way over instead of trailing and catching up afterwards
   if(pov && sp.roll){
-    const r = sp.roll, e = Math.min(1, r.t), a = Math.PI*e*e*(3 - 2*e);
+    const r = sp.roll, a = r.a || 0;
     if(cam.rollRef !== r){ cam.rollRef = r; cam.rollA = 0; }
     const axis = new V3().crossVectors(r.up0, r.out); if(axis.lengthSq() < 1e-6) axis.set(1, 0, 0); axis.normalize();
     camQ.premultiply(new THREE.Quaternion().setFromAxisAngle(axis, a - cam.rollA)).normalize(); cam.rollA = a;
