@@ -625,7 +625,7 @@ function scyCreep(p, dt){
 // leaf either side. Thick, pale strands (tubes, not hairline silk), sized to her body, laid on over a fraction of a second.
 // The bands ride her own frame; the jet hangs in the world between them.
 const SPAT = [];
-const spatMat = () => new THREE.MeshStandardMaterial({color: 0xf3edd8, roughness: .45, emissive: 0x2c2a20, transparent: true, opacity: .95});
+const spatMat = () => new THREE.MeshStandardMaterial({color: 0xf3edd8, roughness: .3, emissive: 0x2c2a20, transparent: true, opacity: rr(.3, .55), depthWrite: false});
 function spatTube(pts, rad, delay, dur, parent){
   const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), Math.max(24, pts.length*3), rad, 5);
   const o = hot(new THREE.Mesh(g, spatMat()), .2); o.frustumCulled = false; g.setDrawRange(0, 0);
@@ -645,23 +645,27 @@ function spit(p){
   const bb = new THREE.Box3().setFromObject(P.head).union(new THREE.Box3().setFromObject(P.abd)), all = new THREE.Box3().setFromObject(sp.m);
   sp.m.quaternion.copy(q0); sp.m.position.copy(x0); sp.m.updateMatrixWorld(true);
   const L = bb.max.z - bb.min.z, Wb = (bb.max.x - bb.min.x)/2, top = bb.max.y, cx = (bb.max.x + bb.min.x)/2;
-  const reach = Math.max(Wb*1.6, Math.min(all.max.x, -all.min.x)*.6), rad = L*.008;
+  const reach = Math.max(Wb*1.6, Math.min(all.max.x, -all.min.x)*.6), rad = L*.0035;
   // the jet: from its fangs to the middle of her back, zigzagging as the glue does
   const a = p.pos.clone().add(new V3(Math.sin(p.yaw)*.13, .05, Math.cos(p.yaw)*.13)), b = sp.m.localToWorld(new V3(cx, top*.9, (bb.max.z + bb.min.z)/2));
   const perp = new V3(-(b.z - a.z), 0, b.x - a.x).normalize(), zz = [];
   for(let k = 0; k <= 30; k++){ const t = k/30, w = Math.sin(t*Math.PI)*(k % 2 ? 1 : -1); zz.push(a.clone().lerp(b, t).addScaledVector(perp, w*L*.05).add(new V3(0, Math.sin(t*Math.PI)*L*.12 + w*L*.02, 0))); }
-  spatTube(zz, rad*.8, 0, .12, scene);
+  spatTube(zz, rad*1.3, 0, .12, scene);
   // the bands: across her, front to back, each a zigzag arch from the leaf on one side over her to the leaf on the other
-  const N = 15;
+  // messy: uneven bands at odd angles, some stopping short, the zigzag ragged and loose
+  const N = 26;
   for(let k = 0; k < N; k++){
-    const z0 = bb.min.z - L*.1 + (L*1.2)*(k + rr(.2, .8))/N, skew = rr(-.45, .45), W = reach*rr(.75, 1.05), amp = L*rr(.02, .04), pts = [];
-    for(let i = 0; i <= 18; i++){
-      const t = i/18, x = cx - W + 2*W*t, u = (x - cx)/Wb, z = z0 + skew*(x - cx) + amp*(i % 2 ? 1 : -1)*Math.sin(Math.PI*t);
+    const z0 = bb.min.z - L*.15 + (L*1.3)*(k + rr(0, 1))/N, skew = rr(-.9, .9), amp = L*rr(.01, .06), pts = [];
+    const W0 = reach*rr(.4, 1.1), W1 = reach*rr(.4, 1.1), n = 10 + Math.floor(rnd()*14);
+    const t0 = rnd() < .25 ? rr(.1, .35) : 0, t1 = rnd() < .25 ? rr(.65, .9) : 1;   // a quarter fall short on one side or the other
+    for(let i = 0; i <= n; i++){
+      const t = t0 + (t1 - t0)*i/n, x = cx - W0 + (W0 + W1)*t, u = (x - cx)/Wb;
+      const z = z0 + skew*(x - cx) + amp*(i % 2 ? 1 : -1)*rr(.3, 1.3)*Math.sin(Math.PI*t) + L*rr(-.015, .015);
       const zf = Math.max(0, 1 - ((z - (bb.max.z + bb.min.z)/2)/(L*.55))**2);   // lower over her ends
-      const y = Math.abs(u) < 1 ? top*Math.sqrt(1 - u*u)*(.55 + .45*zf) + rad*1.5 : rad*1.2 + Math.max(0, .5*top*(1 - (Math.abs(u) - 1)*1.4));
+      const y = Math.abs(u) < 1 ? top*Math.sqrt(1 - u*u)*(.55 + .45*zf) + rad*1.5 + L*rr(0, .025) : rad*1.2 + Math.max(0, .5*top*(1 - (Math.abs(u) - 1)*1.4)) + L*rr(0, .03);
       pts.push(new V3(x, Math.max(rad, y), z));
     }
-    spatTube(pts, rad*rr(.8, 1.2), .1 + k*.035, .12, sp.m);
+    spatTube(pts, rad*rr(.5, 1.4), .1 + k*.02, .12, sp.m);
   }
   pulses.push({pos: a, amp: .8, decay: 4}); gusts.push({pos: a, amp: .6});
   toast('Spat on — glued down in venomous silk. There is no getting free.');
