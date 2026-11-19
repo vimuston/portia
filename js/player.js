@@ -803,6 +803,31 @@ function updateSpider(dt){
   if(raiseT > 0) sp.raiseLvl = sp.raiseW < .05 ? raiseT : sp.raiseLvl + (raiseT - sp.raiseLvl)*(1 - Math.exp(-20*dt));
   sp.raiseW += ((raiseT > 0 ? 1 : 0) - sp.raiseW)*(1 - Math.exp(-(raiseT > 0 ? 14 : 9)*dt));      // ~0.12 s up, a little slower down
   const raise = sp.raiseW > .02 ? sp.raiseLvl : 0, rw = sp.raiseW*sp.raiseW*(3 - 2*sp.raiseW);
+  // gauging a leap she sizes up the gap: the raised first legs never quite hold still, the second legs feel ahead in
+  // turn, and the head cocks from side to side and peers, as a Portia triangulates before she jumps
+  const GA = sp.gauge || (sp.gauge = {t: 0, on: 0, roll: 0, rTgt: 0, rT: 0, peer: 0, pTgt: 0, pT: 0, legs: null, hes: false, h: 0, hT: 0, up2: false, w2: 0, ld: 0, lv: 0, ten: 0, puT: 1});
+  GA.on += ((sp.charging ? 1 : 0) - GA.on)*(1 - Math.exp(-(sp.charging ? 5 : 9)*dt));
+  if(sp.charging){ GA.t += dt;
+    GA.rT -= dt; if(GA.rT <= 0){ GA.rTgt = (GA.rTgt > 0 ? -1 : GA.rTgt < 0 ? 1 : rnd() < .5 ? -1 : 1)*(rnd() < .2 ? .04 : rr(.16, .3)); GA.rT = rr(.45, 1.1); }
+    GA.pT -= dt; if(GA.pT <= 0){ GA.pTgt = rr(-.14, .14); GA.pT = rr(.3, .8); }
+    // and she isn't sure yet: every so often she eases off the crouch and draws back, mostly setting the second legs
+    // down again, then gathers herself, leans in and lifts them once more
+    if(GA.t <= dt){ GA.hes = false; GA.up2 = true; GA.hT = rr(.9, 2); }
+    else if((GA.hT -= dt) <= 0){ GA.hes = !GA.hes; GA.up2 = !GA.hes || rnd() < .25; GA.hT = GA.hes ? rr(.5, 1.2) : rr(1, 2.6); } }
+  else { GA.t = 0; GA.rTgt = GA.pTgt = 0; GA.rT = rr(.15, .3); GA.pT = 0; GA.legs = null; GA.hes = false; GA.up2 = false; }
+  GA.h += ((GA.hes ? 1 : 0) - GA.h)*(1 - Math.exp(-(GA.hes ? 4 : 6)*dt));
+  GA.w2 += ((GA.up2 ? 1 : 0) - GA.w2)*(1 - Math.exp(-(GA.up2 ? 7 : 5)*dt));
+  const w2 = GA.w2*GA.w2*(3 - 2*GA.w2);
+  // coiling the leap like a spring: her body rides a springy crouch (it dips past its mark and bounces back), and the
+  // longer she holds committed the tighter it winds: lower, and with a fine quiver of held tension. Now and then she
+  // bounces on it, a quick shove down and a rebound, as if testing the spring; doubt unwinds it again
+  GA.ten = Math.max(0, Math.min(1, GA.ten + (sp.charging && !GA.hes ? dt/1.6 : -dt*1.2)));
+  const coilTo = sp.charging ? (.45 + .55*(sp.charge || 0))*(.7 + .45*GA.ten)*(1 - .75*GA.h) : 0;
+  { const k = sp.charging ? 150 : 220, c = sp.charging ? 11 : 26;               // under-damped while aiming: each change settles with a bounce
+    GA.lv += (k*(coilTo - GA.ld) - c*GA.lv)*dt; GA.ld = Math.max(-.2, GA.ld + GA.lv*dt); }
+  if(sp.charging && !GA.hes && (GA.puT -= dt) <= 0){ GA.lv += rr(1.6, 2.6)*(.6 + .4*GA.ten); GA.puT = rr(.6, 1.5); }   // a bounce on the spring
+  const load = Math.min(1.2, GA.ld + GA.on*GA.ten*.035*Math.sin(GA.t*53));    // the quiver of a tight coil
+  GA.roll += (GA.rTgt - GA.roll)*(1 - Math.exp(-7*dt)); GA.peer += (GA.pTgt - GA.peer)*(1 - Math.exp(-9*dt));
   if(sp.mode === 'ground' || sp.mode === 'climb'){
     if(sp.speed === 0) sp.moveVel.multiplyScalar(Math.exp(-12*dt)); sp.airPitch = null; sp.leapTilt = null;
     const climbing = sp.mode === 'climb';
@@ -821,13 +846,22 @@ function updateSpider(dt){
     { const J = sp.idle, B = m.userData.parts.body; B.rotation.set((J ? J.bx : 0) + .17*give, J ? J.by : 0, J ? J.bz : 0); }
     m.userData.parts.head.rotation.x = .1*nod;
     // idle dip: last frame's, so the feet are solved against it; the landing drop is capped so the dipped head stays clear of the surface
-    poseSpider(m, {raise, crouch: sp.charging ? sp.charge : 0, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0) - .026*m.userData.parts.s*give});
+    poseSpider(m, {raise, raise2: sp.charging ? raise : 0, crouch: 1.25*load, abdDown: -.5*load, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0) - .026*m.userData.parts.s*give});
     const cad = snap && (pc.ph === 'burst' || tidy) ? {t: pc.t, per: tidy ? PACE.cad : pc.cad, min: tidy ? .5 : 0} : null, onIt = snap && (pc.ph === 'burst' || pc.ph === 'freeze');
-    gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => L.k === 0 && raise > 0});
+    gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => raise > 0 && (L.k === 0 || (L.k === 1 && sp.charging && (GA.up2 || GA.w2 > .04)))});
     // raised front legs swing up out of their last standing pose; the lunge throws the body forward a touch
-    for(const L of m.userData.parts.legs) if(L.free && L.ikA && rw < .999){
-      for(let j = 0; j < 5; j++) L.joints[j].rotation.x = L.ikA[j] + (L.joints[j].rotation.x - L.ikA[j])*rw;
-      L.yawG.rotation.y = L.ikY + angDelta(L.ikY, L.yawG.rotation.y)*rw;
+    for(const L of m.userData.parts.legs){ const w = L.k === 1 ? rw*w2 : rw; if(!L.free || !L.ikA || w >= .999) continue;   // the second legs also rise and settle on their own
+      for(let j = 0; j < 5; j++) L.joints[j].rotation.x = L.ikA[j] + (L.joints[j].rotation.x - L.ikA[j])*w;
+      L.yawG.rotation.y = L.ikY + angDelta(L.ikY, L.yawG.rotation.y)*w;
+    }
+    if(GA.on > .01){                                                               // the raised legs shift now and then to a new held pose, each on its own: a touch higher or lower, further out or in
+      const on = GA.on*rw, Ls = GA.legs || (GA.legs = new Map());
+      for(const L of m.userData.parts.legs) if(L.free && L.k < 2){
+        let o = Ls.get(L); if(!o){ o = {a: 0, b: 0, y: 0, ta: 0, tb: 0, ty: 0, T: rr(.1, .5)}; Ls.set(L, o); }
+        if(sp.charging && (o.T -= dt) <= 0){ o.ta = rr(-.14, .14); o.tb = rr(-.12, .12); o.ty = rr(-.07, .07); o.T = rr(.5, 1.3); }
+        const e = 1 - Math.exp(-8*dt); o.a += (o.ta - o.a)*e; o.b += (o.tb - o.b)*e; o.y += (o.ty - o.y)*e;
+        const k = on*(L.k === 1 ? w2 : 1); L.joints[0].rotation.x += k*o.a; L.joints[1].rotation.x += k*o.b; L.yawG.rotation.y += k*L.side*o.y;
+      }
     }
     if(sp.plucking){                                                     // first legs tug the thread on each pluck, alternating sides
       for(const L of m.userData.parts.legs) if(L.k === 0 && !L.free && L.planted){
@@ -835,7 +869,8 @@ function updateSpider(dt){
         if(pull > 0){ fb.lerp(L.yawG.position, .12*pull); fb.y += .02*pull*(1 - pull); legIK(L, fb); }
       }
     }
-    m.userData.parts.body.position.z = sp.lunge > 0 ? Math.sin(Math.PI*Math.max(0, Math.min(1, (.3 - sp.lunge - .05)/.22)))*.035 : 0;
+    m.userData.parts.body.position.z = (sp.lunge > 0 ? Math.sin(Math.PI*Math.max(0, Math.min(1, (.3 - sp.lunge - .05)/.22)))*.035 : 0)
+      + (-.016*GA.ld + .004*GA.h*GA.on)*m.userData.parts.s;   // pre-loading: settled back over the hind legs; in doubt, up and a touch forward
   } else {
     gaitRelease(m); m.position.set(sp.pos.x, sp.pos.y, sp.pos.z); m.rotation.y = sp.yaw;
     if(sp.bounce){ sp.bounce = null; m.userData.parts.body.rotation.x = 0; m.userData.parts.head.rotation.x = 0; }   // off again before the landing settled
@@ -857,7 +892,7 @@ function updateSpider(dt){
       if(LH && LH.t > 0) flight = Math.min(1, t/LH.t);                          // each leg pair turns to its landing pose at its own point
       else land = ss01(-sp.vel.y/3);                                            // a fall: legs fan out as she drops
     }
-    poseSpider(m, {raise: raise*rw, air: sp.mode === 'air', launch, land, flight, hang: sp.mode === 'hang' && !sp.charging, wave: sp.plucking ? time*25 : 0});
+    poseSpider(m, {raise: raise*rw, raise2: sp.charging ? raise*rw*w2 : 0, air: sp.mode === 'air', launch, land, flight, hang: sp.mode === 'hang' && !sp.charging, wave: sp.plucking ? time*25 : 0});
   }
   // standing still a while she looks about: now and then she cocks her head to one side and holds it there, and a
   // front leg lifts and slowly feels the air ahead before settling back on its foothold, one leg at a time
@@ -870,7 +905,7 @@ function updateSpider(dt){
         if(I.rTgt){ I.rTgt = 0; I.rT = rr(2, 5); } else { I.rTgt = (rnd() < .5 ? -1 : 1)*rr(.26, .36); I.rT = rr(5, 8); } }
     } else { I.rTgt = 0; I.rT = rr(1, 3); }
     I.roll += (I.rTgt - I.roll)*(1 - Math.exp(-(on ? 2.5 : 10)*dt));
-    P.head.rotation.z = I.roll;
+    P.head.rotation.z = I.roll + GA.roll*GA.on; P.head.rotation.y = GA.peer*GA.on;   // gauging: the head cocks and peers
     // now and then she settles a little lower on her legs, holds it, and rises again
     if(on){ I.dipT -= dt; if(I.dipT <= 0){ if(I.dipTgt){ I.dipTgt = 0; I.dipT = rr(3, 7); } else { I.dipTgt = rr(.5, 1); I.dipT = rr(1.2, 3); } } }
     else { I.dipTgt = 0; I.dipT = rr(2, 5); }
