@@ -411,7 +411,7 @@ function setRestStance(body, legs){
     Object.assign(L, {foot: new V3(), planted: false, step: null, free: false});
   }
 }
-// Portia's feet take whatever surface they actually reach near her: soil, bark, stone faces, stump/stone tops.
+// Portia's feet take whatever surface they actually reach near her: soil, bark, stone faces, stone tops.
 // Returns the surface normal there. Around a corner the front feet land on the wall while the hind feet stay put.
 function playerPlace(v){
   const pl = sp.plat;

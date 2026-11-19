@@ -445,7 +445,24 @@ function sidlePulse(dt){
   return u < SIDLE.on ? SIDLE.peak*Math.sin(Math.PI*u/SIDLE.on) : SIDLE.rest;
 }
 
+// nearing the rim of the floor she may walk (AREA): told once, and told again only after she has gone back in a way
+// A leap that would carry her over the rim is stopped at it: her outward speed is taken away and she drops there,
+// told the same (each time, at most every few seconds)
+const EDGE = {warned: false, near: 2.5, rearm: 6, msg: 'These are not your hunting grounds. Turn back.', leapT: -1e9};
+function edgeWarn(){
+  const d = Math.hypot(sp.pos.x, sp.pos.z), now = performance.now()/1000;
+  if(sp.mode === 'air' && d > AREA){
+    const nx = sp.pos.x/d, nz = sp.pos.z/d, vo = sp.vel.x*nx + sp.vel.z*nz;
+    if(vo > 0){ sp.vel.x -= nx*vo; sp.vel.z -= nz*vo; }
+    sp.pos.x = nx*AREA; sp.pos.z = nz*AREA; sp.leapHit = null;
+    if(now - EDGE.leapT > 3){ EDGE.leapT = now; EDGE.warned = true; toast(EDGE.msg); }
+    return;
+  }
+  if(!EDGE.warned && d > AREA - EDGE.near){ EDGE.warned = true; toast(EDGE.msg); }
+  else if(EDGE.warned && d < AREA - EDGE.rearm) EDGE.warned = false;
+}
 function updateSpider(dt){
+  edgeWarn();
   const fwd = camFwd(), right = camRight();      // in the camera's frame: on a trunk or under a leaf, W is 'up the screen'
   const ix = Math.max(-1, Math.min(1, (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + pad.lx));
   const iz = Math.max(-1, Math.min(1, (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - pad.ly));
@@ -555,7 +572,7 @@ function updateSpider(dt){
     if(up){ sp.plat = up; sp.pos.set(nx, surfAt(up, nx, nz), nz); }                               // another leaf lies over hers: walk up onto its top, not under it
     else if(snappy && spd > 0 && (wall || !inPlat(sp.plat, nx, nz))){ pc.t = pc.dur; spd = 0; }   // a dart stops at the edge of its surface
     else if(wall){ enterClimb(wall, new V3(nx, sp.pos.y + .06, nz), dir); return; }
-    else if(sp.plat.ground){ const r = Math.hypot(nx, nz), k = r > 30 ? 30/r : 1; sp.pos.set(nx*k, floorAt(nx*k, nz*k), nz*k); }
+    else if(sp.plat.ground){ const r = Math.hypot(nx, nz), k = r > AREA ? AREA/r : 1; sp.pos.set(nx*k, floorAt(nx*k, nz*k), nz*k); }   // held to the rim of the floor (AREA)
     else if(inPlat(sp.plat, nx, nz)){ sp.pos.set(nx, surfAt(sp.plat, nx, nz), nz); }   // her height rides the blade's droop and fold, or the camera and the next step start inside it
     else if(spd > 0 && sp.plat.climb && sp.plat.climb.canEnter(new V3(nx, 0, nz))){ enterClimb(sp.plat.climb, new V3(nx, surfAt(sp.plat, nx, nz) - .05, nz), dir); return; }   // over the rim, down the side
     else if(spd > 0 && sp.plat.under && dropToBelow(dir, spd)) return;            // a leaf just below the rim: step down onto it
@@ -657,7 +674,7 @@ function updateSpider(dt){
           if(ax.lengthSq() > 1e-8){ ax.normalize(); const c = ax.dot(sp.climbHead); if(Math.abs(c) > .3) sp.climbHead.copy(ax).multiplyScalar(Math.sign(c)); } }
         // off a trunk onto a limb (or back): the view levels or tilts, which would turn what W means and walk her straight
         // back where she came from. Swing the camera to look along her new heading so held keys keep carrying her on.
-        // The young trees' crown limbs are 'tree' too (the view turns with them), so trunk <-> limb is told apart by 'tube'
+        // The big climbing trees' crown limbs are 'tree' too (the view turns with them), so trunk <-> limb is told apart by 'tube'
         // there the view's up turns over with her, so the swing has to keep re-aiming along her heading as it does (swingDir)
         if(S.tree && S2.tree && !!S.tube !== !!S2.tube){ cam.swingDir = sp.climbHead.clone(); cam.swingT = 0; cam.swing = null; sp.handT = 1; }
         else if(!!S.tree !== !!S2.tree){ const hz = Math.hypot(sp.climbHead.x, sp.climbHead.z); if(hz > .3){ cam.swing = Math.atan2(sp.climbHead.x, sp.climbHead.z); cam.swingDir = null; } sp.handT = 1; }
