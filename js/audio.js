@@ -151,6 +151,7 @@ const AUDIO = (() => {
     snip(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .03, .2, 'highpass', 6000, 4000, 1); },
     silk(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .22, .07, 'bandpass', 2000, 4500, 6); },
     mated(){ if(!ctx) return; const t = ctx.currentTime; [62, 66, 69, 73, 76, 81].forEach((m, k) => ep(m, t + k*.13, 1, sfxBus, 2.2)); },
+    spit(){ if(!ctx) return; const t = ctx.currentTime; noise(t, .3, .3, 'lowpass', 2600, 300, 3); noise(t + .02, .16, .14, 'bandpass', 900, 400, 5); },
     signal(){ if(!ctx) return; const t = ctx.currentTime; ep(81, t, .6, sfxBus, .4); ep(86, t + .08, .5, sfxBus, .5); },
   };
   addEventListener('keydown', e => { if(e.code === 'KeyM' && !e.repeat) toggleMute(); });
@@ -166,6 +167,7 @@ const AUDIO = (() => {
   die = wrap(die, () => AUDIO.sfx.die());
   killPrey = wrap(killPrey, () => AUDIO.sfx.bite());
   catchFly = after(catchFly, ok => { if(ok) AUDIO.sfx.bite(); });
+  spit = wrap(spit, () => AUDIO.sfx.spit());
   stickInWeb = wrap(stickInWeb, () => AUDIO.sfx.stuck());
   startBalloon = wrap(startBalloon, () => { if(!sp.balloon && sp.stuck <= 0) AUDIO.sfx.balloon(); });
   cutLine = wrap(cutLine, () => { if(sp.line) AUDIO.sfx.snip(); });

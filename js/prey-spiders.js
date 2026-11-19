@@ -122,9 +122,6 @@ function makeScytodes(){
       for(let i = 0; i < 4; i++) blob(cara, dm, 0, (onEll(.068, .07, .08, 0, .05 - i*.03) - .002)*s, (.05 - i*.03)*s, .004*s, .0025*s, .01*s);
       for(const [x, z, r] of [[0, .035, .01], [-.025, .015, .008], [.025, .015, .008], [-.03, -.015, .008], [.03, -.015, .008], [-.015, -.04, .007], [.015, -.04, .007], [0, -.055, .006]])
         blob(abd, dm, x*s, (onEll(.05, .045, .065, x, z) - .001)*s, z*s, r*s, .003*s, r*1.2*s); }});
-  const egg = new THREE.Mesh(new THREE.SphereGeometry(.034, 12, 9), new THREE.MeshStandardMaterial({color:0xf2eee0, roughness:.9, emissive:0x202018}));
-  egg.position.set(0, .015, .145); m.userData.parts.body.add(egg); m.userData.egg = egg;
-  egg.add(new THREE.LineSegments(segsFrom(Array.from({length: 40}, (_, i) => { const a = i*2.4, b = i*1.3; return new V3(Math.cos(a)*Math.sin(b), Math.cos(b), Math.sin(a)*Math.sin(b)).multiplyScalar(.035); })), new THREE.LineBasicMaterial({color:0xffffff, transparent:true, opacity:.6})));
   return m;
 }
 // Badumna longinqua: velvety grey, dark carapace with pale radiating striae, a dark heart-mark and chevrons
