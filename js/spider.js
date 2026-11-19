@@ -766,6 +766,8 @@ function poseSpider(m, o){
     if(o.hang){ a = [-1.15, 1.5, .55, .4, .3]; }
     if(L.k === 0 && o.raise){ const r = Math.max(0, Math.min(1.2, o.raise + (o.pump || 0)*L.side));   // pump: one front leg higher than the other
 a = [-.8 - r*.95, 1.0 - r*.75, .35 - r*.25, .25 - r*.1, .25]; y = L.base*(1 - r*.4) + r*.28*L.side*Math.sin(o.wave || 0); }
+    if(L.k === 1 && o.raise2){ const r = Math.min(1.2, o.raise2);    // the second legs come up too, a little lower and wider than the first
+a = [-.8 - r*.75, 1.0 - r*.6, .35 - r*.2, .25 - r*.08, .25]; y = L.base*(1 - r*.25); }
     if(o.grab && L.k < 2){                       // first and second legs reach forward and close round the prey in her fangs
       const g = o.grab, G = L.k === 0 ? [-1.3, 1.15, 1.05, .8, .6] : [-1.0, 1.25, .8, .55, .4], gy = L.base*(L.k === 0 ? .3 : .62);
       for(let j = 0; j < 5; j++) a[j] += (G[j] - a[j])*g; y += (gy - y)*g; }

@@ -799,10 +799,14 @@ function updateSpider(dt){
     }
   }
   // pose: on a surface the body rides on its planted feet; in the air the legs are posed
-  const m = sp.m; sp.posture = !!(keys.KeyF || pad.x) && !sp.plucking; const raiseT = sp.charging ? .4 + sp.charge*.6 : sp.posture ? 1 : 0;   // hold F: front legs raised high
+  const m = sp.m; sp.posture = !!(keys.KeyF || pad.x) && !sp.plucking; const raiseT = sp.charging ? .4 + sp.charge*.6 : sp.posture ? .7 : 0;   // hold F: front legs raised, not quite all the way
   if(raiseT > 0) sp.raiseLvl = sp.raiseW < .05 ? raiseT : sp.raiseLvl + (raiseT - sp.raiseLvl)*(1 - Math.exp(-20*dt));
   sp.raiseW += ((raiseT > 0 ? 1 : 0) - sp.raiseW)*(1 - Math.exp(-(raiseT > 0 ? 14 : 9)*dt));      // ~0.12 s up, a little slower down
   const raise = sp.raiseW > .02 ? sp.raiseLvl : 0, rw = sp.raiseW*sp.raiseW*(3 - 2*sp.raiseW);
+  // gesturing, the second pair comes up too, a little lower and wider than the first, easing in a beat behind them
+  sp.gestW = (sp.gestW || 0) + ((sp.posture && !sp.charging ? 1 : 0) - (sp.gestW || 0))*(1 - Math.exp(-(sp.posture ? 7 : 6)*dt));
+  const gest2 = !sp.charging && (sp.posture || sp.gestW > .04), g2 = sp.gestW*sp.gestW*(3 - 2*sp.gestW);
+  if(!gest2) sp.gestK = null;
   if(sp.mode === 'ground' || sp.mode === 'climb'){
     if(sp.speed === 0) sp.moveVel.multiplyScalar(Math.exp(-12*dt)); sp.airPitch = null; sp.leapTilt = null;
     const climbing = sp.mode === 'climb';
@@ -821,14 +825,30 @@ function updateSpider(dt){
     { const J = sp.idle, B = m.userData.parts.body; B.rotation.set((J ? J.bx : 0) + .17*give, J ? J.by : 0, J ? J.bz : 0); }
     m.userData.parts.head.rotation.x = .1*nod;
     // idle dip: last frame's, so the feet are solved against it; the landing drop is capped so the dipped head stays clear of the surface
-    poseSpider(m, {raise, crouch: sp.charging ? sp.charge : 0, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0) - .026*m.userData.parts.s*give});
+    poseSpider(m, {raise, raise2: gest2 ? raise : 0, crouch: sp.charging ? sp.charge : 0, bob: (pc.jolt ? -.007*m.userData.parts.s*Math.sin(Math.PI*(1 - pc.jolt)) : 0) - (sp.idle ? sp.idle.dip*.014*m.userData.parts.s : 0) - .026*m.userData.parts.s*give});
     const cad = snap && (pc.ph === 'burst' || tidy) ? {t: pc.t, per: tidy ? PACE.cad : pc.cad, min: tidy ? .5 : 0} : null, onIt = snap && (pc.ph === 'burst' || pc.ph === 'freeze');
-    gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => L.k === 0 && raise > 0});
+    gaitUpdate(m, dt, {vel: sp.moveVel, up: m.userData.parts.up, place: onIt ? dartPlace : playerPlace, sneak: sp.sneaking, snap, hold, cad, turn: sp.turnWant || 0, free: L => raise > 0 && (L.k === 0 || (L.k === 1 && gest2))});
     // raised front legs swing up out of their last standing pose; the lunge throws the body forward a touch
-    for(const L of m.userData.parts.legs) if(L.free && L.ikA && rw < .999){
-      for(let j = 0; j < 5; j++) L.joints[j].rotation.x = L.ikA[j] + (L.joints[j].rotation.x - L.ikA[j])*rw;
-      L.yawG.rotation.y = L.ikY + angDelta(L.ikY, L.yawG.rotation.y)*rw;
+    for(const L of m.userData.parts.legs){ const w = L.k === 1 ? rw*g2 : rw; if(!L.free || !L.ikA || w >= .999) continue;   // the second legs rise and settle on their own
+      for(let j = 0; j < 5; j++) L.joints[j].rotation.x = L.ikA[j] + (L.joints[j].rotation.x - L.ikA[j])*w;
+      L.yawG.rotation.y = L.ikY + angDelta(L.ikY, L.yawG.rotation.y)*w;
     }
+    if(gest2){ const k = rw*g2, G = sp.gestK || (sp.gestK = new Map());      // and the four raised legs play the air nervously, like fingers on a keyboard: each
+      let downs = 0; for(const o of G.values()) if(o.dn) downs++;                    // flexes only in its own plane, curling down and snapping back, the bend rippling
+      for(const L of m.userData.parts.legs) if(L.free && L.k < 2){                   // out to the tip; now and then one sinks toward the surface and comes back up
+        let o = G.get(L); if(!o){ o = {wait: rr(.02, .4), u: -1, dur: .2, amp: 1, rest: [0, 0, 0, 0], tr: [0, 0, 0, 0], rT: 0, dn: 0, dnT: rr(.8, 2.5), d: 0}; G.set(L, o); }
+        if(o.u < 0 && (o.wait -= dt) <= 0){ o.u = 0; o.dur = rr(.12, .22); o.amp = rnd() < .3 ? rr(.3, .5) : rr(.8, 1.2); o.wait = rr(.08, .45); }   // now and then only a flick
+        if((o.rT -= dt) <= 0){ for(let j = 0; j < 4; j++) o.tr[j] = rr(-.07, .07); o.rT = rr(.2, .7); }            // between strokes the held pose shifts in small jerks
+        for(let j = 0; j < 4; j++) o.rest[j] += (o.tr[j] - o.rest[j])*(1 - Math.exp(-28*dt));
+        if((o.dnT -= dt) <= 0){ if(o.dn){ o.dn = 0; o.dnT = rr(1, 3.5); } else if(downs < 2){ o.dn = 1; downs++; o.dnT = rr(.25, .8); } else o.dnT = rr(.2, .6); }
+        o.d += (o.dn - o.d)*(1 - Math.exp(-(o.dn ? 11 : 8)*dt));
+        const D = L.k === 0 ? [.08, .16, .24, .22] : [.1, .2, .26, .22];               // how far each joint curls, femur..tarsus
+        for(let j = 0; j < 4; j++){ let p = 0;
+          if(o.u >= 0){ const u = (o.u - j*.03)/o.dur;                                // each joint a hair after the one before
+            p = u <= 0 || u >= 1 ? 0 : u < .3 ? Math.sin(u/.3*Math.PI/2) : Math.pow(1 - (u - .3)/.7, 2); }   // a quick press, a snappy release
+          L.joints[j].rotation.x += k*(o.amp*D[j]*p + o.rest[j]); }
+        L.joints[0].rotation.x += k*o.d*(L.k === 0 ? .7 : .5); L.joints[1].rotation.x += k*o.d*(L.k === 0 ? .35 : .25);   // sinking: the leg drops toward the surface
+        if(o.u >= 0 && (o.u += dt) > o.dur + .1) o.u = -1; } }
     if(sp.plucking){                                                     // first legs tug the thread on each pluck, alternating sides
       for(const L of m.userData.parts.legs) if(L.k === 0 && !L.free && L.planted){
         const pull = pluckStroke(L.side), fb = m.userData.parts.body.worldToLocal(L.foot.clone());
