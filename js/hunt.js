@@ -438,13 +438,15 @@ function climbHit(x, y, z, dir){
   for(const S of climbsNear(x, z, .5)) if(S.hit(x, y, z, dir)) return S;
   return null;
 }
-// X: no line → tie one here. Line just tied and she hasn't left the knot → let go and hang. Any other time there is a
-// line (hanging, in the air, walked away, climbed back up to the knot) → cut it; the next X ties a fresh one.
+// X: no line → tie one here. Line just tied and she hasn't left the knot → let go and hang. In flight on a line →
+// clamp it and hang where she is. Any other time there is a line (hanging, walked away, climbed back up to the
+// knot) → cut it; the next X ties a fresh one.
 function dropLine(){
   if(sp.stuck > 0) return;
   const onSurface = sp.mode === 'ground' || sp.mode === 'climb';
   if(sp.line){
     if(sp.lineFresh && onSurface && sp.pos.distanceTo(sp.anchor) < .3){ sp.lineFresh = false; dropOnLine(); }
+    else if(sp.mode === 'air' && !sp.plop && sp.anchorPlat) catchLine();
     else cutLine();
     return;
   }
@@ -453,6 +455,14 @@ function dropLine(){
   sp.line = true; sp.lineFresh = true; sp.anchor.copy(sp.pos); sp.anchorPlat = sp.plat; sp.ropeL = 0;
   pulses.push({pos: sp.pos.clone(), amp: .35, decay: 5});
   toast('Dragline tied — X again to let go and hang; after that X cuts it.');
+}
+// clamp the dragline mid-flight: the line stops paying out and she swings from it at the length it has now
+function catchLine(){
+  const d = sp.pos.distanceTo(sp.anchor);
+  sp.braked = true; sp.mode = 'hang'; sp.leapHit = null; sp.charging = false; sp.lineFresh = false;
+  sp.ropeL = Math.max(.4, Math.min(d, sp.anchor.y - floorAt(sp.anchor.x, sp.anchor.z) - .35));
+  pulses.push({pos: sp.anchor.clone(), amp: .5, decay: 4});
+  toast('You clamp the dragline and hang. W/S reel, A/D swing, SPACE leap, X cut.');
 }
 // let go onto the tied line. On a leaf or other top she pays the line out to the nearest rim and slips over it
 // (the knot moves to the rim, so the silk never runs through the leaf); on bark she pushes off it; under a leaf
