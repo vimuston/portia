@@ -77,6 +77,15 @@ const BAD2 = ownStream(72733, () => {
   const mouth = q.clone().addScaledVector(sd, .02), RX = 1.35, RZ = 1.25, center = mouth.clone().addScaledVector(sd, -(RX + .02)); center.y = mouth.y - .04;
   const plat = {id:'WEB-B2', kind:'web', x:center.x, y:center.y, z:center.z, rx:RX, rz:RZ, rot: Math.atan2(-sd.z, sd.x)};
   PLAT.push(plat);
+  // the sheet rests on a burl: a broad, flat woody swelling grown out of the bark right under it, its top just below
+  // the silk, its root buried in the trunk. Climbable like the bark.
+  { const yaw = plat.rot, BX = RX*2.4, BZ = RZ*2.1, BY = .5, C = center.clone().addScaledVector(sd, .6); C.y = center.y - .016 - BY;
+    const g = new THREE.SphereGeometry(1, 48, 20); g.scale(BX, BY, BZ);
+    { const P = g.attributes.position; for(let i = 0; i < P.count; i++){ const x = P.getX(i), y = P.getY(i), z = P.getZ(i);   // bark knobbles, kept off the top
+      const k = 1 + (y < BY*.7 ? .04*Math.sin(x*9 + z*7) + .03*Math.sin(x*17 - z*13) : 0); P.setXYZ(i, x*k, y, z*k); } g.computeVertexNormals(); }
+    const m = hot(new THREE.Mesh(g, antiTile(new THREE.MeshStandardMaterial({color:0x7a6450, map: BARK_TEX_S, bumpMap: BARK_TEX_S, bumpScale: 2, roughness:.95}))), TEMP.wood);
+    m.position.copy(C); m.rotation.y = yaw; m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
+    blobSurface(C.x, C.y, C.z, BX, BY, BZ, yaw, 'bark'); }
   const B = {ax, sd, mouth, plat, bark: trunk, high: true}; badumnaWeb(B);
   B.spider = addPrey({kind:'badumna', name:'Badumna longinqua · grey house spider', m: makeBadumna(), site: B, plat, pos: mouth.clone(), yaw: 0,
     state:'retreat', pref: 'fly', interest: 0, rush: 0, sulk: 0, known: false, peekT: 0});

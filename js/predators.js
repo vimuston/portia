@@ -31,7 +31,8 @@ function predClimb(S){
 }
 // a tree-dweller's view of the same bark: only the part held well clear of the soil counts, so the trunk base and
 // the root flare are no way down
-const TREE_CLEAR = 1.6;   // never lower than this on its trunk: it keeps to the bark well above the litter
+const TREE_CLEAR = 10;    // never lower than this on its trunk (~30 cm): it keeps to the bark well above the litter
+const TREE_BAND = [14, 46]; // where it likes to sit and wander: 40 cm to 1.4 m up
 const treeBark = S => !S.web && S.label === 'bark' && !S.top && !S.log && S.project && S.normal;
 function predTree(S){
   let w = TREE_WRAP.get(S);
@@ -120,14 +121,14 @@ function predOrient(pr, dt, want, rate = 4){
   const x = new V3().crossVectors(pr.up, pr.fwd).normalize(), z = new V3().crossVectors(x, pr.up);
   M4.makeBasis(x, pr.up, z); pr.m.quaternion.setFromRotationMatrix(M4); pr.m.position.copy(pr.pos);
 }
-// somewhere to go: a young trunk or a limb, a leaf, stump, rock or the log, or open soil — all near the play area
+// somewhere to go: a young trunk or a limb, a leaf, rock or the log, or open soil — all near the play area
 // a spot on a trunk or limb, high enough off the soil
 function predTreeSpot(S){
   for(let i = 0; i < 12; i++){
     let q;
     if(S.tube){ const pt = S._pts[Math.random()*S._pts.length | 0]; q = S.project(pt.clone().add(new V3(prr(-.3, .3), .5, prr(-.3, .3)))); }
-    else { const a = prr(0, 6.28), y = Math.min(S.y1 - .5, floorAt(S.cx, S.cz) + prr(2.2, 5.5)); q = S.project(new V3(S.cx + Math.cos(a)*40, y, S.cz + Math.sin(a)*40)); }
-    if(q && predTree(S).ok(q) && q.y < floorAt(q.x, q.z) + 6) return q;      // low enough to hunt from, not up in the canopy
+    else { const a = prr(0, 6.28), y = Math.min(S.y1 - .5, floorAt(S.cx, S.cz) + prr(...TREE_BAND)); q = S.project(new V3(S.cx + Math.cos(a)*80, y, S.cz + Math.sin(a)*80)); }
+    if(q && predTree(S).ok(q) && q.y > floorAt(q.x, q.z) + TREE_BAND[0]*.8 && q.y < floorAt(q.x, q.z) + TREE_BAND[1]) return q;   // up off the floor, not in the canopy
   }
   return null;
 }
@@ -149,7 +150,7 @@ function predWanderGoal(pr){
     }
   }
   if(r < pr.climby + .35){
-    const kinds = Math.random() < .65 ? ['leaf'] : ['log', 'stump', 'rock', 'fungus'];
+    const kinds = Math.random() < .65 ? ['leaf'] : ['log', 'rock', 'fungus'];
     const L = PLAT.filter(p => kinds.includes(p.kind) && p !== START && near(p.x, p.z, 9));
     if(L.length){ const p = L[Math.random()*L.length | 0], q = randomIn(p, .15); q.y = surfAt(p, q.x, q.z); return q; }
   }
@@ -372,9 +373,9 @@ function poseMantis(pr, o){
 }
 
 // ---- the predator
-function makePred(kind){
-  const m = makeMantis(), home = new V3(-2.6, 0, 11.4);
-  const pr = {kind, m, home, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10,
+function makePred(kind, home, treeAt = null){
+  const m = makeMantis();
+  const pr = {kind, m, home, treeAt, pos: new V3(), up: new V3(0, 1, 0), fwd: new V3(0, 0, 1), surf: PRED_GROUND, t: Math.random()*10,
     reach: .32, range: 6, climby: .4, tree: true, trunk: null, hunting: false, sees: false, seenT: 0, last: new V3(),
     goal: null, pause: prr(15, 40), best: 1e9, stuckT: 0, hop: null, state: 'roam', kt: 0, gaveUp: false,
     motion: 0, temp: .42, self: false, hl: 0, stalk: 0, bored: 0};
@@ -389,9 +390,9 @@ function makePred(kind){
 function predHome(pr){
   pr.pos.copy(PRED_GROUND.proj(pr.home)); pr.surf = PRED_GROUND; pr.up.set(0, 1, 0); pr.trunk = null;
   if(pr.tree){                                                   // up on the nearest trunk
-    const T = CLIMBS.filter(S => treeBark(S) && !S.tube).sort((a, b) => Math.hypot(a.cx - pr.home.x, a.cz - pr.home.z) - Math.hypot(b.cx - pr.home.x, b.cz - pr.home.z))[0];
+    const T = pr.treeAt ? CLIMBS.find(S => S.tree && !S.tube && S.cx === pr.treeAt[0] && S.cz === pr.treeAt[1]) : CLIMBS.filter(S => treeBark(S) && S.tree && !S.tube).sort((a, b) => Math.hypot(a.cx - pr.home.x, a.cz - pr.home.z) - Math.hypot(b.cx - pr.home.x, b.cz - pr.home.z))[0];
     if(T){ const g = floorAt(T.cx, T.cz), d = new V3(pr.home.x - T.cx, 0, pr.home.z - T.cz).normalize();
-      pr.pos.copy(T.project(new V3(T.cx + d.x*40, g + 2.8, T.cz + d.z*40))); pr.surf = predTree(T); pr.trunk = T; pr.up.copy(T.normal(pr.pos)); pr.home.copy(pr.pos); }
+      pr.pos.copy(T.project(new V3(T.cx + d.x*80, g + prr(18, 32), T.cz + d.z*80))); pr.surf = predTree(T); pr.trunk = T; pr.up.copy(T.normal(pr.pos)); pr.home.copy(pr.pos); }
   } pr.hop = null; pr.state = 'roam'; pr.kt = 0;
   pr.hunting = false; pr.sees = false; pr.goal = null; pr.pause = prr(15, 40); pr.best = 1e9; pr.stuckT = 0; pr.stalk = 0; pr.bored = 0;
   const a = Math.random()*6.28; pr.fwd.set(Math.sin(a), 0, Math.cos(a));
@@ -476,8 +477,10 @@ function updMantis(pr, dt){
   pr.motion = walk ? .5 : pr.hop ? .8 : .04;
 }
 
-const PREDS = [makePred('mantis')];
-PREDS[0].update = updMantis;
+// one mantis to a tree: on each trunk whose bark stands inside the play area (the two big climbing trees and the
+// nearest giants), at home on the side facing the clearing
+const PREDS = TREE_LIST.filter(([x, z, r]) => Math.hypot(x, z) - r*1.1 < AREA).map(([x, z, r]) => {
+  const L = Math.hypot(x, z) || 1, pr = makePred('mantis', new V3(x - x/L*r*1.6, 0, z - z/L*r*1.6), [x, z]); pr.update = updMantis; return pr; });
 
 // ---- the fade: "It is the end for you.." to black, then "...but your sisters continue the hunt." and a new Portia
 function doomReset(){

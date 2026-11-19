@@ -121,6 +121,8 @@ const MOSS_SPOTS = [];
         for(const ox of [-w, 0, w]){ x.beginPath(); x.ellipse(px + ox, ry, sz*(1.2 + trnd()*.8), sz*(.6 + trnd()*.4), (trnd() - .5)*.5, 0, 6.283); x.fill(); } } }
   }, [1, 1]);
   const pn = 14;
+  // the cap's top, centre outward (r, y in cap radii): she lands and walks on it as on a leaf
+  const CAP_PROF = [[0, .35], [.08, .33], [.18, .27], [.34, .2], [.58, .16], [.82, .12], [.96, .06], [1, -.02]];
   const pCap = hot(new THREE.InstancedMesh(L([[.96, -.07], [1, -.02], [.96, .06], [.82, .12], [.58, .16], [.34, .2], [.18, .27], [.08, .33], [.001, .35]], 32), new THREE.MeshStandardMaterial({map: PARASOL_TEX, bumpMap: PARASOL_TEX, bumpScale: 2.5, roughness:.85, side:THREE.DoubleSide}), pn), TEMP.fungus);
   const pGill = hot(new THREE.InstancedMesh(gillGeo(), new THREE.MeshStandardMaterial({color:0xf4eee2, map: GILL_TEX, roughness:.8, side:THREE.DoubleSide}), pn), TEMP.fungus);
   const pStem = hot(new THREE.InstancedMesh(L([[.001, 0], [.17, 0], [.21, .03], [.18, .07], [.1, .12], [.08, .5], [.07, .97], [.065, 1]], 12), new THREE.MeshStandardMaterial({color:0xd8c8b0, map: FIDDLE_TEX, bumpMap: FIDDLE_TEX, bumpScale: 1.5, roughness:.7}), pn), TEMP.fungus);
@@ -128,7 +130,9 @@ const MOSS_SPOTS = [];
   for(let k = 0; k < pn; k++){ const [x, z] = freeSpot(24*AK, 4, 2), h = rr(3.5, 7), cs = rr(.8, 1.6);   // stems 10–20 cm, caps 5–10 cm across
     const [b, tp, q] = stalk(pStem, k, x, z, h, 1, .1);
     pRing.setMatrixAt(k, M4.compose(b.clone().lerp(tp, .74), q, new V3(1, 1, 1)));
-    M4.compose(tp, Q.setFromEuler(E.set(rr(-.12, .12), rnd()*6.3, rr(-.12, .12))), new V3(cs, cs*rr(.8, 1.1), cs)); pCap.setMatrixAt(k, M4); pGill.setMatrixAt(k, M4);
+    rr(-.12, .12); const yaw = rnd()*6.3; rr(-.12, .12); const sy = rr(.8, 1.1);   // held level (the old tilt's draws kept), so her feet match it
+    M4.compose(tp, Q.setFromEuler(E.set(0, yaw, 0)), new V3(cs, cs*sy, cs)); pCap.setMatrixAt(k, M4); pGill.setMatrixAt(k, M4);
+    PLAT.push({id:'MU' + PLAT.length, kind:'fungus', cap:true, x: tp.x, y: tp.y + .2*cs*sy, z: tp.z, rx: cs*.92, rz: cs*.92, rot: 0, by: tp.y, cs, hy: cs*sy, prof: CAP_PROF});
     c.setHSL(rr(.07, .1), rr(.25, .45), rr(.82, .95)); pCap.setColorAt(k, c); }
   pCap.castShadow = pStem.castShadow = true; scene.add(pCap, pGill, pStem, pRing);
   // puffballs: pear-shaped, white to tan, crowded with tiny warts; the old ones open at a pore on top

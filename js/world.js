@@ -283,11 +283,10 @@ const CLIMB_TREES = TREE_LIST.filter(t => t[3]);
 const inTrunk = (x, z, m = 0) => TREE_LIST.some(([tx, tz, r]) => Math.hypot(x - tx, z - tz) < r*1.15 + m);
 const LOG = {x:-1.2, z:6.2, ang:1.35, r:.62, len:9, sink:.45};   // sink: axis height above the soil in radii (half-buried in litter, so the overhang underneath is shallow)
 const ROCKS = [{x:-6.2, z:-4.0, r:1.3, h:1.1}, {x:1.6, z:-1.6, r:.7, h:.45}];
-const STUMPS = [{x:3.6, z:6.8, r:.7, h:1.2}, {x:7.6, z:-6.2, r:.9, h:1.6}, {x:-2.6, z:-6.6, r:.6, h:.9}];
 const FLAT = [];
 { const ax = Math.sin(LOG.ang), az = Math.cos(LOG.ang), h = LOG.len/2;
   FLAT.push({seg:[LOG.x - ax*h, LOG.z - az*h, LOG.x + ax*h, LOG.z + az*h], r:LOG.r*1.1, level: rawH(LOG.x, LOG.z)});
-  for(const k of [...ROCKS, ...STUMPS]) FLAT.push({seg:[k.x, k.z, k.x, k.z], r:k.r, level: rawH(k.x, k.z)}); }
+  for(const k of ROCKS) FLAT.push({seg:[k.x, k.z, k.x, k.z], r:k.r, level: rawH(k.x, k.z)}); }
 function hAt(x, z){
   let h = rawH(x, z);
   for(const f of FLAT){
@@ -1148,6 +1147,8 @@ function surfAt(p, x, z){
   if(p.ground) return floorAt(x, z);
   const dx = x - p.x, dz = z - p.z, c = Math.cos(p.rot), s = Math.sin(p.rot), lx = dx*c - dz*s, lz = dx*s + dz*c;
   if(p.leaf) return p.y + leafH(p.leaf, lx, lz);
+  if(p.prof){ const r = Math.hypot(lx, lz)/p.cs, P = p.prof; let k = 0; while(k < P.length - 2 && P[k + 1][0] < r) k++;   // a domed cap: its lathe profile
+    const [r0, y0] = P[k], [r1, y1] = P[k + 1], f = Math.max(0, Math.min(1, (r - r0)/(r1 - r0))); return p.by + (y0 + (y1 - y0)*f)*p.hy; }
   if(p.cup !== undefined){ const r = Math.hypot(lx, lz); return p.y + Math.max(r*p.cup, Math.sqrt(Math.max(0, p.ctr*p.ctr - r*r))); }
   if(p.kind === 'log'){ const R = logR(p, lx, Math.sqrt(Math.max(0, p.r*p.r - lx*lx)), lz); return p.cy + Math.sqrt(Math.max(0, R*R - lx*lx)); }
   return p.y;
@@ -1232,18 +1233,6 @@ function addRock({x, z, r, h}){
     return (r + (r*.85 - r)*ly/H)*Math.cos(Math.PI/n)/Math.cos(th - Math.PI/n);
   }});
 }
-// tree stumps: bark sides to climb, a cut top with growth rings to stand on
-function addStump({x, z, r, h}){
-  const gy = hAt(x, z), y0 = gy - .4, H = h + .4, amt = .04, rb = r*1.1, rt = r*.95;
-  const m = hot(new THREE.Mesh(barkify(new THREE.CylinderGeometry(rt, rb, H, 64, Math.ceil(H*4)).translate(0, H/2, 0), r, amt), barkStumpM), TEMP.wood);
-  m.position.set(x, y0, z); m.castShadow = m.receiveShadow = true; scene.add(m); OCCLUDERS.push(m);
-  const cap = hot(new THREE.Mesh(new THREE.CircleGeometry(rt*(1 - amt), 48).rotateX(-Math.PI/2), new THREE.MeshStandardMaterial({color:0x8a6a48, roughness:.9})), TEMP.wood);
-  cap.position.set(x, y0 + H + .002, z); cap.receiveShadow = true; scene.add(cap);
-  const rings = []; for(let k = 1; k < 7; k++){ const rr2 = rt*.9*k/7; for(let j = 0; j < 32; j++){ const a0 = j/32*6.283, a1 = (j + 1)/32*6.283; rings.push(new V3(Math.cos(a0)*rr2, .004, Math.sin(a0)*rr2), new V3(Math.cos(a1)*rr2, .004, Math.sin(a1)*rr2)); } }
-  cap.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(rings), new THREE.LineBasicMaterial({color:0x5a4028})));   // rings lie flat on the cut face
-  const top = {id:'S' + PLAT.length, kind:'stump', x, y: y0 + H, z, rx: rt*.85, rz: rt*.85, rot: 0}; PLAT.push(top);
-  top.climb = makeClimb({label:'bark', cx:x, cz:z, y0, y1: y0 + H, top, radius: (ux, uz, ly) => (rb + (rt - rb)*ly/H)*barkK(Math.atan2(uz, ux), ly, amt)});
-}
 const START = addLeaf(0, 2.0, 0, 'heart', 1.0, 1.4, .3);
 addLeaf(3.2, 2.5, -1.0, 'lance', .8, 1.4, 1.1);
 addLeaf(5.8, 3.2, .6, 'heart', 1.0, 1.4, -.4);
@@ -1260,7 +1249,6 @@ addLeaf(-3.4, 1.0, -3.6, 'round', .8, .9, .2);
 addLeaf(5.0, 1.0, 3.4, 'lance', .7, 1.2, 2.4);
 addLog(LOG);
 ROCKS.forEach(addRock);
-STUMPS.forEach(addStump);
 // a leaf above the armed spitting spider's leaf, to drop from
 addLeaf(5.45, (PLAT[2].y + 1.45) - hAt(5.45, 1.05), 1.05, 'round', .5, .6, .4);
 // Argiope's orb: vertical, with a frame-anchored leaf beside it and a leaf above it
