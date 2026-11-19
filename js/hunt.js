@@ -816,7 +816,7 @@ function updatePrey(dt, t){
 }
 
 
-const ropeGeo = new THREE.BufferGeometry().setFromPoints([new V3(), new V3()]);
+const ropeGeo = new THREE.BufferGeometry().setFromPoints([new V3(), new V3(), new V3()]);   // knot, where it bends over a rim (or the knot again), her
 const rope = hot(new THREE.Line(ropeGeo, new THREE.LineBasicMaterial({color:0xfff4dc})), .62); rope.frustumCulled = false; rope.visible = false; scene.add(rope);
 // where the dragline is tied: a bright silk knot with a halo, so you always know whether and where you're attached
 const tieMark = hot(new THREE.Group(), .95); tieMark.visible = false; scene.add(tieMark);

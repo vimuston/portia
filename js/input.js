@@ -115,6 +115,7 @@ function padActions(dt){
   if(pressed('up')) cam.dist = Math.max(.12, cam.dist*.85);
   if(pressed('down')) cam.dist = Math.min(7, cam.dist*1.15);
   if(pressed('back')) toggleGuide();
+  if(pressed('y')) tutToggle();   // the field notes (tutorial.js)
   if(pressed('start')) $('#hud').classList.toggle('hidehud');
   const flick = Math.hypot(pad.lx, pad.ly) > .7 && Math.hypot(padPrev.lx || 0, padPrev.ly || 0) <= .7;
   if(sp.stuck > 0 && (pressed('a') || pressed('x') || pressed('b') || flick)) sp.stuck = Math.max(.01, sp.stuck - .3);   // struggle

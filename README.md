@@ -36,7 +36,12 @@ The in-game legend shows whichever scheme you used last.
 | H | Start | Hide the HUD |
 | M | | Sound on/off |
 | G | Back | Show the intro again |
+| T | Y | Field notes: the tutorial on its own leaf; press again to leave it |
 | | D-pad | Zoom |
+
+## Field notes
+
+The first time you play, Portia wakes on a broad leaf high above the forest floor, and a narrated tutorial teaches one thing at a time: walking, the underside of a leaf, stalking, dashing, leaping, ballooning, the slow-motion leap, the dragline, catching a fly, and luring an orb-weaver out by plucking its web. Fall off and she is set back on her leaf. The last lesson drops her into the forest; T takes her back up any time.
 
 ## How to hunt
 

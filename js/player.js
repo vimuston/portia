@@ -191,14 +191,36 @@ function jump(){
 }
 // at the top of the line: haul up over the edge and hop a short way in, turning to face the middle of the
 // surface (camera follows), so holding W doesn't carry her straight back off the edge
-function climbOver(){
-  const p = sp.anchorPlat;
+// a line tied on a leaf's top and hanging below it doesn't pass through the blade: it lies across the leaf from the knot
+// and bends over the rim. That point on the rim is what she swings from and is hauled up to. It stays put while she
+// hangs below it (the silk grips the leaf), and lets go once she swings back up above the rim. null: the line runs free
+function ropePivot(){
+  const P = sp.anchorPlat;
+  if(!sp.line || !P || !P.leaf){ sp.pivot = null; return null; }
+  if(sp.pivot){ if(sp.pos.y <= sp.pivot.y + .02) return sp.pivot; sp.pivot = null; }
+  const a = sp.anchor, b = sp.pos;
+  if(inPlat(P, b.x, b.z)) return null;                                          // under the blade, not yet past a rim: no rim to name
+  let through = false;
+  for(let k = 1; k <= 16 && !through; k++){ const q = a.clone().lerp(b, k/16); through = inPlat(P, q.x, q.z) && q.y < surfAt(P, q.x, q.z) - .01; }
+  if(!through) return null;
+  const dir = new V3(b.x - a.x, 0, b.z - a.z); if(dir.lengthSq() < 1e-6) dir.copy(platOut(P, a.x, a.z));
+  if(dir.lengthSq() < 1e-8) return null; dir.normalize();
+  let lo = 0, hi = 2*platR(P);                                                     // out from the knot toward her, to the rim
+  for(let i = 0; i < 24; i++){ const m = (lo + hi)/2; if(inPlat(P, a.x + dir.x*m, a.z + dir.z*m)) lo = m; else hi = m; }
+  if(lo < .03) return null;                                                        // tied right at the rim: it hangs straight off it
+  const x = a.x + dir.x*lo, z = a.z + dir.z*lo;
+  return sp.pivot = new V3(x, surfAt(P, x, z), z);
+}
+// at: where the line comes over the leaf's rim (ropePivot), when it lies across the leaf; else the knot
+function climbOver(at = null){
+  const p = sp.anchorPlat, K = at || sp.anchor; sp.pivot = null;
   if(p.kind === 'climb' || p.ground){ sp.pos.copy(sp.anchor); land(p); toast('Back up the line.'); return; }
-  const inw = platOut(p, sp.anchor.x, sp.anchor.z).negate();                    // inward across the nearest rim
+  const inw = at ? new V3(sp.anchor.x - at.x, 0, sp.anchor.z - at.z) : new V3();   // over the rim: in along the line, toward the knot
+  if(inw.lengthSq() < 1e-6) inw.copy(platOut(p, K.x, K.z).negate());              // otherwise inward across the nearest rim
   if(inw.lengthSq() < 1e-8) inw.set(-Math.sin(sp.yaw), 0, -Math.cos(sp.yaw));
   inw.normalize();
-  let d = .26; for(let i = 0; i < 6 && !inPlat(p, sp.anchor.x + inw.x*d, sp.anchor.z + inw.z*d, .06); i++) d *= .7;
-  sp.pos.copy(sp.anchor); sp.pos.y = surfAt(p, sp.anchor.x, sp.anchor.z) + .01;
+  let d = .26; for(let i = 0; i < 6 && !inPlat(p, K.x + inw.x*d, K.z + inw.z*d, .06); i++) d *= .7;
+  sp.pos.copy(K); sp.pos.y = surfAt(p, K.x, K.z) + .01;
   sp.mode = 'air'; sp.plop = true; sp.braked = false; sp.committed = false; sp.charging = false;
   sp.vel.set(inw.x*d/.16, 3, inw.z*d/.16); sp.yaw = Math.atan2(inw.x, inw.z);
   cam.swing = sp.yaw; sp.holdIn = true;
@@ -342,7 +364,7 @@ function flyLook(f, d){
   m.scale.setScalar(1 - .15*d);
 }
 function flyAway(f, from){
-  const choices = HUNT.filter(p => p !== f.plat);
+  const choices = (f.homes || HUNT).filter(p => p !== f.plat);   // a fly with homes (the tutorial's) keeps to them
   const to = choices[Math.floor(rnd()*choices.length)];
   f.state = 'fly'; f.from = from ? from.clone() : f.pos.clone(); f.to = randomIn(to); f.toPlat = to; f.t = 0;
   f.dur = 1.3 + f.from.distanceTo(f.to)*.22;
@@ -598,13 +620,16 @@ function updateSpider(dt){
       sp.heat = Math.max(0, sp.heat - dt*.02);
     } else { sp.vel.y -= G*dt; sp.pos.addScaledVector(sp.vel, dt); sp.pos.y += .5*G*dt*dt; }   // exact parabola: the flight matches the solved arc at any frame rate
     if(sp.mode === 'hang' || sp.braked){
-      const r = sp.pos.clone().sub(sp.anchor), d = r.length();
-      if(d > sp.ropeL){
+      // she swings from where the line leaves the leaf; the part lying across the blade doesn't give
+      const piv = ropePivot(), O = piv || sp.anchor, lay = piv ? piv.distanceTo(sp.anchor) : 0;
+      if(piv) sp.ropeL = Math.max(sp.ropeL, lay + .15);
+      const L = sp.ropeL - lay, r = sp.pos.clone().sub(O), d = r.length();
+      if(d > L){
         r.divideScalar(d); const k = 1 - Math.exp(-14*dt);
-        sp.pos.copy(sp.anchor).addScaledVector(r, d + (sp.ropeL - d)*k);
+        sp.pos.copy(O).addScaledVector(r, d + (L - d)*k);
         const vr = sp.vel.dot(r); if(vr > 0) sp.vel.addScaledVector(r, -vr*(.6 + .4*k));
       }
-      if(sp.ropeL <= .2 && sp.pos.distanceTo(sp.anchor) < .3 && sp.anchorPlat){ climbOver(); return; }
+      if(L <= .2 && sp.pos.distanceTo(O) < .3 && sp.anchorPlat){ climbOver(piv); return; }
     }
     // a spider within reach mid-flight takes her before the silk it sits on does
     if(sp.mode === 'air' && !sp.plop){ const pr = preyAt(sp.pos, .26); if(pr && !(sp.tried || (sp.tried = new Set())).has(pr)){ sp.tried.add(pr); if(pounce(pr)) return; } }
@@ -653,6 +678,9 @@ function updateSpider(dt){
         if(!sp.gripHint){ sp.gripHint = true; toast('Bark within reach — push toward it to grab on.'); }
       }
     }
+    // the hop over the rim at the top of a line comes down on the leaf's real surface: out at the rim a blade curls and
+    // droops below its base level, which is all findLanding looks for, and she fell straight past it to the floor
+    { const A = sp.anchorPlat; if(sp.plop && sp.mode === 'air' && sp.vel.y < 0 && A && A.leaf && inPlat(A, sp.pos.x, sp.pos.z) && sp.pos.y <= surfAt(A, sp.pos.x, sp.pos.z)){ land(A); return; } }
     const L = findLanding(prev, sp.pos);
     if(L && !(sp.mode === 'air' && passOwn(L, sp.airT || 0))){ land(L); return; }
     }
@@ -817,7 +845,9 @@ function updateSpider(dt){
   if(sp.line){ tieMark.position.copy(sp.anchor); const k = 1 + .25*Math.sin(time*6); tieMark.scale.setScalar(k); tieMark.children[1].quaternion.copy(camera.quaternion); }
   if(rope.visible){
     m.updateMatrixWorld(true); const tail = P.spinner.getWorldPosition(new V3());
-    const pa = ropeGeo.attributes.position; pa.setXYZ(0, sp.anchor.x, sp.anchor.y, sp.anchor.z); pa.setXYZ(1, tail.x, tail.y, tail.z); pa.needsUpdate = true;
+    if(sp.mode !== 'hang' && !sp.braked) sp.pivot = null;
+    const pa = ropeGeo.attributes.position, mid = sp.pivot || sp.anchor;           // over the rim, the line is drawn bent there
+    pa.setXYZ(0, sp.anchor.x, sp.anchor.y, sp.anchor.z); pa.setXYZ(1, mid.x, mid.y, mid.z); pa.setXYZ(2, tail.x, tail.y, tail.z); pa.needsUpdate = true;
   }
   // aim steadiness: swinging the aim around shakes the estimate; it settles within a few tenths of a second
   { const tg = sp.aim ? sp.aim.target : sp.pos, mv = sp.aimLast ? tg.distanceTo(sp.aimLast)/Math.max(.3, tg.distanceTo(sp.pos)) : 0;
@@ -897,7 +927,8 @@ function updateFlies(dt, t){
     f.vib = 0; f.hear = 0; f.motion = 0;
     if(f.gone){
       f.respawn -= dt;
-      if(f.respawn <= 0){ f.gone = false; f.m.visible = true; const a = rnd()*6.28; f.plat = null; flyAway(f, new V3(Math.cos(a)*14, 6, Math.sin(a)*14)); f.pos.copy(f.from); }
+      if(f.respawn <= 0){ f.gone = false; f.m.visible = true; const a = rnd()*6.28, H = f.homes && f.homes[0]; f.plat = null;
+        flyAway(f, H ? new V3(H.x + Math.cos(a)*5, H.y + 2, H.z + Math.sin(a)*5) : new V3(Math.cos(a)*14, 6, Math.sin(a)*14)); f.pos.copy(f.from); }
       continue;
     }
     f.t += dt;
@@ -916,13 +947,13 @@ function updateFlies(dt, t){
       const d = f.pos.clone().sub(prev); if(d.lengthSq() > 1e-8) f.m.rotation.y = Math.atan2(d.x, d.z);
       w.forEach((p, i) => p.rotation.z = (i ? 1 : -1)*(.2 + Math.sin(t*90)*.7));
       f.motion = 1; f.hear = 1; tTarget = .95;                         // flight muscles run hot
-      if(k >= 1){ f.state = 'walk'; f.plat = f.toPlat; f.pos.y = f.plat.y; f.t = 0; f.dir = rnd()*6.28; }
+      if(k >= 1){ f.state = 'walk'; f.plat = f.toPlat; f.pos.y = f.homes ? surfY(f.plat, f.pos.x, f.pos.z) : f.plat.y; f.t = 0; f.dir = rnd()*6.28; }
     } else {
       w.forEach((p, i) => p.rotation.z = (i ? 1 : -1)*.05);
       if(f.state === 'walk'){
         f.dir += (rnd() - .5)*dt*6;
         const nx = f.pos.x + Math.sin(f.dir)*.3*dt, nz = f.pos.z + Math.cos(f.dir)*.3*dt;
-        if(inPlat(f.plat, nx, nz, .12)){ f.pos.x = nx; f.pos.z = nz; } else f.dir += 2.2;
+        if(inPlat(f.plat, nx, nz, .12)){ f.pos.x = nx; f.pos.z = nz; if(f.homes) f.pos.y = surfY(f.plat, nx, nz); } else f.dir += 2.2;
         f.m.rotation.y = f.dir;
         f.motion = .55; f.vib = Math.sin(t*26 + f.dir) > -.2 ? .9 : .35; tTarget = .72;
         if(f.t > 2.5 + rnd()*3){ f.state = 'groom'; f.t = 0; f.groom = ['front', 'head', 'hind', 'front'][Math.floor(rnd()*4)]; }
