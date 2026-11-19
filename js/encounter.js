@@ -14,6 +14,8 @@ const ENC = {tg: null, seen: new Map(), cardT: 0, cardDur: 0, won: false, key: '
 const ENC_IN = 2.0, ENC_OUT = 3.0, ENC_AGAIN = 45;
 // [the one thing to do now, whether it is urgent]
 function bossDo(p){
+  // she is dead: nothing left to do, and the one that killed her is busy with her (its state no longer means anything to her)
+  if(DOOM.t >= 0) return DOOM.killer === p ? [WRAPPERS.has(p.kind) ? 'It wraps you in silk, and feeds.' : 'It feeds on you.', false] : ['', false];
   if(PREDS.includes(p)) return p.sees ? ['It sees you! Freeze, or sneak away (C).', true]
     : ['It has lost sight of you. Keep still or sneak until it gives up.', false];
   if(p === male){
