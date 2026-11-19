@@ -83,7 +83,9 @@ function camFrame(dt){
     cam.nSm = camUp.clone();
     return;
   }
-  const onSurf = sp.mode === 'climb' && sp.plat && (pov ? !sp.plat.web : sp.plat.tree);
+  // locked onto a web's spider (webLock) the view's up is the sheet's normal on her face, POV or not: the view then
+  // stands behind her as she stands, so her left and right (which A/D step her along) are the screen's
+  const onSurf = sp.mode === 'climb' && sp.plat && (cam.lockOn ? true : pov ? !sp.plat.web : sp.plat.tree);
   let tu = onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
   tu.normalize();
   if(onSurf){
@@ -138,8 +140,8 @@ function smallOccluders(){
   return _smallOcc;
 }
 function updateCamera(dt){
-  camFrame(dt);
   const occ = cam.lockOn = webLock();
+  camFrame(dt);
   cam.lockW = (cam.lockW || 0) + ((occ ? 1 : 0) - (cam.lockW || 0))*(1 - Math.exp(-4*dt));
   if(cam.lockW < 1e-3) cam.lockW = 0;
   if(occ) cam.lockP = occ;                                                       // easing out, the view keeps tracking the spider it let go of
