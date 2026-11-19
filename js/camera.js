@@ -86,12 +86,15 @@ function camFrame(dt){
   // on an orb web the view's up is always the sheet's normal on her face, POV or not: the view stands behind her as
   // she stands, so her left and right are the screen's (locked onto its spider, A/D step her along them)
   const onSurf = sp.mode === 'climb' && sp.plat && (sp.plat.web || (pov ? true : sp.plat.tree));
-  // feeding on an orb, she still stands on its face (the meal's F.up): the view stays tilted to her through the meal
-  const webFeed = sp.mode === 'feed' && sp.feed && sp.feed.p.orb && !sp.feed.midair && sp.feed.up;
-  let tu = webFeed ? sp.feed.up.clone() : onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
+  // feeding on an orb's face, or braced on bark or stone (startFeed's F.bark), she stands on the meal's F.up: the view
+  // stays tilted to her through the meal, as it was while she climbed
+  const F = sp.mode === 'feed' && sp.feed && !sp.feed.midair && !sp.feed.fall ? sp.feed : null;
+  const webFeed = F && F.p.orb, barkFeed = F && F.bark && (pov || F.bark.tree) ? F.bark : null;
+  let tu = webFeed || barkFeed ? F.up.clone() : onSurf ? sp.plat.normal(sp.pos).clone() : UP.clone();
   tu.normalize();
-  if(onSurf){
-    const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), lo = pov && !sp.plat.tree ? .04 : .25, span = pov && !sp.plat.tree ? .25 : .55;
+  const tilted = onSurf ? sp.plat : barkFeed;
+  if(tilted){
+    const clr = sp.pos.y - floorAt(sp.pos.x, sp.pos.z), lo = pov && !tilted.tree ? .04 : .25, span = pov && !tilted.tree ? .25 : .55;
     const f = Math.max(0, Math.min(1, (clr - lo)/span)), k = f*f*(3 - 2*f);
     if(k < 1){ const ang = Math.acos(Math.max(-1, Math.min(1, tu.y)))*k, ax = new V3().crossVectors(UP, tu);
       if(ax.lengthSq() < 1e-8) ax.copy(camRight());

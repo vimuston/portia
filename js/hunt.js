@@ -362,14 +362,23 @@ function pounce(p){
 // line she came in on. gain: the hunger the drain fills
 function startFeed(p, up, plat, holdD, gain){
   const q0 = p.m.getWorldQuaternion(new THREE.Quaternion()), p0 = p.m.getWorldPosition(new V3());
+  // on bark or stone (climbing it, or a fly snatched from the air just off it): she feeds braced on that surface, its
+  // normal her up, and climbs on from there afterwards; the view stays tilted to her through the meal (camFrame)
+  let bark = null;
+  if(!p.orb){
+    if(sp.mode === 'climb' && sp.plat && !sp.plat.web) bark = sp.plat;
+    else if(p.fly && sp.mode !== 'ground') bark = climbsNear(sp.pos.x, sp.pos.z, .3).find(S => !S.web && !S.thin && S.inside(sp.pos, .08)) || null;
+    if(bark){ up = bark.normal(sp.pos).clone().normalize(); plat = null; }
+  }
   if(!up) up = UP.clone().applyQuaternion(q0);
   const flat = v => v.addScaledVector(up, -v.dot(up));
   let fw = flat(p0.clone().sub(sp.pos));
   if(fw.lengthSq() < 1e-6) fw = flat(new V3(0, 0, 1).applyQuaternion(q0));
   fw.normalize();
   const base = p0.clone().addScaledVector(fw, -holdD);
+  if(bark) bark.project(base);
   if(plat){ const [x, z] = clampTo(plat, base.x, base.z); base.set(x, surfY(plat, x, z), z); }
-  sp.feed = {p, t: 0, base, up, fw, q0, p0, venT: 0, gain}; p.held = true; p.limp = 0; p.hl = 1; p.drain = 0;
+  sp.feed = {p, t: 0, base, up, fw, q0, p0, venT: 0, gain, bark}; p.held = true; p.limp = 0; p.hl = 1; p.drain = 0;
   sp.mode = 'feed'; sp.vel.set(0, 0, 0); sp.charging = false; sp.braked = false; sp.committed = false; sp.plop = false; sp.aimPrey = null;
   return sp.feed;
 }
@@ -421,7 +430,8 @@ function endFeed(drained){
     const surf = p.airborne || !p.plat ? GROUND : p.plat, [x, z] = clampTo(surf, at.x, at.z), y = surfY(surf, x, z);
     leaveHusk(new V3(x, y, z), surf.ground ? TEMP.soil : TEMP.leaf, {fallH: Math.max(0, at.y - y - .09), drain: p.drain, yaw: Math.atan2(F.fw.x, F.fw.z) + rr(-.8, .8)});
     p.gone = true; p.m.visible = false; p.respawn = 7; p.state = 'walk'; p.drain = 0; flyLook(p, 0); p.m.rotation.set(0, 0, 0);
-    if(p.airborne){ sp.mode = 'air'; sp.pos.copy(F.base); sp.vel.set(0, 0, 0); sp.m.rotation.set(0, Math.atan2(F.fw.x, F.fw.z), 0); }
+    if(F.bark){ enterClimb(F.bark, F.base.clone(), F.fw.clone()); }
+    else if(p.airborne){ sp.mode = 'air'; sp.pos.copy(F.base); sp.vel.set(0, 0, 0); sp.m.rotation.set(0, Math.atan2(F.fw.x, F.fw.z), 0); }
     else { sp.mode = 'ground'; sp.plat = surf; sp.pos.copy(F.base); }
     sp.yaw = Math.atan2(F.fw.x, F.fw.z); p.airborne = false;
     toast(drained ? 'Drained. You let the shrivelled fly drop.' : 'You let the fly drop, half-drained.'); return;
@@ -438,6 +448,7 @@ function endFeed(drained){
   // back onto the face she fed from. F.base is already in world space (it rides the sway): taking the sway off again
   // set her a few cm off the plane, and enterClimb's setSide then flipped her to whichever way the orb was swinging
   if(p.orb && !F.midair){ const S = p.orb.S, face = Math.sign(F.up.dot(p.orb.n)) || 1; S.side = face; enterClimb(S, F.base.clone(), F.fw.clone()); S.side = face; }
+  else if(F.bark) enterClimb(F.bark, F.base.clone(), F.fw.clone());
   else { sp.mode = 'ground'; sp.plat = p.plat; sp.pos.copy(F.base); sp.yaw = Math.atan2(F.fw.x, F.fw.z); }
   toast(drained ? 'Drained. You let the shrivelled husk drop.' : 'You let it drop, half-drained.');
 }
