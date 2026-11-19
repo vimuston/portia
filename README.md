@@ -22,7 +22,7 @@ The in-game legend shows whichever scheme you used last.
 
 | Keyboard / mouse | Controller | Action |
 |---|---|---|
-| WASD | Left stick | Walk: up bark, over stone, under leaves |
+| WASD | Left stick | Walk: up bark, over stone, under leaves. A or D alone (stick held sideways) sidles: eyes kept front, she slips sideways in quick shoves |
 | Mouse | Right stick | Look (the mouse also aims) |
 | C | RT or click left stick | Toggle sneak |
 | Shift | LT | Toggle dash: snap, dart, freeze |

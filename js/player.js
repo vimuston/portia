@@ -348,6 +348,23 @@ function flyAway(f, from){
   f.dur = 1.3 + f.from.distanceTo(f.to)*.22;
 }
 
+// A or D on its own: she sidles. Jumping spiders keep their big front eyes on whatever they are watching and slip
+// sideways across their own facing, crab-like, rather than turning to walk off (from footage of a jumping spider sidling
+// along a tank wall in a short video: body square to the camera throughout, carried in quick ~5 cm shoves about 6-7 times a second,
+// each a frame or two of motion then a beat of stillness, the leading legs reaching out sideways as the trailing ones push)
+const SIDLE = {k: .6, hz: 6.5, on: .4, peak: 2.3, rest: .15};
+function sidleSide(going, ix, iz){
+  const s = going && Math.abs(ix) > .3 && Math.abs(iz) < .35*Math.abs(ix) ? Math.sign(ix) : 0;
+  if(!s) sp.sidleT = 0;
+  return s;
+}
+// pace through one sidle cycle: a quick sine-shaped shove, then a near-stop while the feet catch up
+function sidlePulse(dt){
+  sp.sidleT = (sp.sidleT || 0) + dt;
+  const u = (sp.sidleT*SIDLE.hz) % 1;
+  return u < SIDLE.on ? SIDLE.peak*Math.sin(Math.PI*u/SIDLE.on) : SIDLE.rest;
+}
+
 function updateSpider(dt){
   const fwd = camFwd(), right = camRight();      // in the camera's frame: on a trunk or under a leaf, W is 'up the screen'
   const ix = Math.max(-1, Math.min(1, (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + pad.lx));
@@ -387,20 +404,22 @@ function updateSpider(dt){
   if(sp.charging) updateAim();
   sp.speed = 0;
   if(sp.mode === 'ground'){
-    const dir = fwd.clone().multiplyScalar(iz).addScaledVector(right, ix);
-    if(cam.pov !== false && dir.lengthSq() > 1e-6){ dir.applyQuaternion(upToSurf(camUp, UP)); dir.y = 0; }   // POV: the view may still be rolling back level
+    const dir = fwd.clone().multiplyScalar(iz).addScaledVector(right, ix), ahead = fwd.clone();
+    if(cam.pov !== false && dir.lengthSq() > 1e-6){ const q = upToSurf(camUp, UP); dir.applyQuaternion(q); dir.y = 0; ahead.applyQuaternion(q); }   // POV: the view may still be rolling back level
+    ahead.y = 0; if(ahead.lengthSq() < 1e-6) ahead.set(Math.sin(sp.yaw), 0, Math.cos(sp.yaw)); ahead.normalize();
     if(sp.holdIn) dir.set(0, 0, 0);
     let spd = 0, lead = 0;
     let yawTo = sp.yaw;
     sp.turnWant = 0;
     const going = dir.lengthSq() > 1e-6 && !sp.charging, snapOK = going && sp.sprinting && !sp.noSnap;
     if(going) dir.normalize();
-    const err = going ? angDelta(sp.yaw, Math.atan2(dir.x, dir.z)) : 0, mid = sp.pc && sp.pc.ph === 'burst';
+    const side = sidleSide(going, ix, iz);              // A/D alone: she sidles, eyes kept on what lies ahead of the camera
+    const err = going ? angDelta(sp.yaw, side ? Math.atan2(ahead.x, ahead.z) : Math.atan2(dir.x, dir.z)) : 0, mid = sp.pc && sp.pc.ph === 'burst';
     const room = snapOK && !mid ? dartRoomGround(sp.pos, dir, PACE.maxD + .04) : 0;
     // no room to dart (right at a trunk or the leaf's edge, pushing on): she walks over instead
     const snappy = snapOK && (mid || (settled() && (Math.abs(err) > .45 || room - .03 >= PACE.minD)));
     const pc = paceTick(sp, dt, snappy, mag, err, room);
-    if(going){ spd = (stalk ? .05 : 1.1)*mag; const want = Math.atan2(dir.x, dir.z);
+    if(going){ spd = (side ? SIDLE.k : 1)*(stalk ? .05 : 1.1)*mag; const want = side ? Math.atan2(ahead.x, ahead.z) : Math.atan2(dir.x, dir.z);
       if(!snappy){
         sp.turnWant = Math.max(-1, Math.min(1, angDelta(sp.yaw, want)))*(stalk ? 3.5 : 9);           // rad/s she means to turn
         yawTo = lerpAngle(sp.yaw, want, 1 - Math.exp(-(stalk ? 5 : 10 + 8*mag)*dt));
@@ -412,8 +431,12 @@ function updateSpider(dt){
     if(spd > 0){
       const face = new V3(0, 0, 1).applyQuaternion(sp.m.quaternion); face.y = 0;
       if(face.lengthSq() < .04) face.set(Math.sin(sp.yaw), 0, Math.cos(sp.yaw));
-      face.normalize(); const al = face.dot(dir);
-      spd *= al > 0 ? al*al : 0; lead *= al > 0 ? al*al : 0; dir.copy(face);
+      face.normalize();
+      if(side){                                    // sideways across her own facing, once that facing has come round to the front
+        const al = face.dot(ahead), k = (al > 0 ? al*al : 0)*(snappy || stalk ? 1 : sidlePulse(dt));
+        const lat = new V3(face.z, 0, -face.x); dir.copy(lat.multiplyScalar(Math.sign(dir.dot(lat)) || 1));
+        spd *= k; lead *= k;
+      } else { const al = face.dot(dir); spd *= al > 0 ? al*al : 0; lead *= al > 0 ? al*al : 0; dir.copy(face); }
     }
     // the legs move her: feet reach ahead at the intended pace; the body follows only as fast as the
     // standing legs push it and only as far as they can stretch (Portia's halting gait falls out of this)
@@ -447,22 +470,24 @@ function updateSpider(dt){
     // POV camera: its frame lags her surface for a moment as she rounds an edge, so camera-forward can point into the
     // new face (which the 'push into it climbs' rule below would turn straight back the way she came). Carry the input
     // through the same rotation that takes the camera's up onto her surface: forward stays forward over the edge
-    if(cam.pov !== false && inp.lengthSq() > 1e-6) inp.applyQuaternion(upToSurf(camUp, n));
+    const fa = fwd.clone();
+    if(cam.pov !== false && inp.lengthSq() > 1e-6){ const q = upToSurf(camUp, n); inp.applyQuaternion(q); fa.applyQuaternion(q); }
+    // a camera-space direction laid onto the surface; pushing into it climbs
+    const onSurf = (v, out) => { const into = -v.dot(n); out.copy(v).addScaledVector(n, -v.dot(n)).addScaledVector(S.intoDir || UP, into); if(out.lengthSq() < 1e-4) out.copy(UP); return out.normalize(); };
     let spd = 0, herr = 0, lead = 0;
     const going = inp.lengthSq() > 1e-6 && !sp.charging, snapOK = going && sp.sprinting && !sp.noSnap;
+    const side = sidleSide(going, ix, iz), head = new V3();     // A/D alone: sidle across the bark, facing the way W would climb
     if(going){
-      inp.normalize(); const into = -inp.dot(n);
-      t.copy(inp).addScaledVector(n, -inp.dot(n)).addScaledVector(S.intoDir || UP, into);
-      if(t.lengthSq() < 1e-4) t.copy(UP); t.normalize();
-      spd = (stalk ? .04 : .75)*mag;
+      onSurf(inp.normalize(), t); head.copy(side ? onSurf(fa.normalize(), new V3()) : t);
+      spd = (side ? SIDLE.k : 1)*(stalk ? .04 : .75)*mag;
       const hd = sp.climbHead.clone().addScaledVector(n, -sp.climbHead.dot(n));          // heading error, signed about the surface normal
-      if(hd.lengthSq() > 1e-6){ hd.normalize(); herr = Math.atan2(n.dot(new V3().crossVectors(hd, t)), hd.dot(t)); }
+      if(hd.lengthSq() > 1e-6){ hd.normalize(); herr = Math.atan2(n.dot(new V3().crossVectors(hd, head)), hd.dot(head)); }
     }
     const mid = sp.pc && sp.pc.ph === 'burst', room = snapOK && !mid ? dartRoomClimb(S, sp.pos, t, PACE.maxClimb + .04) : 0;
     const snappy = snapOK && (mid || (settled() && (Math.abs(herr) > .45 || room - .03 >= PACE.minD)));   // at the rim or a join: climb over at a walk
     if(going && !snappy){
-      if(sp.climbHead.dot(t) < -.3){ const sd = new V3().crossVectors(n, sp.climbHead); if(sd.lengthSq() > 1e-6) sp.climbHead.addScaledVector(sd.normalize(), .35).normalize(); }   // reversing: pivot round, never blend through zero
-      sp.climbHead.lerp(t, 1 - Math.exp(-(stalk ? 2.5 : 6)*dt));
+      if(sp.climbHead.dot(head) < -.3){ const sd = new V3().crossVectors(n, sp.climbHead); if(sd.lengthSq() > 1e-6) sp.climbHead.addScaledVector(sd.normalize(), .35).normalize(); }   // reversing: pivot round, never blend through zero
+      sp.climbHead.lerp(head, 1 - Math.exp(-(stalk ? 2.5 : 6)*dt));
     }
     const pc = paceTick(sp, dt, snappy, mag, herr, room);
     sp.turnWant = snappy ? Math.max(-20, Math.min(20, pc.rate)) : 0;
@@ -478,7 +503,10 @@ function updateSpider(dt){
       const face = new V3(0, 0, 1).applyQuaternion(sp.m.quaternion), bu = sp.m.userData.parts.up;
       if(bu && bu.dot(n) > -.95) face.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(bu.clone().normalize(), n));
       face.addScaledVector(n, -face.dot(n));
-      if(face.lengthSq() > .04){ face.normalize(); const al = face.dot(t); spd *= al > 0 ? al*al : 0; lead *= al > 0 ? al*al : 0; t.copy(face); }
+      if(face.lengthSq() > .04){ face.normalize();
+        if(side){ const al = face.dot(head), k = (al > 0 ? al*al : 0)*(snappy || stalk ? 1 : sidlePulse(dt)), lat = new V3().crossVectors(n, face);
+          if(lat.lengthSq() > 1e-6){ lat.normalize().multiplyScalar(Math.sign(lat.dot(t)) || 1); spd *= k; lead *= k; t.copy(lat); } }
+        else { const al = face.dot(t); spd *= al > 0 ? al*al : 0; lead *= al > 0 ? al*al : 0; t.copy(face); } }
     }
     sp.moveVel.copy(t).multiplyScalar(snappy ? lead : spd);
     if(!snappy && !stalk) spd *= .25 + .75*gaitSupport(sp.m);
