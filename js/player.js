@@ -557,6 +557,10 @@ function updateSpider(dt){
       if(lockDir.lengthSq() < .02*.02) lockDir = null; else lockDir.normalize(); }
     const going = inp.lengthSq() > 1e-6 && !sp.charging;
     if(going) onSurf(inp.clone().normalize(), t);
+    // locked, the keys work in her own frame, not the camera's: W/S close in on it and back off along the line to it,
+    // A/D step to her left and right square across that line, however the view happens to lie on the sheet
+    if(going && lockDir){ t.copy(lockDir).multiplyScalar(iz).addScaledVector(new V3().crossVectors(lockDir, n), ix);
+      if(t.lengthSq() > 1e-6) t.normalize(); else t.copy(lockDir); }
     const snapOK = going && sp.sprinting && !sp.noSnap && (!lockDir || t.dot(lockDir) > .7);   // locked: a dart only straight at it
     const side = lockDir ? 0 : sidleSide(going, ix, iz), head = new V3();     // A/D alone: sidle across the bark, facing the way W would climb
     if(lockDir){ head.copy(lockDir);
