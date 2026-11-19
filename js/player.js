@@ -550,17 +550,28 @@ function updateSpider(dt){
     // a camera-space direction laid onto the surface; pushing into it climbs
     const onSurf = (v, out) => { const into = -v.dot(n); out.copy(v).addScaledVector(n, -v.dot(n)).addScaledVector(S.intoDir || UP, into); if(out.lengthSq() < 1e-4) out.copy(UP); return out.normalize(); };
     let spd = 0, herr = 0, lead = 0;
-    const going = inp.lengthSq() > 1e-6 && !sp.charging, snapOK = going && sp.sprinting && !sp.noSnap;
-    const side = sidleSide(going, ix, iz), head = new V3();     // A/D alone: sidle across the bark, facing the way W would climb
-    if(going){
-      onSurf(inp.normalize(), t); head.copy(side ? onSurf(fa.normalize(), new V3()) : t);
+    // locked onto an orb web's spider (camera.js webLock): she keeps facing it whichever way she walks, stepping
+    // sideways round it or backing away from it rather than turning her back
+    let lockDir = null;
+    if(cam.lockOn && cam.lockAt && S.web){ lockDir = cam.lockAt.clone().sub(sp.pos); lockDir.addScaledVector(n, -lockDir.dot(n));
+      if(lockDir.lengthSq() < .02*.02) lockDir = null; else lockDir.normalize(); }
+    const going = inp.lengthSq() > 1e-6 && !sp.charging;
+    if(going) onSurf(inp.clone().normalize(), t);
+    const snapOK = going && sp.sprinting && !sp.noSnap && (!lockDir || t.dot(lockDir) > .7);   // locked: a dart only straight at it
+    const side = lockDir ? 0 : sidleSide(going, ix, iz), head = new V3();     // A/D alone: sidle across the bark, facing the way W would climb
+    if(lockDir){ head.copy(lockDir);
+      const hd = sp.climbHead.clone().addScaledVector(n, -sp.climbHead.dot(n));
+      if(hd.lengthSq() > 1e-6){ hd.normalize(); herr = Math.atan2(n.dot(new V3().crossVectors(hd, head)), hd.dot(head)); }
+      if(going) spd = (stalk ? .04 : .75)*mag;
+    } else if(going){
+      head.copy(side ? onSurf(fa.normalize(), new V3()) : t);
       spd = (side ? SIDLE.k : 1)*(stalk ? .04 : .75)*mag;
       const hd = sp.climbHead.clone().addScaledVector(n, -sp.climbHead.dot(n));          // heading error, signed about the surface normal
       if(hd.lengthSq() > 1e-6){ hd.normalize(); herr = Math.atan2(n.dot(new V3().crossVectors(hd, head)), hd.dot(head)); }
     }
     const mid = sp.pc && sp.pc.ph === 'burst', room = snapOK && !mid ? dartRoomClimb(S, sp.pos, t, PACE.maxClimb + .04) : 0;
     const snappy = snapOK && (mid || (settled() && (Math.abs(herr) > .45 || room - .03 >= PACE.minD)));   // at the rim or a join: climb over at a walk
-    if(going && !snappy){
+    if((going || lockDir) && !snappy){
       if(sp.climbHead.dot(head) < -.3){ const sd = new V3().crossVectors(n, sp.climbHead); if(sd.lengthSq() > 1e-6) sp.climbHead.addScaledVector(sd.normalize(), .35).normalize(); }   // reversing: pivot round, never blend through zero
       sp.climbHead.lerp(head, 1 - Math.exp(-(stalk ? 2.5 : 6)*dt));
     }
@@ -579,7 +590,11 @@ function updateSpider(dt){
       if(bu && bu.dot(n) > -.95) face.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(bu.clone().normalize(), n));
       face.addScaledVector(n, -face.dot(n));
       if(face.lengthSq() > .04){ face.normalize();
-        if(side){ const al = face.dot(head), k = (al > 0 ? al*al : 0)*(snappy || stalk ? 1 : sidlePulse(dt)), lat = new V3().crossVectors(n, face);
+        if(lockDir && !snappy){                                         // locked: step whichever way you push, still facing it,
+          const al = face.dot(t), k = al > 0 ? SIDLE.k + (1 - SIDLE.k)*al : SIDLE.k*(1 + .4*al);   // slower sideways, slowest backing off
+          const p = stalk ? 1 : 1 + (sidlePulse(dt) - 1)*(1 - Math.abs(al));                      // sideways in a jumping spider's pulses
+          spd *= k*p; }
+        else if(side){ const al = face.dot(head), k = (al > 0 ? al*al : 0)*(snappy || stalk ? 1 : sidlePulse(dt)), lat = new V3().crossVectors(n, face);
           if(lat.lengthSq() > 1e-6){ lat.normalize().multiplyScalar(Math.sign(lat.dot(t)) || 1); spd *= k; lead *= k; t.copy(lat); } }
         else { const al = face.dot(t); spd *= al > 0 ? al*al : 0; lead *= al > 0 ? al*al : 0; t.copy(face); } }
     }
