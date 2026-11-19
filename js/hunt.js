@@ -362,12 +362,20 @@ function pounce(p){
 // line she came in on. gain: the hunger the drain fills
 function startFeed(p, up, plat, holdD, gain){
   const q0 = p.m.getWorldQuaternion(new THREE.Quaternion()), p0 = p.m.getWorldPosition(new V3());
-  // on bark or stone (climbing it, or a fly snatched from the air just off it): she feeds braced on that surface, its
-  // normal her up, and climbs on from there afterwards; the view stays tilted to her through the meal (camFrame)
+  // on bark, stone or under a leaf (climbing it, or a fly snatched from the air just off it, or just after leaping
+  // from it): she feeds braced on that surface, its normal her up, and climbs on from there afterwards; the view
+  // stays tilted to her through the meal (camFrame)
   let bark = null;
   if(!p.orb){
+    // a leaf's underside only from below the blade: its solid takes in the top face too
+    const below = S => !S.thin || !S.top || sp.pos.y < surfAt(S.top, sp.pos.x, sp.pos.z) - LEAF_TH*.5;
+    const near = S => { const q = sp.pos.clone(); S.project(q); return q.distanceTo(sp.pos) < .25; };
     if(sp.mode === 'climb' && sp.plat && !sp.plat.web) bark = sp.plat;
-    else if(p.fly && sp.mode !== 'ground') bark = climbsNear(sp.pos.x, sp.pos.z, .3).find(S => !S.web && !S.thin && S.inside(sp.pos, .08)) || null;
+    else if(p.fly && sp.mode !== 'ground'){
+      const L = sp.leftFrom;
+      bark = climbsNear(sp.pos.x, sp.pos.z, .3).find(S => !S.web && S.inside(sp.pos, .08) && below(S))
+        || (L && L.kind === 'climb' && !L.web && (sp.airT || 0) < .4 && below(L) && near(L) ? L : null);
+    }
     if(bark){ up = bark.normal(sp.pos).clone().normalize(); plat = null; }
   }
   if(!up) up = UP.clone().applyQuaternion(q0);
