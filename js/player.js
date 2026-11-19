@@ -446,10 +446,19 @@ function sidlePulse(dt){
 }
 
 // nearing the rim of the floor she may walk (AREA): told once, and told again only after she has gone back in a way
-const EDGE = {warned: false, near: 2.5, rearm: 6};
+// A leap that would carry her over the rim is stopped at it: her outward speed is taken away and she drops there,
+// told the same (each time, at most every few seconds)
+const EDGE = {warned: false, near: 2.5, rearm: 6, msg: 'These are not your hunting grounds. Turn back.', leapT: -1e9};
 function edgeWarn(){
-  const d = Math.hypot(sp.pos.x, sp.pos.z);
-  if(!EDGE.warned && d > AREA - EDGE.near){ EDGE.warned = true; toast('These are not your hunting grounds. Turn back.'); }
+  const d = Math.hypot(sp.pos.x, sp.pos.z), now = performance.now()/1000;
+  if(sp.mode === 'air' && d > AREA){
+    const nx = sp.pos.x/d, nz = sp.pos.z/d, vo = sp.vel.x*nx + sp.vel.z*nz;
+    if(vo > 0){ sp.vel.x -= nx*vo; sp.vel.z -= nz*vo; }
+    sp.pos.x = nx*AREA; sp.pos.z = nz*AREA; sp.leapHit = null;
+    if(now - EDGE.leapT > 3){ EDGE.leapT = now; EDGE.warned = true; toast(EDGE.msg); }
+    return;
+  }
+  if(!EDGE.warned && d > AREA - EDGE.near){ EDGE.warned = true; toast(EDGE.msg); }
   else if(EDGE.warned && d < AREA - EDGE.rearm) EDGE.warned = false;
 }
 function updateSpider(dt){
