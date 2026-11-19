@@ -331,4 +331,55 @@ function scytodesWeb(p){
   for(let i = 0; i < 34; i++){ const a = knots[Math.floor(rnd()*knots.length)], b = knots[Math.floor(rnd()*knots.length)]; if(a !== b) g.push(a, b); }
   for(let i = 0; i < 26; i++) g.push(W(rr(-1, 1)*p.rx*.8, rr(-1, 1)*p.rz*.8, .004), W(rr(-1, 1)*p.rx*.8, rr(-1, 1)*p.rz*.8, .004));
   scene.add(hot(new THREE.LineSegments(segsFrom(g), silkM(.38)), SILK_T));
+  scytodesDetail(p, W, knots);
+}
+// the finer silk of the tangle. It draws on its own random stream, seeded from the leaf, so the seeded world is unchanged
+function scytodesDetail(p, W, knots){
+  let sd = (Math.abs(Math.round(p.x*977 + p.z*613 + p.y*131)) % 2147483646) + 1;
+  const R = () => (sd = (sd*48271) % 2147483647)/2147483647, Rr = (a, b) => a + R()*(b - a), pick = A => A[Math.floor(R()*A.length)];
+  const inLeaf = (lx, lz, m = .92) => (lx*lx)/(p.rx*p.rx) + (lz*lz)/(p.rz*p.rz) < m*m;
+  const onLeaf = (m = .92) => { let lx, lz; do { lx = Rr(-1, 1)*p.rx; lz = Rr(-1, 1)*p.rz; } while(!inLeaf(lx, lz, m)); return [lx, lz]; };
+  const sag = (a, b, n, droop, out) => { let prev = a; for(let i = 1; i <= n; i++){ const f = i/n, q = a.clone().lerp(b, f); q.y -= droop*4*f*(1 - f); out.push(prev, q); prev = q; } };
+  const fine = [], mesh = [], carpet = [], guys = [], dew = [];
+  // a second tier of small knots, lower and denser, tied to the first and to each other with slack threads
+  const k2 = Array.from({length: 22}, () => { const [lx, lz] = onLeaf(.75); return W(lx, lz, Rr(.03, .16)); });
+  for(const k of k2){
+    for(let i = 0; i < 2; i++) sag(k, pick(knots), 4, Rr(.005, .02), fine);
+    for(let i = 0; i < 3; i++){ const [lx, lz] = onLeaf(); sag(k, W(lx, lz, .003), 3, Rr(0, .008), fine); }
+  }
+  for(let i = 0; i < 40; i++){ const a = pick(k2), b = pick(k2); if(a !== b && a.distanceTo(b) < .45) sag(a, b, 4, Rr(.004, .015), fine); }
+  // slack, sagging links between the high knots
+  for(let i = 0; i < 20; i++){ const a = pick(knots), b = pick(knots); if(a !== b) sag(a, b, 6, Rr(.01, .04), fine); }
+  // mesh: short criss-cross threads woven between neighbouring knots of both tiers, the tangle's fuzz
+  const all = knots.concat(k2);
+  for(const a of all){ const near = all.filter(b => b !== a && a.distanceTo(b) < .3);
+    for(let i = 0; i < Math.min(3, near.length); i++){ const b = pick(near), m = a.clone().lerp(b, Rr(.3, .7)).add(new V3(Rr(-.03, .03), Rr(-.03, .01), Rr(-.03, .03)));
+      mesh.push(a, m, m, b); if(R() < .5){ const c = pick(all); mesh.push(m, m.clone().lerp(c, Rr(.2, .5))); } } }
+  // the carpet: fine threads laid flat over the blade in short overlapping zigzags, thickest at the middle
+  for(let i = 0; i < 70; i++){
+    let [lx, lz] = onLeaf(.55), a = R()*6.283; let prev = W(lx, lz, .003);
+    for(let s = 0; s < 6; s++){ a += Rr(-1.2, 1.2); const nx = lx + Math.cos(a)*Rr(.03, .09), nz = lz + Math.sin(a)*Rr(.03, .09);
+      if(!inLeaf(nx, nz)) break; lx = nx; lz = nz; const q = W(lx, lz, .003); carpet.push(prev, q); prev = q; }
+  }
+  // guy lines: from the outer knots over the leaf's rim, and a few down off it toward the floor
+  const hi = knots.slice().sort((a, b) => b.y - a.y);
+  for(let i = 0; i < 12; i++){ const a = Rr(0, 6.283), rim = W(Math.cos(a)*p.rx*.98, Math.sin(a)*p.rz*.98, .002);
+    const k = hi.reduce((b, q) => q.distanceTo(rim) < b.distanceTo(rim) ? q : b); sag(k, rim, 4, Rr(.005, .02), guys); }
+  for(let i = 0; i < 4; i++){ const a = Rr(0, 6.283), rim = W(Math.cos(a)*p.rx, Math.sin(a)*p.rz, 0);
+    const out = rim.clone().add(new V3(Math.cos(a)*Rr(.1, .4), 0, Math.sin(a)*Rr(.1, .4))), d = Math.min(Rr(.5, 1.2), rim.y - hAt(out.x, out.z));
+    if(d > .05){ out.y = rim.y - d; guys.push(rim, out); } }
+  // dew and stray glue beads strung along the threads
+  for(const L of [fine, mesh]) for(let i = 0; i < L.length; i += 2) if(R() < .3) dew.push(L[i].clone().lerp(L[i + 1], R()));
+  const G = hot(new THREE.Group(), SILK_T);
+  G.add(new THREE.LineSegments(segsFrom(fine), silkM(.3, 0xeef0f8)), new THREE.LineSegments(segsFrom(mesh), silkM(.22, 0xe4e6f0)),
+    new THREE.LineSegments(segsFrom(carpet), silkM(.32, 0xf6f4ee)), new THREE.LineSegments(segsFrom(guys), silkM(.45)));
+  G.add(hot(new THREE.Points(segsFrom(dew), new THREE.PointsMaterial({color:0xf8fbff, size:.012, transparent:true, opacity:.7, depthWrite:false})), SILK_T));
+  // what the tangle holds: a dry husk or two hung in the threads, and a shed wing caught on the carpet
+  const husk = new THREE.MeshStandardMaterial({color:0x3a2a1a, roughness:.5}), wing = new THREE.MeshStandardMaterial({color:0xd8dce0, transparent:true, opacity:.45, side:THREE.DoubleSide, roughness:.3});
+  for(let i = 0; i < 2; i++){ const at = pick(k2).clone(); at.y -= .02;
+    const m = hot(new THREE.Mesh(new THREE.SphereGeometry(.014, 6, 5), husk), TEMP.dead); m.scale.set(1, .7, 1.7); m.rotation.y = R()*6; m.position.copy(at); G.add(m);
+    const hold = []; for(let j = 0; j < 4; j++) hold.push(at, at.clone().add(new V3(Rr(-.04, .04), Rr(.02, .05), Rr(-.04, .04)))); G.add(new THREE.LineSegments(segsFrom(hold), silkM(.5))); }
+  const [wx, wz] = onLeaf(.7), wm = new THREE.Mesh(new THREE.CircleGeometry(.025, 8).rotateX(-Math.PI/2), wing);
+  wm.scale.set(.5, 1, 1.4); wm.rotation.y = R()*6; wm.position.copy(W(wx, wz, .006)); G.add(wm);
+  scene.add(G); tagSilk(G);
 }
