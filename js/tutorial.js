@@ -146,6 +146,7 @@ function tutGo(i){
   TUT.i = Math.max(0, Math.min(TUT_STEPS.length - 1, i)); TUT.g = TUT_STEPS[TUT.i].goals.map(() => 0); TUT.doneT = -1;
   store.set(TUT_STORE + '.step', TUT.i);
   const st = TUT_STEPS[TUT.i]; if(st.start) st.start();
+  if(TUT.on) stat(`tut-${String(TUT.i + 1).padStart(2, '0')}-${st.name.toLowerCase().replace(/[^a-z]+/g, '-')}`, `Tutorial ${TUT.i + 1}: ${st.name}`);
   tutDraw(); tutBars();
 }
 
@@ -169,10 +170,10 @@ function tutStop(drop){
   TUT.on = false; store.set(TUT_STORE + '.done', '1');
   document.getElementById('tut').hidden = true;
   TUT.fly.gone = true; TUT.fly.respawn = Infinity; TUT.fly.m.visible = false;
-  if(drop){ doomReset(); toast('Somewhere below, on the forest floor, the hunt begins.'); orbHint(); }
+  if(drop){ stat('forest', 'Reached the forest floor'); doomReset(); toast('Somewhere below, on the forest floor, the hunt begins.'); orbHint(); }
 }
 function tutToggle(){
-  if(TUT.on) tutFade(() => tutStop(true));
+  if(TUT.on){ stat(`tut-left-at-${String(TUT.i + 1).padStart(2, '0')}`, `Left the tutorial (T) at lesson ${TUT.i + 1}`); tutFade(() => tutStop(true)); }
   else { const done = store.get(TUT_STORE + '.done', '') === '1', at = +store.get(TUT_STORE + '.step', 0) || 0;
     tutFade(() => { tutStart(done && at >= TUT_STEPS.length - 1 ? 0 : at); toast('Back on the broad leaf. T leaves the field notes.'); }); }
 }
@@ -247,7 +248,7 @@ function updateTutorial(dt){
   // (a vine or another plant brushing the leaf may be stepped onto; she is only sent back once it has taken her down)
   const lost = ((sp.mode === 'ground' || sp.mode === 'climb') && !TUT.surfs.has(sp.plat) && (sp.pos.y < TUT.top - 3 || away)) || ((sp.mode === 'air' || sp.mode === 'hang') && (low || away));
   if(!lost) return;
-  if(last){ TUT.g[0] = 1; tutFade(() => { tutStop(true); store.set(TUT_STORE + '.step', 0); }); return; }
+  if(last){ TUT.g[0] = 1; stat('tut-finished', 'Finished the tutorial'); tutFade(() => { tutStop(true); store.set(TUT_STORE + '.step', 0); }); return; }
   const drift = !!sp.balloon || st.name === 'Ballooning';
   tutFade(() => { tutPlace(); toast(drift ? 'The breeze carries her off. In time she finds her way back to the leaf.'
     : st.lost || 'A fall does little harm to something this small. She climbs back to her leaf.'); });
@@ -261,5 +262,6 @@ function tutFromHash(){
   const m = /^#t(\d+)$/i.exec(location.hash); if(!m) return false; tutStart(Math.min(TUT_STEPS.length, Math.max(1, +m[1])) - 1); return true; }
 addEventListener('hashchange', tutFromHash);
 if(tutFromHash()){}
-else if(store.get(TUT_STORE + '.done', '') !== '1') tutStart(Math.min(TUT_STEPS.length - 1, +store.get(TUT_STORE + '.step', 0) || 0));
+else if(store.get(TUT_STORE + '.done', '') === '1') stat('returning', 'Came back after finishing the tutorial');
+else tutStart(Math.min(TUT_STEPS.length - 1, +store.get(TUT_STORE + '.step', 0) || 0));
 addEventListener('keydown', e => { if(e.code === 'KeyT' && !e.repeat && !introOpen() && !(e.target.matches && e.target.matches('input, textarea'))) tutToggle(); });

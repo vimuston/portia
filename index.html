@@ -285,6 +285,7 @@ h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.12em;}
 </div>
 <div id="err" hidden></div>
 
+<script src="js/stats.js"></script>
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js"}}</script>
 <script type="module">
 // Game code lives in js/*.js as classic scripts sharing one global scope (load order matters: a file may only
@@ -338,7 +339,7 @@ await nextFrame(); await nextFrame();
 tookMs.frame = Math.round(performance.now() - stepT);
 try { localStorage.setItem('load.ms', JSON.stringify(tookMs)); } catch(e){}
 ldBar.style.transition = 'transform .15s'; ldBar.style.transform = 'scaleX(1)'; LD.setAttribute('aria-valuenow', 100);
-LD.classList.add('done'); setTimeout(() => LD.remove(), 600);
+LD.classList.add('done'); if(typeof STATS !== 'undefined') STATS.loaded(); setTimeout(() => LD.remove(), 600);
 if(typeof toggleGuide === 'function') toggleGuide(true);   // every page load opens the guide
 </script>
 </html>

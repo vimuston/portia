@@ -415,8 +415,9 @@ function doomStart(pr){
   DOOM.flat = UP.clone().applyQuaternion(DOOM.q).y > .8;
   DOOM.killer = null; DOOM.lag = 0; DOOM.eatT = 0;
   const A = sp.m.userData.parts.abd; DOOM.abdS = A ? A.scale.clone() : null;   // lying on something level enough to roll belly-up on
-  if(pr){ pr.hunting = false; pr.sees = false; }
+  if(pr){ pr.hunting = false; pr.sees = false; statDeath(pr.kind); }
 }
+function statDeath(by){ const w = typeof TUT !== 'undefined' && TUT.on ? 'tut-' : ''; stat(`${w}died`, w ? 'Died in the tutorial' : 'Died'); stat(`${w}died-${by}`, `Killed by ${by}${w ? ' (tutorial)' : ''}`); }
 
 function updMantis(pr, dt){
   const P = pr.m.userData.parts;
