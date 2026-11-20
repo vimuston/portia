@@ -64,6 +64,8 @@ function updateOrbs(){
   const flare = (o, on) => { if(on && !o.classList.contains('lit') && KILLS.n >= 0){ o.classList.add('new'); o.addEventListener('animationend', () => o.classList.remove('new'), {once: true}); } o.classList.toggle('lit', on); };
   E.querySelectorAll('i').forEach((o, k) => { const p = KILLS.order[k]; if(p) o.dataset.kind = p === male ? 'male' : p.kind; else delete o.dataset.kind; flare(o, !!p); });
   flare(E.querySelector('b'), mated);
+  if(KILLS.n >= 0){ for(const p of KILLS.order){ const k = p === male ? 'male' : p.kind; stat(`eaten-${k}`, `Ate a ${BOSS[k].name.toLowerCase()}`); }
+    if(n) stat(`eaten-count-${n}`, `Orbs lit: ${n} of ${prey.length + 1}`); if(mated) stat('mated', 'Mated'); }
   KILLS.n = n; KILLS.mated = mated;
   E.setAttribute('aria-label', `Spiders eaten: ${n} of ${prey.length + 1}${n ? ' (' + KILLS.order.map(p => BOSS[p === male ? 'male' : p.kind].name.toLowerCase()).join(', ') + ')' : ''}. ${mated ? 'Mated.' : 'Not yet mated.'}`);
 }

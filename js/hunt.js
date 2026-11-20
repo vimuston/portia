@@ -209,7 +209,7 @@ function hurt(amount, msg){
 // a fatal bite: the same fade as the mantis kill (predators.js), with Portia dying where she was bitten. The
 // spider whose update dealt the bite (KILLER_NOW) stays to feed on her
 let KILLER_NOW = null;
-function die(by = KILLER_NOW){ doomStart(null); wrapClear();
+function die(by = KILLER_NOW){ doomStart(null); wrapClear(); statDeath(by ? by.kind : 'bite');
   if(by && !by.dead){ DOOM.killer = by; DOOM.lag = 1.6; DOOM.eatT = 0;
     if(WRAPPERS.has(by.kind)){ DOOM.lag = WRAP_T; wrapStart(); } } }   // the fade comes as the wrapping ends: she goes out a white bundle
 const WRAPPERS = new Set(['argiope', 'badumna']);   // web spiders that swathe what they kill before feeding
